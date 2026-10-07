@@ -1,6 +1,8 @@
 import type { Ring, Vec2 } from '@/core/model/types';
 import type { createEditorStore, ToolId } from '../store';
+import { rectRoomTool } from './rectRoomTool';
 import { selectTool } from './selectTool';
+import { wallTool } from './wallTool';
 
 /**
  * What a tool gets from the plan canvas (PlanCanvas builds it once). Tools never touch the DOM:
@@ -40,6 +42,11 @@ export interface Tool {
    * already closed and the value parsed (cm, or degrees for the angle kind).
    */
   onNumericSubmit?(valueCm: number, c: ToolContext): void;
+  /**
+   * Tab in the shared numeric field: the typed value (null when the field is empty). When a tool
+   * defines it, Tab stays in the field (the tool usually reopens it for its next value).
+   */
+  onNumericTab?(valueCm: number | null, c: ToolContext): void;
   /** The shared numeric field was dismissed (Escape or blur) without applying anything. */
   onNumericCancel?(c: ToolContext): void;
   /** Called when another tool becomes active (and on teardown): drop any internal state. */
@@ -60,4 +67,6 @@ export function isOutlineGhost(g: unknown): g is OutlineGhost {
 /** Tool implementations by id; filled by later tasks (wall, rect, door/window, dimension, calibrate). */
 export const TOOLS: Partial<Record<ToolId, Tool>> = {
   select: selectTool,
+  wall: wallTool,
+  rect: rectRoomTool,
 };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
-import { applyNumericInput, cancelNumericInput, placeNumericField } from '@/editor/numericOverlay';
+import { applyNumericInput, cancelNumericInput, placeNumericField, tabNumericInput } from '@/editor/numericOverlay';
 import { useEditor } from '@/editor/store';
 import type { ToolContext } from '@/editor/tools/types';
 
@@ -79,6 +79,13 @@ export function NumericOverlayInput(p: {
               if (!ok) setInvalid(true);
               return ok;
             });
+          } else if (e.key === 'Tab') {
+            // only for tools with several values (onNumericTab); otherwise Tab leaves the field
+            const r = tabNumericInput(useEditor, p.ctx, e.currentTarget.value);
+            if (r !== 'unhandled') {
+              e.preventDefault();
+              setInvalid(r === 'invalid');
+            }
           } else if (e.key === 'Escape') {
             e.preventDefault();
             leave(() => cancelNumericInput(useEditor, p.ctx));
