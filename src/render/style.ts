@@ -52,6 +52,19 @@ export const STYLE = {
   selection: '#1e6fd9',
   selectionWidth: 2,
   selectionNodeRadius: 5,
+
+  // interaction overlay (screen only)
+  handleRadius: 5, // rotation handle
+  handleWidth: 1.5,
+  marqueeFillOpacity: 0.08,
+  guide: '#c2189b',
+  guideWidth: 1,
+  guideDash: [5, 4],
+  dynamicDim: '#0b7a8a',
+  activeDynamicDim: '#e8590c',
+  invalid: '#e03131',
+  invalidFillOpacity: 0.18,
+  ghostPointRadius: 4,
 } as const;
 
 /** svg2pdf maps Helvetica to the PDF core font; browsers fall back to Arial / sans-serif. */

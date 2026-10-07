@@ -4,18 +4,26 @@ import { emptyHistory, pushEntry, redo as redoHistory, undo as undoHistory, type
 import { deriveLevel } from '@/core/geometry/derived';
 import type { DimLine } from '@/core/geometry/autoDimensions';
 import type { Guide } from '@/core/geometry/snap';
-import type { Id, Level, PlacedObject, Project, Vec2 } from '@/core/model/types';
+import type { Id, Level, PlacedObject, Project, RoomLabel, Vec2 } from '@/core/model/types';
 import { pruneSelection, type SelectionItem } from './selection';
 import { DEFAULT_VIEW, isValidView, type View } from './view';
 
 export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate';
 
+/** Room name being edited in place (double-click in a room, select tool). */
+export interface RoomRename { levelId: Id; label: RoomLabel | null; labelPoint: Vec2; placeholder: string }
+
+/**
+ * Transient interaction state drawn by OverlayLayer (world cm unless stated): snap guides, dynamic
+ * dimensions, selection rectangle, tool ghost, plus the in-place inputs (numeric value, room name).
+ */
 export interface Overlay {
   guides: Guide[]; previewInvalid: boolean;
   dynamicDims: DimLine[]; activeDimIndex: number | null;
   numericInput: { value: string; screen: Vec2 } | null;
   marquee: { a: Vec2; b: Vec2 } | null;
-  ghost: unknown; // tool-specific preview payload, typed by each tool
+  ghost: unknown; // tool-specific preview payload, typed by each tool (see OutlineGhost in tools/types)
+  rename: RoomRename | null;
 }
 
 export interface Gesture {
@@ -66,6 +74,7 @@ export interface EditorState {
   setView(v: View): void;
   setOverlay(p: Partial<Overlay>): void;
   setDisplay(p: Partial<EditorState['display']>): void;
+  setClipboard(objects: PlacedObject[]): void;
   showToast(message: string): void;
 }
 
@@ -74,7 +83,7 @@ export type EditorStore = ReturnType<typeof createEditorStore>;
 /** A fresh overlay on every call: never share a mutable object between resets. */
 export const createOverlay = (): Overlay => ({
   guides: [], previewInvalid: false, dynamicDims: [], activeDimIndex: null,
-  numericInput: null, marquee: null, ghost: null,
+  numericInput: null, marquee: null, ghost: null, rename: null,
 });
 
 export function activeLevel(s: EditorState): Level | undefined {
@@ -213,6 +222,7 @@ export function createEditorStore() {
       },
       setOverlay: (p) => set((s) => ({ overlay: { ...s.overlay, ...p } })),
       setDisplay: (p) => set((s) => ({ display: { ...s.display, ...p } })),
+      setClipboard: (clipboard) => set({ clipboard }),
       showToast: (message) => set({ toast: { message, id: ++toastId } }),
     };
   });
