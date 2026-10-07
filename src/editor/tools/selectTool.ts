@@ -2,7 +2,7 @@ import type { Recipe } from '@/core/commands/apply';
 import { setDimensionOffset } from '@/core/commands/dimensions';
 import { moveObjects, setObjectTransform, updateObject } from '@/core/commands/objects';
 import { moveOpening } from '@/core/commands/openings';
-import { mergeNode, moveNodes, moveWalls } from '@/core/commands/walls';
+import { joinNodeToWall, mergeNode, moveNodes, moveWalls } from '@/core/commands/walls';
 import { manualDimLine, OPENING_GAP, type DimLine } from '@/core/geometry/autoDimensions';
 import { objectClearances, openingClearances } from '@/core/geometry/clearances';
 import { deriveLevel } from '@/core/geometry/derived';
@@ -12,6 +12,7 @@ import { snapObjectToWalls, snapPoint } from '@/core/geometry/snap';
 import { add, dist, dot, len, normalize, perp, rad2deg, sub } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
 import { SNAP_PX } from '@/core/model/defaults';
+import { newId } from '@/core/model/ids';
 import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { handleTarget, hitHandle, objectLocalToWorld, worldToObjectLocal } from '../handles';
 import type { SelectionItem } from '../selection';
@@ -128,7 +129,8 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  *   delta snaps to the grid, a single object is pulled against wall faces (snapObjectToWalls) and
  *   shows its clearances; Alt disables snapping;
  * - a wall node follows snapPoint (excluding itself, Shift = orthogonal from its start) and is
- *   merged into the node it is dropped on (mergeNode);
+ *   merged into the node it is dropped on (mergeNode), or joined to the wall axis it is dropped on
+ *   (joinNodeToWall, R30);
  * - an opening slides along the closest hovered wall, else its own wall (moveOpening), with its
  *   clearances; a refused position is drawn in red;
  * - a manual dimension changes its offset (setDimensionOffset);
@@ -141,6 +143,14 @@ export function createSelectTool(): Tool {
 
   const clearTransient = (store: EditorStore) =>
     store.getState().setOverlay({ marquee: null, guides: [], dynamicDims: [], activeDimIndex: null, ghost: null });
+
+  /** Escape and onCancel: abandons the press or drag in progress, the gesture with it; commits nothing. */
+  const cancelSession = (store: EditorStore) => {
+    const s = session;
+    session = null;
+    if (s?.phase === 'drag' && s.plan?.kind !== 'marquee') store.getState().cancelGesture();
+    clearTransient(store);
+  };
 
   /** Gesture base level of the session; null (and the session dropped) if the gesture is gone (undo, tool change). */
   const baseLevel = (s: Session, store: EditorStore): Level | null => {
@@ -211,8 +221,12 @@ export function createSelectTool(): Tool {
       from: e.shift ? { x: origin.x, y: origin.y } : undefined,
       excludeNodeIds: new Set([nodeId]),
     });
-    // dropped on another node: the preview already shows the merge, so the commit is the merge
+    // dropped on another node: the preview already shows the merge, so the commit is the merge;
+    // on another wall's axis: T junction (R30), ids created here so that the recipe is deterministic
     let ok = sn.kind === 'node' && sn.nodeId !== undefined && st.updateGesture(mergeNode(s.levelId, nodeId, sn.nodeId));
+    if (!ok && (sn.kind === 'wallAxis' || sn.kind === 'wallMid') && sn.wallId !== undefined && sn.t !== undefined) {
+      ok = st.updateGesture(joinNodeToWall(s.levelId, nodeId, sn.wallId, sn.t, { nodeId: newId(), wallId: newId() }));
+    }
     if (!ok) ok = st.updateGesture(moveNodes(s.levelId, [{ nodeId, to: sn.point }]));
     st.setOverlay({ guides: sn.guides, ghost: ok ? null : outline([], [sn.point]) });
   }
@@ -399,11 +413,12 @@ export function createSelectTool(): Tool {
 
     onKeyDown(e, c) {
       if (e.key !== 'Escape' || !session) return false;
-      const s = session;
-      session = null;
-      if (s.phase === 'drag' && s.plan?.kind !== 'marquee') c.store.getState().cancelGesture();
-      clearTransient(c.store);
+      cancelSession(c.store);
       return true;
+    },
+
+    onCancel(c) {
+      cancelSession(c.store);
     },
 
     onDeactivate(c) {

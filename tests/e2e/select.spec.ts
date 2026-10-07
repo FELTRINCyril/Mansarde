@@ -151,3 +151,63 @@ test('keyboard: tool keys, nudge, copy and paste, duplicate', async ({ page }) =
   await page.keyboard.press('v');
   await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('interrupted drags commit nothing; shortcuts work after a checkbox; rename kept on tool change', async ({ page }) => {
+  await createProject(page, 'Interruptions');
+  await addRoom(page);
+  await page.getByTestId('catalog-item-catalog-bed-90').click();
+  const [bed] = await objects(page);
+  const entries = () => page.evaluate(() => window.__planMaison!.store.getState().history.past.length);
+  const before = await entries();
+  const center = await onPage(page, { x: bed!.x, y: bed!.y });
+  const press = async () => {
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 4; i++) await page.mouse.move(center.x + i * 15, center.y);
+    const [moving] = await objects(page);
+    expect(moving!.x).toBeGreaterThan(bed!.x + 10);
+  };
+  const expectUnmoved = async () => {
+    const [o] = await objects(page);
+    expect(o!.x).toBeCloseTo(bed!.x, 6);
+    expect(await entries()).toBe(before);
+    expect(await page.evaluate(() => window.__planMaison!.store.getState().gesture)).toBeNull();
+  };
+
+  // pointercancel (touch / system interruption): the drag is abandoned; Chromium gives the mouse pointerId 1
+  await press();
+  await page.getByTestId('plan-canvas').dispatchEvent('pointercancel', { pointerId: 1, bubbles: true });
+  await expectUnmoved();
+  await page.mouse.move(center.x + 100, center.y);
+  await page.mouse.up();
+  await expectUnmoved();
+
+  // the window loses the focus during the drag
+  await press();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expectUnmoved();
+  await page.mouse.up();
+  await expectUnmoved();
+
+  // Cmd/Ctrl+Z during the drag cancels the drag only, the bed placement stays
+  await press();
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.mouse.up();
+  await expectUnmoved();
+  await expect(page.locator('[data-kind="object"]')).toHaveCount(1);
+
+  // a focused checkbox does not swallow the shortcuts
+  await page.getByRole('checkbox', { name: 'Grille' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Grille' })).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('[data-kind="object"]')).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Grille' }).click();
+
+  // a name typed in the room field is kept when a tool button is clicked
+  const p = await onPage(page, { x: 200, y: 60 });
+  await page.mouse.dblclick(p.x, p.y);
+  await page.keyboard.type('Bureau');
+  await page.getByTestId('tool-wall').click();
+  await expect(page.getByTestId('room-rename')).toHaveCount(0);
+  await expect(page.locator('[data-kind="room-label"]')).toContainText('Bureau');
+});

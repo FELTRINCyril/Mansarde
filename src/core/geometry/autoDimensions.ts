@@ -58,6 +58,22 @@ export function computeAutoDimensions(level: Level, d: DerivedLevel): DimLine[] 
   return out;
 }
 
+const autoCache = new WeakMap<DerivedLevel, DimLine[]>();
+
+/**
+ * computeAutoDimensions memoized on the derived level: deriveLevel returns the very same object
+ * while nodes, walls, openings and room labels are unchanged (e.g. while furniture is dragged), so
+ * the automatic dimensions are not recomputed on every pointer move. The array is shared: read only.
+ */
+export function autoDimensionsOf(level: Level, d: DerivedLevel): DimLine[] {
+  let dims = autoCache.get(d);
+  if (!dims) {
+    dims = computeAutoDimensions(level, d);
+    autoCache.set(d, dims);
+  }
+  return dims;
+}
+
 /** DimLine of a manual dimension; null when an anchor no longer resolves. */
 export function manualDimLine(level: Level, dim: ManualDimension): DimLine | null {
   const a = resolveAnchor(level, dim.a);
