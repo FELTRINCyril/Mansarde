@@ -589,6 +589,42 @@ select {
   z-index: 2;
 }
 
+/* shared numeric field near the cursor (size mirrors NUMERIC_FIELD_SIZE in numericOverlay.ts) */
+.numeric-overlay {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 150px;
+  height: 34px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  z-index: 3;
+}
+
+.numeric-overlay .input {
+  flex: 1;
+  height: 26px;
+}
+
+.numeric-overlay-label {
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.numeric-overlay-unit {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ===== Toolbar ===== */
 
 .toolbar {
