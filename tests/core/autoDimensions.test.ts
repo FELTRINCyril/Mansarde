@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeAutoDimensions, type DimLine } from '@/core/geometry/autoDimensions';
+import { autoDimensionsOf, computeAutoDimensions, type DimLine } from '@/core/geometry/autoDimensions';
 import { deriveLevel } from '@/core/geometry/derived';
 import { createOpening } from '@/core/model/factory';
 import type { Level, Vec2 } from '@/core/model/types';
@@ -77,5 +77,20 @@ describe('computeAutoDimensions', () => {
     expect(values(ds, 'facade')).toEqual([320, 320, 420, 420]);
     // its outer faces (110 x 110) are measured as room faces, from the room side
     expect(values(ds, 'room')).toEqual([90, 90, 90, 90, 110, 110, 110, 110, 280, 280, 380, 380]);
+  });
+});
+
+describe('autoDimensionsOf', () => {
+  it('is computed once per derived level: moving furniture reuses it, a wall change does not', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const first = autoDimensionsOf(level, deriveLevel(level));
+    expect(first).toEqual(computeAutoDimensions(level, deriveLevel(level)));
+    // a new Level object with the same walls (furniture edit): same derived, same array
+    const furnished: Level = { ...level, objects: { ...level.objects } };
+    expect(autoDimensionsOf(furnished, deriveLevel(furnished))).toBe(first);
+    // geometry changed: recomputed
+    const n = Object.values(level.nodes)[0]!;
+    const moved: Level = { ...level, nodes: { ...level.nodes, [n.id]: { ...n, x: n.x - 50 } } };
+    expect(autoDimensionsOf(moved, deriveLevel(moved))).not.toBe(first);
   });
 });

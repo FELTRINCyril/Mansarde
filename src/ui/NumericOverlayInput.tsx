@@ -21,8 +21,11 @@ export function NumericOverlayInput(p: {
   /** Gives the focus back to the plan once the field is closed. */
   restoreFocus(): void;
 }): JSX.Element | null {
-  const open = useEditor((s) => s.overlay.numericInput !== null);
-  if (!open) return null;
+  // subscribed to the field object itself (not a boolean): a close and reopen in the same batch
+  // still re-renders here and reads the new session, so the field remounts fresh. PlanCanvas does
+  // not re-render on overlay changes (the overlay has its own subscriber).
+  const ni = useEditor((s) => s.overlay.numericInput);
+  if (!ni) return null;
   const session = numericSession();
   return <NumericField key={session} session={session} {...p} />;
 }

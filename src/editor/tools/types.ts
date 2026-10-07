@@ -56,6 +56,13 @@ export interface Tool {
   onNumericTab?(valueCm: number | null, c: ToolContext): void;
   /** The shared numeric field was dismissed (Escape or blur) without applying anything. */
   onNumericCancel?(c: ToolContext): void;
+  /**
+   * The pointer interaction in progress was interrupted without a pointerup: pointercancel, pointer
+   * capture lost, window blur during a press (PlanCanvas), or Mod+Z / Escape during a gesture
+   * (keyboard.ts). Abandon it like Escape would: cancel the open gesture, drop the drag state,
+   * commit nothing. Must be safe to call when nothing is in progress.
+   */
+  onCancel?(c: ToolContext): void;
   /** Called when another tool becomes active (and on teardown): drop any internal state. */
   onDeactivate?(c: ToolContext): void;
 }

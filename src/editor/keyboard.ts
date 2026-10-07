@@ -22,7 +22,15 @@ const ARROWS: Record<string, Vec2> = {
   arrowup: { x: 0, y: -1 },
   arrowdown: { x: 0, y: 1 },
 };
-const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+const TYPING_TAGS = new Set(['TEXTAREA', 'SELECT']);
+/** Inputs where nothing is typed: the plan shortcuts keep working when one of them has the focus. */
+const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image', 'hidden']);
+/** Inputs that use the arrow keys themselves. */
+const ARROW_INPUTS = new Set(['range', 'radio']);
+
+interface ElementLike { tagName?: unknown; type?: unknown; isContentEditable?: unknown }
+const inputType = (el: ElementLike): string => (typeof el.type === 'string' ? el.type.toLowerCase() : '');
+const isInput = (el: ElementLike): boolean => typeof el.tagName === 'string' && el.tagName.toUpperCase() === 'INPUT';
 
 /** macOS (and iOS): the shortcut modifier is Cmd, elsewhere Ctrl. */
 export function isMacPlatform(): boolean {
@@ -36,14 +44,36 @@ export const MOD_LABEL = isMacPlatform() ? 'Cmd' : 'Ctrl';
 const isMod = (e: KeyboardEvent): boolean => (isMacPlatform() ? e.metaKey : e.ctrlKey);
 
 /**
- * The single typing guard of the editor: true for input, textarea, select and contenteditable
- * elements. Duck-typed (tagName / isContentEditable) so that it works on any EventTarget.
+ * The single typing guard of the editor: true for text-like inputs (text, search, number, email,
+ * url, tel, password, no type...), textarea, select and contenteditable elements. A checkbox, radio,
+ * button, range, color or file input is not a typing target: shortcuts still act while it has the
+ * focus. Duck-typed (tagName / type / isContentEditable) so that it works on any EventTarget.
  */
 export function isTypingTarget(t: EventTarget | null): boolean {
   if (!t || typeof t !== 'object') return false;
-  const el = t as { tagName?: unknown; isContentEditable?: unknown };
+  const el = t as ElementLike;
   if (el.isContentEditable === true) return true;
+  if (isInput(el)) return !NON_TEXT_INPUTS.has(inputType(el));
   return typeof el.tagName === 'string' && TYPING_TAGS.has(el.tagName.toUpperCase());
+}
+
+/** A focused slider or radio button moves with the arrows: they are not plan nudges then. */
+function ownsArrows(t: EventTarget | null): boolean {
+  if (!t || typeof t !== 'object') return false;
+  const el = t as ElementLike;
+  return isInput(el) && ARROW_INPUTS.has(inputType(el));
+}
+
+/**
+ * Abandons the gesture in progress, if any: the tool's onCancel (drops its drag state), then the
+ * gesture itself if the tool left it open. Nothing else is undone. False when there was no gesture.
+ */
+export function cancelInteraction(store: EditorStore, ctx: ToolContext): boolean {
+  const s = store.getState();
+  if (!s.gesture) return false;
+  TOOLS[s.tool]?.onCancel?.(ctx);
+  if (store.getState().gesture) store.getState().cancelGesture();
+  return true;
 }
 
 /** True while a modal dialog is open ([aria-modal="true"] in the document; always false outside a browser). */
@@ -163,7 +193,8 @@ function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
  *    modal dialog is open (isIgnoredKey);
  * 2. the active tool's onKeyDown;
  * 3. global shortcuts: V M R P F C tools; Escape cancels the gesture or clears the selection;
- *    Delete / Backspace deletes the selection; Mod+Z undo, Mod+Shift+Z and Mod+Y redo; Mod+C copies
+ *    Delete / Backspace deletes the selection; Mod+Z undo, Mod+Shift+Z and Mod+Y redo (during a
+ *    gesture all three only cancel it); Mod+C copies
  *    the selected objects, Mod+V pastes them at +20 +20, Mod+D duplicates them; arrows nudge the
  *    selection by 1 cm (10 with Shift), one history entry per press; 0 fits the view.
  * Mod is Cmd on macOS, Ctrl elsewhere.
@@ -179,11 +210,11 @@ export function handleGlobalKey(e: KeyboardEvent, store: EditorStore, ctx: ToolC
     if (e.altKey) return false;
     switch (k) {
       case 'z':
-        if (e.shiftKey) s.redo();
-        else s.undo();
-        return true;
       case 'y':
-        s.redo();
+        // during a drag, undo / redo only abandon the gesture: the previous entry stays
+        if (cancelInteraction(store, ctx)) return true;
+        if (k === 'z' && !e.shiftKey) s.undo();
+        else s.redo();
         return true;
       case 'c':
         return copySelection(store);
@@ -203,7 +234,7 @@ export function handleGlobalKey(e: KeyboardEvent, store: EditorStore, ctx: ToolC
     return true;
   }
   const arrow = ARROWS[k];
-  if (arrow) {
+  if (arrow && !ownsArrows(e.target)) {
     const step = e.shiftKey ? NUDGE_SHIFT : NUDGE;
     const recipe = nudgeRecipe(store, { x: arrow.x * step, y: arrow.y * step });
     if (!recipe) return false;
@@ -212,8 +243,8 @@ export function handleGlobalKey(e: KeyboardEvent, store: EditorStore, ctx: ToolC
   }
   switch (k) {
     case 'escape':
-      if (s.gesture) s.cancelGesture();
-      else if (s.selection.length > 0) s.setSelection([]);
+      if (cancelInteraction(store, ctx)) return true;
+      if (s.selection.length > 0) s.setSelection([]);
       else return false;
       return true;
     case 'delete':

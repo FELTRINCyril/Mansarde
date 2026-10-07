@@ -6,6 +6,7 @@ import { addRectRoom, addWallChain } from '@/core/commands/walls';
 import { createObjectFromSize, createOpening } from '@/core/model/factory';
 import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { createEditorStore, type EditorStore } from '@/editor/store';
+import { objectHandles } from '@/editor/handles';
 import { createSelectTool } from '@/editor/tools/selectTool';
 import type { PointerInfo, Tool, ToolContext } from '@/editor/tools/types';
 import { emptyProject } from '../core/helpers';
@@ -316,6 +317,69 @@ describe('select tool: handles', () => {
     const c = objectOf(store, o.id);
     expect(c.x + c.depth / 2).toBeCloseTo(120);
     expect(c.y - c.width / 2).toBeCloseTo(75);
+  });
+});
+
+describe('select tool: fix round 1', () => {
+  it('onCancel (pointercancel, lost capture, blur) abandons the drag like Escape', () => {
+    const { store, ctx, tool } = setup();
+    const o = box(100, 100);
+    add(store, o);
+    const before = entries(store);
+    tool.onPointerDown!(at(100, 100), ctx);
+    tool.onPointerMove!(at(160, 100), ctx);
+    expect(objectOf(store, o.id).x).toBe(160);
+    tool.onCancel!(ctx);
+    expect(store.getState().gesture).toBeNull();
+    expect(objectOf(store, o.id).x).toBe(100);
+    tool.onPointerMove!(at(180, 100), ctx);
+    tool.onPointerUp!(at(180, 100), ctx);
+    expect(objectOf(store, o.id).x).toBe(100);
+    expect(entries(store)).toBe(before);
+    expect(store.getState().overlay.dynamicDims).toEqual([]);
+    tool.onCancel!(ctx); // nothing in progress: harmless
+  });
+
+  it('a node dropped on the axis of another wall splits it (T junction, R30)', () => {
+    const { store, ctx, tool } = setup();
+    room(store);
+    const L = level(store).id;
+    store.getState().execute('Spur', addWallChain(L, [{ kind: 'free', x: 150, y: 200 }, { kind: 'free', x: 150, y: 120 }], 10, 250));
+    const before = entries(store);
+    drag(tool, ctx, { x: 150, y: 120 }, [{ x: 150, y: 60 }, { x: 150, y: 3 }]);
+    const lv = level(store);
+    expect(Object.keys(lv.nodes)).toHaveLength(6);
+    expect(Object.keys(lv.walls)).toHaveLength(6);
+    const joint = Object.values(lv.nodes).find((n) => n.x === 150 && n.y === 0)!;
+    expect(joint).toBeDefined();
+    expect(Object.values(lv.walls).filter((w) => w.startNodeId === joint.id || w.endNodeId === joint.id)).toHaveLength(3);
+    expect(entries(store)).toBe(before + 1);
+    store.getState().undo();
+    expect(Object.keys(level(store).nodes)).toHaveLength(6);
+    expect(Object.values(level(store).nodes).some((n) => n.x === 150 && n.y === 120)).toBe(true);
+  });
+
+  it('a press inside the body next to a side handle moves the object; corners still resize', () => {
+    const { store, ctx, tool } = setup();
+    const o = box(100, 100, 50, 40);
+    add(store, o);
+    store.getState().setSelection([{ kind: 'object', id: o.id }]);
+    // 3 px left of the right side handle (125, 100), inside the body
+    drag(tool, ctx, { x: 122, y: 100 }, [{ x: 130, y: 100 }, { x: 142, y: 100 }]);
+    expect(objectOf(store, o.id)).toMatchObject({ x: 120, width: 50 });
+    // inside the body next to the corner (145, 120): resize
+    drag(tool, ctx, { x: 143, y: 118 }, [{ x: 150, y: 125 }, { x: 153, y: 128 }]);
+    expect(objectOf(store, o.id)).toMatchObject({ width: 60, depth: 50 });
+  });
+
+  it('side handles are hidden when their side is shorter than 20 screen px', () => {
+    const o = box(100, 100, 10, 40);
+    const sides = (px: number) => objectHandles(o, px).filter((h) => h.kind === 'resize' && (h.sx === 0 || h.sy === 0));
+    // width 10 cm at 1 px/cm: the top and bottom side handles go, left and right stay
+    expect(sides(1).map((h) => [h.sx, h.sy])).toEqual([[-1, 0], [1, 0]]);
+    expect(sides(0.4)).toHaveLength(0);
+    expect(sides(2)).toHaveLength(4);
+    expect(objectHandles(o, 1).filter((h) => h.kind === 'resize' && h.sx !== 0 && h.sy !== 0)).toHaveLength(4);
   });
 });
 

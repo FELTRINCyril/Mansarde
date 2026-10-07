@@ -5,6 +5,7 @@ import {
   addRectRoom,
   addWallChain,
   deleteWalls,
+  joinNodeToWall,
   mergeNode,
   moveNodes,
   moveWalls,
@@ -484,6 +485,48 @@ describe('mergeNode', () => {
     const a = nodeAt(lvl(p), 0, 0);
     expect(refuse(p, mergeNode(levelId(p), 'ghost', a))).toBe('Nœud introuvable');
     expect(refuse(p, mergeNode(levelId(p), a, a))).toBe('Impossible de fusionner un nœud avec lui-même');
+  });
+});
+
+describe('joinNodeToWall (R30)', () => {
+  it('splits the wall at t with the given ids and moves the node there (T junction)', () => {
+    let door = '';
+    // wall A along y = 0, wall B hanging from (150, 200) up to (150, 40)
+    const p = projectFrom([[0, 0, 400, 0], [150, 200, 150, 40]], (l) => {
+      door = addDoor(l, wallBetween(l, [0, 0], [400, 0]), 300);
+    });
+    const wall = wallBetween(lvl(p), [0, 0], [400, 0]);
+    const free = nodeAt(lvl(p), 150, 40);
+    const ids = { nodeId: 'split-node', wallId: 'split-wall' };
+    const level = lvl(run(p, joinNodeToWall(levelId(p), free, wall, 150 / 400, ids)));
+    // the dragged node was merged into the split node
+    expect(level.nodes[free]).toBeUndefined();
+    expect(level.nodes['split-node']).toEqual({ id: 'split-node', x: 150, y: 0 });
+    expect(level.walls[wall]).toMatchObject({ endNodeId: 'split-node' });
+    expect(level.walls['split-wall']).toMatchObject({ startNodeId: 'split-node', endNodeId: nodeAt(level, 400, 0) });
+    expect(incident(level, 'split-node')).toBe(3);
+    expect(wallBetween(level, [150, 200], [150, 0])).toBeDefined();
+    // the door beyond the split point follows the second piece
+    expect(level.openings[door]).toMatchObject({ wallId: 'split-wall', offset: 150 });
+    expect(Object.keys(level.nodes)).toHaveLength(4);
+  });
+
+  it('is deterministic: the same recipe gives the same project twice', () => {
+    const p = projectFrom([[0, 0, 400, 0], [150, 200, 150, 40]]);
+    const recipe = joinNodeToWall(levelId(p), nodeAt(lvl(p), 150, 40), wallBetween(lvl(p), [0, 0], [400, 0]), 0.375, { nodeId: 'n', wallId: 'w' });
+    const a = applyCommand(p, recipe);
+    const b = applyCommand(p, recipe);
+    expect(a.ok && b.ok).toBe(true);
+    if (a.ok && b.ok) expect(lvl(b.project)).toEqual(lvl(a.project));
+  });
+
+  it('refuses a wall attached to the node, a missing node and a split too close to an end', () => {
+    const p = projectFrom([[0, 0, 400, 0], [150, 200, 150, 40]]);
+    const wall = wallBetween(lvl(p), [0, 0], [400, 0]);
+    const ids = { nodeId: 'n', wallId: 'w' };
+    expect(refuse(p, joinNodeToWall(levelId(p), nodeAt(lvl(p), 400, 0), wall, 0.5, ids))).toBe('Position invalide');
+    expect(refuse(p, joinNodeToWall(levelId(p), 'ghost', wall, 0.5, ids))).toBe('Nœud introuvable');
+    expect(refuse(p, joinNodeToWall(levelId(p), nodeAt(lvl(p), 150, 40), wall, 0.001, ids))).toBe('Mur trop court');
   });
 });
 
