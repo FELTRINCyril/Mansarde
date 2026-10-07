@@ -25,6 +25,9 @@ const ERR_THICKNESS = 'Épaisseur invalide';
 const ERR_HEIGHT = 'Hauteur invalide';
 const ERR_LENGTH = 'Longueur invalide';
 const ERR_STRADDLE = 'Une ouverture est à cheval sur la jonction';
+const ERR_MIN_POINTS = 'Il faut au moins deux points';
+const ERR_ROOM_TOO_SMALL = 'Pièce trop petite';
+const ERR_SELF_MERGE = 'Impossible de fusionner un nœud avec lui-même';
 
 type DLevel = Draft<Level>;
 
@@ -181,9 +184,11 @@ function moveNodesIn(level: DLevel, moves: Array<{ nodeId: Id; to: Vec2 }>): voi
 // ---------------------------------------------------------------- commands
 
 /**
- * Draws a chain of walls through the points. onWall points split their wall (a later point on the
- * same original wall finds the right piece), free points reuse a node closer than 0.5 cm.
- * Segments duplicating an existing wall are skipped. out.wallIds receives the created chain walls.
+ * Draws a chain of walls through the points (spec 5, ruling R11). A free or onWall point reuses a
+ * node closer than 0.5 cm; otherwise, if it lies on the axis interior of a wall (pre-existing or
+ * drawn earlier in this chain), that wall is split there (T junction); otherwise a node is created.
+ * onWall positions are taken on the walls as they are before any split. Segments duplicating an
+ * existing wall are skipped. out.wallIds receives the created chain walls.
  */
 export function addWallChain(
   levelId: Id,
@@ -194,53 +199,41 @@ export function addWallChain(
 ): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
-    if (points.length < 2) throw new CommandError('Il faut au moins deux points');
+    if (points.length < 2) throw new CommandError(ERR_MIN_POINTS);
     requirePositive(thickness, ERR_THICKNESS);
     requirePositive(height, ERR_HEIGHT);
 
-    // positions of onWall points, taken on the walls as they are before any split
-    const onWallPos = new Map<WallPoint, Vec2>();
+    const positions = new Map<WallPoint, Vec2>();
     for (const p of points) {
-      if (p.kind !== 'onWall') continue;
-      requireWall(level, p.wallId);
-      if (!Number.isFinite(p.t) || p.t <= 0 || p.t >= 1) throw new CommandError(ERR_POSITION);
-      const f = wallFrame(level, p.wallId);
-      onWallPos.set(p, lerp(f.start, f.end, p.t));
+      if (p.kind === 'free') {
+        const pos = { x: p.x, y: p.y };
+        requireFinitePoint(pos);
+        positions.set(p, pos);
+      } else if (p.kind === 'onWall') {
+        requireWall(level, p.wallId);
+        if (!Number.isFinite(p.t) || p.t <= 0 || p.t >= 1) throw new CommandError(ERR_POSITION);
+        const f = wallFrame(level, p.wallId);
+        positions.set(p, lerp(f.start, f.end, p.t));
+      } else {
+        requireNode(level, p.nodeId);
+      }
     }
-    const pieces = new Map<Id, Id[]>(); // original wall id -> current pieces covering it
 
-    const resolveOnWall = (p: { wallId: Id }, pos: Vec2): Id => {
-      const list = pieces.get(p.wallId) ?? [p.wallId];
-      for (let i = 0; i < list.length; i++) {
-        const pieceId = list[i]!;
-        const piece = level.walls[pieceId]!;
-        const f = wallFrame(level, pieceId);
+    let splits = 0;
+    const nodeAtPosition = (pos: Vec2): Id => {
+      const near = nodeNear(level, pos);
+      if (near !== null) return near;
+      for (const w of Object.values(level.walls)) {
+        const f = wallFrame(level, w.id);
         const proj = projectOnSegment(pos, f.start, f.end);
+        // no node within 0.5 cm, so a point on the segment is strictly inside it
         if (proj.distance > ON_SEGMENT_EPS) continue;
-        if (dist(pos, f.start) < NODE_REUSE_DISTANCE) return piece.startNodeId;
-        if (dist(pos, f.end) < NODE_REUSE_DISTANCE) return piece.endNodeId;
-        const { nodeId, newWallId } = splitWallAt(level, pieceId, proj.t);
-        list.splice(i + 1, 0, newWallId);
-        pieces.set(p.wallId, list);
-        return nodeId;
+        splits++;
+        return splitWallAt(level, w.id, proj.t).nodeId;
       }
-      throw new Error(`split point not found on the pieces of wall ${p.wallId}`);
+      return createNode(level, pos);
     };
-
-    const resolve = (p: WallPoint): Id => {
-      switch (p.kind) {
-        case 'node':
-          requireNode(level, p.nodeId);
-          return p.nodeId;
-        case 'free': {
-          const pos = { x: p.x, y: p.y };
-          requireFinitePoint(pos);
-          return nodeNear(level, pos) ?? createNode(level, pos);
-        }
-        case 'onWall':
-          return resolveOnWall(p, onWallPos.get(p)!);
-      }
-    };
+    const resolve = (p: WallPoint): Id => (p.kind === 'node' ? p.nodeId : nodeAtPosition(positions.get(p)!));
 
     const created: Id[] = [];
     let prev = resolve(points[0]!);
@@ -252,8 +245,10 @@ export function addWallChain(
       if (wallBetween(level, prev, cur) === null) created.push(createWall(level, prev, cur, thickness, height));
       prev = cur;
     }
-    touch(draft);
     if (out) out.wallIds = created;
+    // a node is only ever created for a wall, so no wall and no split means nothing changed
+    if (created.length === 0 && splits === 0) return;
+    touch(draft);
   };
 }
 
@@ -266,7 +261,7 @@ export function addRectRoom(levelId: Id, a: Vec2, b: Vec2, thickness: number, he
     const x2 = Math.max(a.x, b.x);
     const y1 = Math.min(a.y, b.y);
     const y2 = Math.max(a.y, b.y);
-    if (!(x2 - x1 >= MIN_WALL_LENGTH) || !(y2 - y1 >= MIN_WALL_LENGTH)) throw new CommandError('Pièce trop petite');
+    if (!(x2 - x1 >= MIN_WALL_LENGTH) || !(y2 - y1 >= MIN_WALL_LENGTH)) throw new CommandError(ERR_ROOM_TOO_SMALL);
     const corners: WallPoint[] = [
       { kind: 'free', x: x1, y: y1 },
       { kind: 'free', x: x2, y: y1 },
@@ -327,7 +322,7 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
     const level = getLevel(draft, levelId);
     requireNode(level, sourceNodeId);
     requireNode(level, targetNodeId);
-    if (sourceNodeId === targetNodeId) throw new CommandError('Impossible de fusionner un nœud avec lui-même');
+    if (sourceNodeId === targetNodeId) throw new CommandError(ERR_SELF_MERGE);
 
     const rewired: Id[] = [];
     for (const w of Object.values(level.walls)) {
@@ -368,26 +363,29 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
   };
 }
 
-export function setWallThickness(levelId: Id, wallIds: Id[], thickness: number): Recipe {
+function setWallProperty(
+  levelId: Id,
+  wallIds: Id[],
+  key: 'thickness' | 'height',
+  value: number,
+  message: string,
+): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
-    requirePositive(thickness, ERR_THICKNESS);
+    requirePositive(value, message);
     const walls = wallIds.map((id) => requireWall(level, id));
     if (walls.length === 0) return;
-    for (const w of walls) w.thickness = thickness;
+    for (const w of walls) w[key] = value;
     touch(draft);
   };
 }
 
+export function setWallThickness(levelId: Id, wallIds: Id[], thickness: number): Recipe {
+  return setWallProperty(levelId, wallIds, 'thickness', thickness, ERR_THICKNESS);
+}
+
 export function setWallHeight(levelId: Id, wallIds: Id[], height: number): Recipe {
-  return (draft) => {
-    const level = getLevel(draft, levelId);
-    requirePositive(height, ERR_HEIGHT);
-    const walls = wallIds.map((id) => requireWall(level, id));
-    if (walls.length === 0) return;
-    for (const w of walls) w.height = height;
-    touch(draft);
-  };
+  return setWallProperty(levelId, wallIds, 'height', height, ERR_HEIGHT);
 }
 
 /** Moves the non-kept node along the current direction of the wall. */

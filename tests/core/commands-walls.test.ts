@@ -97,8 +97,13 @@ describe('addWallChain', () => {
     expect(Object.keys(level.walls)).toHaveLength(2);
     expect(Object.keys(level.nodes)).toHaveLength(3);
     expect(out.wallIds).toHaveLength(2);
-    expect(level.walls[out.wallIds[0]!]).toMatchObject({ thickness: 20, height: 250 });
-    expect(wallLength(level, out.wallIds[1]!)).toBeCloseTo(300, 9);
+    const [w0, w1] = out.wallIds.map((id) => level.walls[id]!);
+    expect(w0).toMatchObject({ thickness: 20, height: 250 });
+    expect(w1).toMatchObject({ thickness: 20, height: 250 });
+    expect(level.nodes[w0!.startNodeId]).toMatchObject({ x: 0, y: 0 });
+    expect(w0!.endNodeId).toBe(w1!.startNodeId);
+    expect(level.nodes[w0!.endNodeId]).toMatchObject({ x: 400, y: 0 });
+    expect(level.nodes[w1!.endNodeId]).toMatchObject({ x: 400, y: 300 });
   });
 
   it('closes a square on the first point without duplicating it: 4 walls, 4 nodes, 1 room', () => {
@@ -152,6 +157,51 @@ describe('addWallChain', () => {
     expect(computeRooms(level)).toHaveLength(1);
   });
 
+  it('splits a wall drawn earlier in the same chain when a free point lands on it (R11)', () => {
+    const p = emptyProject();
+    const pts = [free(0, 0), free(400, 0), free(400, 300), free(200, 300), free(200, 0)];
+    const out = { wallIds: [] as Id[] };
+    const level = lvl(run(p, addWallChain(levelId(p), pts, 20, 250, out)));
+    expect(Object.keys(level.walls)).toHaveLength(5);
+    expect(Object.keys(level.nodes)).toHaveLength(5);
+    const mid = nodeAt(level, 200, 0);
+    expect(incident(level, mid)).toBe(3);
+    // the first wall keeps its id as the start piece, the end piece is a new wall
+    const first = out.wallIds[0]!;
+    expect(wallBetween(level, [0, 0], [200, 0])).toBe(first);
+    expect(wallLength(level, wallBetween(level, [200, 0], [400, 0]))).toBeCloseTo(200, 9);
+    expect(computeRooms(level)).toHaveLength(1);
+  });
+
+  it('a free point on an existing wall axis splits it (R11)', () => {
+    const p = projectFrom([[0, 0, 400, 0]]);
+    const level = lvl(run(p, addWallChain(levelId(p), [free(150, 0), free(150, 200)], 20, 250)));
+    expect(Object.keys(level.walls)).toHaveLength(3);
+    expect(incident(level, nodeAt(level, 150, 0))).toBe(3);
+  });
+
+  it('a free point then an onWall point at the same place share one node (M1)', () => {
+    const p = projectFrom([[0, 0, 400, 0]]);
+    const w = Object.keys(lvl(p).walls)[0]!;
+    const pts: WallPoint[] = [free(100, 0), free(100, 200), free(300, 200), free(300, 100), { kind: 'onWall', wallId: w, t: 0.25 }];
+    const level = lvl(run(p, addWallChain(levelId(p), pts, 20, 250)));
+    expect(Object.values(level.nodes).filter((n) => Math.hypot(n.x - 100, n.y) < 1e-6)).toHaveLength(1);
+    expect(incident(level, nodeAt(level, 100, 0))).toBe(4);
+    expect(Object.keys(level.walls)).toHaveLength(6);
+  });
+
+  it('is a no-op without touch when every segment duplicates an existing wall (M2)', () => {
+    const p = projectFrom([[0, 0, 400, 0]]);
+    const pts: WallPoint[] = [{ kind: 'node', nodeId: nodeAt(lvl(p), 400, 0) }, free(0, 0)];
+    const out = { wallIds: ['stale'] };
+    const r = applyCommand(p, addWallChain(levelId(p), pts, 20, 250, out));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.patches).toEqual([]);
+    expect(r.project).toBe(p);
+    expect(out.wallIds).toEqual([]);
+  });
+
   it('reuses an existing node for a free point closer than 0.5 cm', () => {
     const p = projectFrom([[0, 0, 400, 0]]);
     const b = nodeAt(lvl(p), 400, 0);
@@ -183,8 +233,8 @@ describe('addWallChain', () => {
   it('refuses fewer than 2 points, unknown nodes and invalid sizes', () => {
     const p = emptyProject();
     const id = levelId(p);
-    expect(refuse(p, addWallChain(id, [free(0, 0)], 20, 250))).toBeTruthy();
-    expect(refuse(p, addWallChain(id, [], 20, 250))).toBeTruthy();
+    expect(refuse(p, addWallChain(id, [free(0, 0)], 20, 250))).toBe('Il faut au moins deux points');
+    expect(refuse(p, addWallChain(id, [], 20, 250))).toBe('Il faut au moins deux points');
     expect(refuse(p, addWallChain(id, [{ kind: 'node', nodeId: 'ghost' }, free(0, 100)], 20, 250))).toBe(
       'Nœud introuvable',
     );
@@ -212,10 +262,27 @@ describe('addRectRoom', () => {
     expect(computeRooms(level)[0]!.area).toBeCloseTo(380 * 280, 3);
   });
 
+  it('splits an existing wall at both corners lying on its axis, without a duplicate side (R11)', () => {
+    const p = projectFrom([[0, 0, 400, 0]]);
+    const original = Object.keys(lvl(p).walls)[0]!;
+    const level = lvl(run(p, addRectRoom(levelId(p), { x: 100, y: 0 }, { x: 200, y: 60 }, 20, 250)));
+    // 400 cm wall in 3 pieces + 3 new sides; the shared side is the existing middle piece
+    expect(Object.keys(level.walls)).toHaveLength(6);
+    expect(Object.keys(level.nodes)).toHaveLength(6);
+    expect(wallBetween(level, [0, 0], [100, 0])).toBe(original);
+    expect(wallLength(level, wallBetween(level, [100, 0], [200, 0]))).toBeCloseTo(100, 9);
+    expect(wallLength(level, wallBetween(level, [200, 0], [400, 0]))).toBeCloseTo(200, 9);
+    expect(incident(level, nodeAt(level, 100, 0))).toBe(3);
+    expect(incident(level, nodeAt(level, 200, 0))).toBe(3);
+    const rooms = computeRooms(level);
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]!.area).toBeCloseTo(80 * 40, 3);
+  });
+
   it('refuses a degenerate rectangle', () => {
     const p = emptyProject();
-    expect(refuse(p, addRectRoom(levelId(p), { x: 0, y: 0 }, { x: 400, y: 0.5 }, 20, 250))).toBeTruthy();
-    expect(refuse(p, addRectRoom(levelId(p), { x: 0, y: 0 }, { x: 0, y: 300 }, 20, 250))).toBeTruthy();
+    expect(refuse(p, addRectRoom(levelId(p), { x: 0, y: 0 }, { x: 400, y: 0.5 }, 20, 250))).toBe('Pièce trop petite');
+    expect(refuse(p, addRectRoom(levelId(p), { x: 0, y: 0 }, { x: 0, y: 300 }, 20, 250))).toBe('Pièce trop petite');
   });
 });
 
@@ -230,7 +297,10 @@ describe('splitWall', () => {
     const level = lvl(run(p, splitWall(levelId(p), w, 0.5, out)));
     expect(level.nodes[out.nodeId]).toMatchObject({ x: 150, y: 0 });
     expect(Object.keys(level.walls)).toHaveLength(2);
+    // the original wall keeps its id and becomes the start piece
+    expect(level.walls[w]).toMatchObject({ startNodeId: lvl(p).walls[w]!.startNodeId, endNodeId: out.nodeId });
     const second = wallBetween(level, [150, 0], [300, 0]);
+    expect(level.walls[second]).toMatchObject({ startNodeId: out.nodeId, endNodeId: lvl(p).walls[w]!.endNodeId });
     expect(level.openings[door]!.wallId).toBe(second);
     expect(level.openings[door]!.offset).toBeCloseTo(100, 9);
     for (const wall of Object.values(level.walls)) expect(wall).toMatchObject({ thickness: 20, height: 250 });
@@ -267,9 +337,9 @@ describe('splitWall', () => {
   it('refuses t outside ]0, 1[ and pieces shorter than the minimum', () => {
     const p = projectFrom([[0, 0, 300, 0]]);
     const w = Object.keys(lvl(p).walls)[0]!;
-    expect(refuse(p, splitWall(levelId(p), w, 0))).toBeTruthy();
-    expect(refuse(p, splitWall(levelId(p), w, 1))).toBeTruthy();
-    expect(refuse(p, splitWall(levelId(p), w, Number.NaN))).toBeTruthy();
+    expect(refuse(p, splitWall(levelId(p), w, 0))).toBe('Position invalide');
+    expect(refuse(p, splitWall(levelId(p), w, 1))).toBe('Position invalide');
+    expect(refuse(p, splitWall(levelId(p), w, Number.NaN))).toBe('Position invalide');
     expect(refuse(p, splitWall(levelId(p), w, 0.001))).toBe('Mur trop court');
     expect(refuse(p, splitWall(levelId(p), 'ghost', 0.5))).toBe('Mur introuvable');
   });
@@ -410,23 +480,44 @@ describe('mergeNode', () => {
     expect(Object.keys(level.nodes)).toHaveLength(0);
   });
 
-  it('deletes a wall that becomes a duplicate and rewires dimensions of the source', () => {
+  it('deletes a wall that becomes a duplicate, keeps the pre-existing one and rewires dimensions (R10)', () => {
     let dim = '';
+    let keptDoor = '';
+    let goneDoor = '';
     const p = projectFrom([[0, 0, 200, 300], [400, 0, 200, 300]], (l) => {
       dim = addDim(l, nodeAt(l, 400, 0), nodeAt(l, 200, 300));
+      keptDoor = addDoor(l, wallBetween(l, [0, 0], [200, 300]), 100);
+      goneDoor = addDoor(l, wallBetween(l, [400, 0], [200, 300]), 100);
     });
     const a = nodeAt(lvl(p), 0, 0);
+    const existing = wallBetween(lvl(p), [0, 0], [200, 300]);
     const level = lvl(run(p, mergeNode(levelId(p), nodeAt(lvl(p), 400, 0), a)));
-    expect(Object.keys(level.walls)).toHaveLength(1);
+    expect(Object.keys(level.walls)).toEqual([existing]);
+    expect(level.walls[existing]).toEqual(lvl(p).walls[existing]);
+    expect(level.openings[keptDoor]).toEqual(lvl(p).openings[keptDoor]);
+    expect(level.openings[goneDoor]).toBeUndefined();
     expect(Object.keys(level.nodes)).toHaveLength(2);
     expect(level.dimensions[dim]!.a).toEqual({ kind: 'node', nodeId: a });
+  });
+
+  it('deletes a dimension whose both anchors end on the target node (R10)', () => {
+    let dim = '';
+    let other = '';
+    const p = projectFrom([[0, 0, 400, 0], [400, 0, 400, 300], [400, 300, 0, 300], [0, 300, 0, 60]], (l) => {
+      dim = addDim(l, nodeAt(l, 0, 60), nodeAt(l, 0, 0));
+      other = addDim(l, nodeAt(l, 0, 60), nodeAt(l, 400, 300));
+    });
+    const a = nodeAt(lvl(p), 0, 0);
+    const level = lvl(run(p, mergeNode(levelId(p), nodeAt(lvl(p), 0, 60), a)));
+    expect(level.dimensions[dim]).toBeUndefined();
+    expect(level.dimensions[other]!.a).toEqual({ kind: 'node', nodeId: a });
   });
 
   it('refuses unknown or identical nodes', () => {
     const p = projectFrom([[0, 0, 400, 0]]);
     const a = nodeAt(lvl(p), 0, 0);
     expect(refuse(p, mergeNode(levelId(p), 'ghost', a))).toBe('Nœud introuvable');
-    expect(refuse(p, mergeNode(levelId(p), a, a))).toBeTruthy();
+    expect(refuse(p, mergeNode(levelId(p), a, a))).toBe('Impossible de fusionner un nœud avec lui-même');
   });
 });
 
