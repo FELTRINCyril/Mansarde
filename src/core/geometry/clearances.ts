@@ -2,7 +2,7 @@ import type { Level, Opening, PlacedObject, Vec2 } from '../model/types';
 import type { DerivedLevel } from './derived';
 import { openingFrame, openingInterval } from './openings';
 import { ringEdges } from './polygon';
-import { add, deg2rad, rotate, scale, segmentIntersection } from './vec';
+import { add, deg2rad, rotate, scale, segmentIntersection, sub } from './vec';
 import { wallFrame } from './walls';
 
 export interface Clearance {
@@ -22,6 +22,7 @@ export interface OpeningClearance {
 
 const MAX_CLEARANCE = 2000; // cm
 const EPS = 1e-6;
+const RAY_BACKOFF = 1e-6; // cm, far above coordinate rounding, far below anything visible
 
 const SIDES: { side: Clearance['side']; local: Vec2; half: (o: PlacedObject) => number }[] = [
   { side: 'back', local: { x: 0, y: -1 }, half: (o) => o.depth / 2 },
@@ -34,7 +35,8 @@ const SIDES: { side: Clearance['side']; local: Vec2; half: (o: PlacedObject) => 
  * Dynamic dimensions of an object (spec 6.5): for each side of its bounding rectangle, the
  * distance from the side midpoint, along the outward axis of the object frame, to the nearest
  * edge of the wall shape without openings (outer rings and holes; free-standing wall boxes are
- * polygons of that shape, so they count). Sides with nothing within 2000 cm are omitted.
+ * polygons of that shape, so they count). Sides with nothing within 2000 cm are omitted. A side
+ * touching a face (up to rounding) reports 0, never a negative distance.
  */
 export function objectClearances(o: PlacedObject, d: DerivedLevel): Clearance[] {
   const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
@@ -43,13 +45,19 @@ export function objectClearances(o: PlacedObject, d: DerivedLevel): Clearance[] 
   for (const { side, local, half } of SIDES) {
     const dir = rotate(local, rad);
     const from = add({ x: o.x, y: o.y }, scale(dir, half(o)));
-    const far = add(from, scale(dir, MAX_CLEARANCE));
+    // The ray starts slightly behind the side: an object flush against a face (side midpoint on
+    // the face up to rounding) must hit that face at distance 0, not cross the wall.
+    const start = sub(from, scale(dir, RAY_BACKOFF));
+    const rayLength = MAX_CLEARANCE + RAY_BACKOFF;
+    const far = add(start, scale(dir, rayLength));
     let best = Infinity;
     for (const [a, b] of edges) {
-      const hit = segmentIntersection(from, far, a, b);
-      if (hit) best = Math.min(best, hit.t * MAX_CLEARANCE);
+      const hit = segmentIntersection(start, far, a, b);
+      if (hit) best = Math.min(best, hit.t * rayLength - RAY_BACKOFF);
     }
-    if (best <= MAX_CLEARANCE) out.push({ side, from, to: add(from, scale(dir, best)), distance: best, dir });
+    if (best > MAX_CLEARANCE) continue;
+    const distance = Math.max(0, best); // also turns -0 into 0
+    out.push({ side, from, to: add(from, scale(dir, distance)), distance, dir });
   }
   return out;
 }

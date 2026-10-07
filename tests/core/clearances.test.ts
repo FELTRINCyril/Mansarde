@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { objectClearances, openingClearances, placeAtClearance } from '@/core/geometry/clearances';
 import { deriveLevel } from '@/core/geometry/derived';
+import { snapObjectToWalls } from '@/core/geometry/snap';
+import { deg2rad, rotate } from '@/core/geometry/vec';
 import { createObjectFromSize, createOpening } from '@/core/model/factory';
-import type { PlacedObject } from '@/core/model/types';
+import type { PlacedObject, Vec2 } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from './fixtures';
 
 const box = (x: number, y: number, overrides: Partial<PlacedObject> = {}) =>
@@ -47,12 +49,49 @@ describe('objectClearances', () => {
   });
 });
 
+describe('objects flush against an oblique wall', () => {
+  // the 400 x 300 room turned by 30 deg around the origin; local (x, y) -> world
+  const turn = (p: Vec2): Vec2 => rotate(p, deg2rad(30));
+  const corners = [turn({ x: 0, y: 0 }), turn({ x: 400, y: 0 }), turn({ x: 400, y: 300 }), turn({ x: 0, y: 300 })];
+  const level = levelFromWalls(corners.map((a, i) => {
+    const b = corners[(i + 1) % 4]!;
+    return [a.x, a.y, b.x, b.y] as [number, number, number, number];
+  }));
+  const d = deriveLevel(level);
+  // bed centers in local coordinates, back edge 5 cm from each inner face (faces at 10 and 390 / 290)
+  const near: Record<string, Vec2> = {
+    top: { x: 200, y: 110 },
+    bottom: { x: 200, y: 190 },
+    left: { x: 110, y: 150 },
+    right: { x: 290, y: 150 },
+  };
+
+  it.each(Object.entries(near))('%s wall: back clearance is 0 and placeAtClearance keeps it flush', (_, local) => {
+    const c = turn(local);
+    const raw = createObjectFromSize({ kind: 'catalog', catalogId: 'bed' }, c.x, c.y, { width: 140, depth: 190, height: 50 }, 'Lit', '#999');
+    const s = snapObjectToWalls(raw, level, 1);
+    expect(s.wallId).not.toBeNull();
+    const bed = { ...raw, x: s.x, y: s.y, rotation: s.rotation };
+    const back = objectClearances(bed, d).find((x) => x.side === 'back')!;
+    expect(back.distance).toBeCloseTo(0, 6);
+    expect(Object.is(back.distance, -0)).toBe(false);
+    const kept = placeAtClearance(bed, back, 0);
+    expect(kept.x).toBeCloseTo(bed.x, 6);
+    expect(kept.y).toBeCloseTo(bed.y, 6);
+    // moving the back 30 cm away from the face along the outward axis
+    const moved = placeAtClearance(bed, back, 30);
+    expect(Math.hypot(moved.x - bed.x, moved.y - bed.y)).toBeCloseTo(30, 6);
+  });
+});
+
 describe('placeAtClearance', () => {
   it('moves the object so the chosen clearance takes the typed value', () => {
     const d = deriveLevel(levelFromWalls(rectRoom(0, 0, 400, 300)));
     const o = box(200, 150);
     const left = objectClearances(o, d).find((c) => c.side === 'left')!;
-    expect(placeAtClearance(o, left, 60)).toEqual({ x: 120, y: 150 });
+    const p = placeAtClearance(o, left, 60);
+    expect(p.x).toBeCloseTo(120, 6);
+    expect(p.y).toBeCloseTo(150, 6);
   });
 });
 

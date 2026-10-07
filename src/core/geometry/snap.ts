@@ -108,8 +108,12 @@ function snapWallAxis(p: Vec2, c: Ctx): SnapResult | null {
   return best;
 }
 
-/** x and/or y of the nearest aligned nodes, with a guide from each node to the point. */
-function snapAlign(p: Vec2, c: Ctx): SnapResult | null {
+/**
+ * x and/or y of the nearest aligned nodes, with a guide from each node to the point. With a
+ * previous point and a single alignment, the free coordinate's offset from `from` is rounded to
+ * the grid (R16; rounding the length along the direction would leave the guide).
+ */
+function snapAlign(p: Vec2, c: Ctx, from: Vec2 | undefined, gridStep: number): SnapResult | null {
   const byGap = (gap: (q: Vec2) => number) => {
     const aligned = c.nodes.filter((n) => gap(n.p) <= c.tol);
     if (aligned.length === 0) return null;
@@ -121,28 +125,31 @@ function snapAlign(p: Vec2, c: Ctx): SnapResult | null {
   const nx = byGap((q) => Math.abs(q.x - p.x));
   const ny = byGap((q) => Math.abs(q.y - p.y));
   if (!nx && !ny) return null;
-  const point = { x: nx ? nx.p.x : p.x, y: ny ? ny.p.y : p.y };
+  const free = (v: number, origin: number | undefined) =>
+    origin === undefined ? v : origin + roundTo(v - origin, gridStep);
+  const point = { x: nx ? nx.p.x : free(p.x, from?.x), y: ny ? ny.p.y : free(p.y, from?.y) };
   const guides = [nx, ny].filter((n) => n !== null).map((n) => ({ a: { ...n.p }, b: point }));
   return { point, kind: 'align', guides };
 }
 
-/** Direction from `from` rounded to a multiple of 15 deg, same distance, if p is within tol of that ray. */
-function snapAngle(p: Vec2, from: Vec2, c: Ctx): SnapResult | null {
+/** Direction from `from` rounded to a multiple of 15 deg, if p is within tol of that ray; length rounded to the grid (R16). */
+function snapAngle(p: Vec2, from: Vec2, gridStep: number, c: Ctx): SnapResult | null {
   const v = sub(p, from);
   const d = len(v);
   if (d < EPS) return null;
   const a = angleOf(v);
   const snapped = Math.round(a / ANGLE_STEP) * ANGLE_STEP;
   if (d * Math.abs(Math.sin(a - snapped)) > c.tol) return null;
-  const point = add(from, scale({ x: Math.cos(snapped), y: Math.sin(snapped) }, d));
+  const point = add(from, scale({ x: Math.cos(snapped), y: Math.sin(snapped) }, roundTo(d, gridStep)));
   return { point, kind: 'angle', guides: [{ a: { ...from }, b: point }] };
 }
 
 /**
  * Shift held: p is projected on the horizontal or vertical line through `from` (the closer one).
  * Nodes, wall middles and wall axis crossings snap only if they lie within tol of that projected
- * point (so a node off the line by more than tol is never taken); otherwise the coordinate along
- * the line is rounded to the grid.
+ * point (so a node off the line by more than tol is never taken); a node or wall middle is
+ * returned at its exact position, so the result may leave exact orthogonality by at most tol.
+ * Otherwise the length from `from` along the line is rounded to the grid (R16).
  */
 function snapOrtho(p: Vec2, from: Vec2, gridStep: number, c: Ctx): SnapResult {
   const horizontal = Math.abs(p.x - from.x) >= Math.abs(p.y - from.y);
@@ -164,7 +171,9 @@ function snapOrtho(p: Vec2, from: Vec2, gridStep: number, c: Ctx): SnapResult {
     }
   }
   if (axis) return axis;
-  const point = horizontal ? { x: roundTo(q.x, gridStep), y: q.y } : { x: q.x, y: roundTo(q.y, gridStep) };
+  const point = horizontal
+    ? { x: from.x + roundTo(q.x - from.x, gridStep), y: q.y }
+    : { x: q.x, y: from.y + roundTo(q.y - from.y, gridStep) };
   return { point, kind: 'ortho', guides: [{ a: { ...from }, b: point }] };
 }
 
@@ -172,6 +181,9 @@ function snapOrtho(p: Vec2, from: Vec2, gridStep: number, c: Ctx): SnapResult {
  * Magnetic point for the cursor at `raw` (world cm), spec 6.4. Tolerance = SNAP_PX screen pixels.
  * Priority: node > wall middle > wall axis (projection strictly between the nodes) > alignment
  * with the x and/or y of a node > multiple of 15 deg from `from` > grid. With `ortho`, see snapOrtho.
+ * Ruling R16: with a previous point `from`, angle and ortho results round their length from `from`
+ * to gridStep (direction kept), and an alignment rounds its free coordinate's offset from `from`;
+ * node, wall middle and wall axis points stay exact. Without `from`, the grid rounds coordinates.
  */
 export function snapPoint(raw: Vec2, o: SnapOptions): SnapResult {
   if (!o.enabled) return { point: { ...raw }, kind: 'none', guides: [] };
@@ -181,8 +193,8 @@ export function snapPoint(raw: Vec2, o: SnapOptions): SnapResult {
     snapNode(raw, c) ??
     snapWallMid(raw, c) ??
     snapWallAxis(raw, c) ??
-    snapAlign(raw, c) ??
-    (o.from ? snapAngle(raw, o.from, c) : null) ?? {
+    snapAlign(raw, c, o.from, o.gridStep) ??
+    (o.from ? snapAngle(raw, o.from, o.gridStep, c) : null) ?? {
       point: { x: roundTo(raw.x, o.gridStep), y: roundTo(raw.y, o.gridStep) },
       kind: 'grid',
       guides: [],

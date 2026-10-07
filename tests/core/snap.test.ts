@@ -59,15 +59,33 @@ describe('snapPoint', () => {
     expect(both.guides).toHaveLength(2);
   });
 
-  it('snaps to multiples of 15 deg from the previous point, keeping the distance', () => {
+  it('snaps to multiples of 15 deg from the previous point, length rounded to the grid (R16)', () => {
     const empty = createLevel('Vide', 0, 250);
     const flat = snapPoint({ x: 100, y: 3 }, opts(empty, { from: { x: 0, y: 0 } }));
     expect(flat.kind).toBe('angle');
-    close(flat.point, Math.hypot(100, 3), 0);
+    close(flat.point, 100, 0);
+    const off = snapPoint({ x: 103, y: 2 }, opts(empty, { from: { x: 0, y: 0 } }));
+    expect(off.kind).toBe('angle');
+    close(off.point, 100, 0);
+    // raw length 71.45 -> 70 on the 45 deg ray
     const diag = snapPoint({ x: 52, y: 49 }, opts(empty, { from: { x: 0, y: 0 } }));
     expect(diag.kind).toBe('angle');
-    const d = Math.hypot(52, 49);
-    close(diag.point, d / Math.SQRT2, d / Math.SQRT2);
+    close(diag.point, 70 / Math.SQRT2, 70 / Math.SQRT2);
+    // from off the grid: the length is rounded, not the coordinates
+    const shifted = snapPoint({ x: 5 + 52, y: 3 + 49 }, opts(empty, { from: { x: 5, y: 3 } }));
+    close(shifted.point, 5 + 70 / Math.SQRT2, 3 + 70 / Math.SQRT2);
+  });
+
+  it('with a previous point, an alignment keeps the aligned coordinate and rounds the other offset (R16)', () => {
+    // nodes at x = 400 (y 600..900), far from the cursor
+    const level = levelFromWalls([[400, 600, 400, 900]]);
+    const r = snapPoint({ x: 403, y: 137 }, opts(level, { from: { x: 5, y: 3 } }));
+    expect(r.kind).toBe('align');
+    // x stays on the guide, y - from.y = 134 -> 130
+    close(r.point, 400, 133);
+    close(r.guides[0]!.b, 400, 133);
+    // without a previous point the free coordinate stays raw
+    close(snapPoint({ x: 403, y: 137 }, opts(level)).point, 400, 137);
   });
 
   it('falls back to the grid when far from everything and without a previous point', () => {
@@ -87,7 +105,16 @@ describe('snapPoint', () => {
     close(r.point, 100, 0);
   });
 
-  it('ortho still snaps to a node lying on the axis line, never to one off the line', () => {
+  it('ortho rounds the length from the previous point to the grid (R16)', () => {
+    const empty = createLevel('Vide', 0, 250);
+    const h = snapPoint({ x: 108, y: 20 }, opts(empty, { ortho: true, from: { x: 5, y: 5 } }));
+    expect(h.kind).toBe('ortho');
+    close(h.point, 105, 5);
+    const v = snapPoint({ x: 0, y: -144 }, opts(empty, { ortho: true, from: { x: 5, y: 5 } }));
+    close(v.point, 5, -145);
+  });
+
+  it('ortho snaps to nodes and walls near the projected point, never to a node off the line', () => {
     const level = room();
     const on = snapPoint({ x: 396, y: 30 }, opts(level, { ortho: true, from: { x: 0, y: 0 } }));
     expect(on.kind).toBe('node');
@@ -99,6 +126,10 @@ describe('snapPoint', () => {
     const axis = snapPoint({ x: 405, y: 130 }, opts(level, { ortho: true, from: { x: 100, y: 120 } }));
     expect(axis.kind).toBe('wallAxis');
     close(axis.point, 400, 120);
+    // node (400, 300) is 4.5 cm from the cursor but 20 cm from the projected point (396, 280)
+    const off = snapPoint({ x: 396, y: 296 }, opts(level, { ortho: true, from: { x: 100, y: 280 } }));
+    expect(off.kind).not.toBe('node');
+    expect(off.point.y).toBeCloseTo(280, 6);
   });
 
   it('the tolerance is in screen pixels: 2 cm at 4 px/cm', () => {
@@ -149,5 +180,30 @@ describe('snapObjectToWalls', () => {
     expect(r.y).toBeCloseTo(150, 6);
     // local +y (front) must point to -x: rotate((0, 1), r) = (-sin r, cos r) = (-1, 0)
     expect(r.rotation).toBeCloseTo(90, 6);
+  });
+
+  it('snaps against an oblique wall and takes its angle', () => {
+    // wall at 30 deg; its +normal side is perp(dir) = (-sin 30, cos 30)
+    const end = { x: 400 * Math.cos(Math.PI / 6), y: 400 * Math.sin(Math.PI / 6) };
+    const level = levelFromWalls([[0, 0, end.x, end.y]]);
+    const n = { x: -Math.sin(Math.PI / 6), y: Math.cos(Math.PI / 6) };
+    const mid = { x: end.x / 2, y: end.y / 2 };
+    // face at 10 cm from the axis, object 100 deep, back edge 5 cm from the face
+    const o = createObjectFromSize({ kind: 'catalog', catalogId: 'x' }, mid.x + n.x * 65, mid.y + n.y * 65, { width: 80, depth: 100, height: 50 }, 'X', '#999');
+    const r = snapObjectToWalls(o, level, 1);
+    expect(r.wallId).toBe(Object.keys(level.walls)[0]);
+    close({ x: r.x, y: r.y }, mid.x + n.x * 60, mid.y + n.y * 60);
+    // rotate((0, 1), 30 deg) = (-sin 30, cos 30) = n: the front faces away from the wall
+    expect(r.rotation).toBeCloseTo(30, 6);
+  });
+
+  it('snaps against an exterior face, turned to face outwards', () => {
+    const level = room();
+    // outer face of the top wall at y = -10; object 100 deep, back edge 4 cm above it
+    const o = createObjectFromSize({ kind: 'catalog', catalogId: 'x' }, 200, -64, { width: 80, depth: 100, height: 50 }, 'X', '#999');
+    const r = snapObjectToWalls(o, level, 1);
+    expect(r.wallId).toBe(findWall(level, 0, 0, 400, 0));
+    close({ x: r.x, y: r.y }, 200, -60);
+    expect(r.rotation).toBeCloseTo(180, 6);
   });
 });
