@@ -188,7 +188,7 @@ describe('serializeExport / parseImport', () => {
     expect(parseImport(JSON.stringify(f)).ok).toBe(false);
   });
 
-  it('rejects a structurally valid file that breaks a document invariant', () => {
+  it('rejects a schema-valid file that breaks a document invariant (openings without walls)', () => {
     // walls removed while openings still reference them: the schema passes, validateProject refuses
     const f = exported(richProject());
     f.project.levels[0].walls = {};
@@ -240,5 +240,163 @@ describe('prepareImportedProject', () => {
     expect(prepareImportedProject(r, ['Maison', 'Maison (import)']).project.name).toBe('Maison (import 2)');
     expect(prepareImportedProject(r, ['Maison', 'Maison (import)', 'Maison (import 2)']).project.name).toBe('Maison (import 3)');
     expect(prepareImportedProject(r, ['Autre']).project.name).toBe('Maison');
+  });
+});
+
+describe('hostile imports', () => {
+  const failsWith = (f: unknown, pattern: RegExp): void => {
+    const r = parseImport(JSON.stringify(f));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(pattern);
+  };
+  const level0 = (f: any): any => f.project.levels[0];
+
+  describe('record key must equal element id', () => {
+    const kinds: Array<[string, (f: any) => any]> = [
+      ['nodes', (f) => Object.values<any>(level0(f).nodes)[0]],
+      ['walls', (f) => Object.values<any>(level0(f).walls)[0]],
+      ['openings', (f) => Object.values<any>(level0(f).openings)[0]],
+      ['objects', (f) => Object.values<any>(level0(f).objects)[0]],
+      ['dimensions', (f) => Object.values<any>(level0(f).dimensions)[0]],
+      ['customObjects', (f) => Object.values<any>(f.project.customObjects)[0]],
+    ];
+    for (const [name, pick] of kinds) {
+      it(`refuses a mismatching id in ${name} without throwing`, () => {
+        const f = exported(richProject());
+        pick(f).id = 'other';
+        const r = parseImport(JSON.stringify(f));
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+          expect(r.error).toMatch(/^Fichier invalide : project\..*identifiant incohérent$/);
+          expect(r.error).toContain(name);
+        }
+      });
+    }
+
+    it('refuses a missing id', () => {
+      const f = exported(richProject());
+      delete Object.values<any>(level0(f).objects)[0].id;
+      expect(parseImport(JSON.stringify(f)).ok).toBe(false);
+    });
+  });
+
+  it('refuses a __proto__ record key', () => {
+    // both records are non-empty in the rich project, so the injected entry keeps the JSON valid
+    const inCustom = serializeExport(richProject().project, {}).replace('"customObjects": {', '"customObjects": {"__proto__": {"id": "__proto__"},');
+    expect(inCustom).toContain('"__proto__"');
+    const r1 = parseImport(inCustom);
+    expect(r1.ok).toBe(false);
+    if (!r1.ok) expect(r1.error).toMatch(/^Fichier invalide : project\.customObjects\.__proto__ identifiant interdit/);
+
+    const inImages = JSON.stringify(exported(richProject())).replace('"images":{', '"images":{"__proto__":{"mime":"image/png","data":"AA=="},');
+    expect(inImages).toContain('"__proto__"');
+    const r2 = parseImport(inImages);
+    expect(r2.ok).toBe(false);
+    if (!r2.ok) expect(r2.error).toMatch(/^Fichier invalide : images\.__proto__ identifiant interdit/);
+  });
+
+  it('does not accept prototype property names as ids', () => {
+    for (const name of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+      const bg = exported(richProject());
+      level0(bg).background.imageId = name;
+      expect(parseImport(JSON.stringify(bg))).toEqual({ ok: false, error: 'Fichier invalide : image de fond manquante' });
+
+      const op = exported(richProject());
+      Object.values<any>(level0(op).openings)[0].wallId = name;
+      failsWith(op, /^Fichier invalide : /);
+
+      const wall = exported(richProject());
+      Object.values<any>(level0(wall).walls)[0].startNodeId = name;
+      failsWith(wall, /^Fichier invalide : /);
+
+      const dim = exported(richProject());
+      Object.values<any>(level0(dim).dimensions)[0].a = { kind: 'node', nodeId: name };
+      failsWith(dim, /^Fichier invalide : /);
+
+      const obj = exported(richProject());
+      Object.values<any>(level0(obj).objects)[1].source.customObjectId = name;
+      failsWith(obj, /^Fichier invalide : /);
+    }
+  });
+
+  it('never throws on arbitrary garbage', () => {
+    const inputs = ['', ' ', '{', 'null', 'true', '{"app":"plan-maison"}', '{"app":"plan-maison","formatVersion":1}',
+      '{"app":"plan-maison","formatVersion":1,"project":null,"images":null}',
+      '{"app":"plan-maison","formatVersion":1,"project":{"levels":"x"},"images":{}}'];
+    for (const t of inputs) expect(() => parseImport(t)).not.toThrow();
+  });
+
+  describe('numeric bounds', () => {
+    const cases: Array<[string, (f: any) => void]> = [
+      ['gridStep 0', (f) => { f.project.settings.gridStep = 0; }],
+      ['negative wall thickness setting', (f) => { f.project.settings.defaultWallThickness = -5; }],
+      ['node x 1e308', (f) => { Object.values<any>(level0(f).nodes)[0].x = 1e308; }],
+      ['node x beyond 1e6', (f) => { Object.values<any>(level0(f).nodes)[0].x = 1e6 + 1; }],
+      ['negative level height', (f) => { level0(f).height = -3; }],
+      ['huge level elevation', (f) => { level0(f).elevation = 1e300; }],
+      ['zero wall thickness', (f) => { Object.values<any>(level0(f).walls)[0].thickness = 0; }],
+      ['negative wall height', (f) => { Object.values<any>(level0(f).walls)[0].height = -1; }],
+      ['zero background scale', (f) => { level0(f).background.scale = 0; }],
+      ['zero background widthPx', (f) => { level0(f).background.widthPx = 0; }],
+      ['negative background heightPx', (f) => { level0(f).background.heightPx = -2; }],
+      ['opacity above 1', (f) => { level0(f).background.opacity = 1.5; }],
+      ['opacity below 0', (f) => { level0(f).background.opacity = -0.1; }],
+      ['zero opening width', (f) => { Object.values<any>(level0(f).openings)[0].width = 0; }],
+      ['negative sill height', (f) => { Object.values<any>(level0(f).openings)[0].sillHeight = -1; }],
+      ['zero object depth', (f) => { Object.values<any>(level0(f).objects)[0].depth = 0; }],
+      ['huge object x', (f) => { Object.values<any>(level0(f).objects)[0].x = 1e9; }],
+      ['negative custom object width', (f) => { Object.values<any>(f.project.customObjects)[0].width = -1; }],
+      ['zero notch', (f) => { Object.values<any>(f.project.customObjects)[0].lshape.notchWidth = 0; }],
+      ['huge anchor point', (f) => { Object.values<any>(level0(f).dimensions)[0].b.x = 1e7; }],
+      ['huge label anchor', (f) => { level0(f).roomLabels[0].anchor.y = -1e7; }],
+    ];
+    for (const [label, mutate] of cases) {
+      it(`refuses ${label}`, () => {
+        const f = exported(richProject());
+        mutate(f);
+        failsWith(f, /^Fichier invalide : /);
+      });
+    }
+
+    it('accepts values at the bounds', () => {
+      const f = exported(richProject());
+      f.project.settings.gridStep = 1e6;
+      level0(f).background.opacity = 0;
+      level0(f).background.opacity = 1;
+      level0(f).elevation = -1e6;
+      expect(parseImport(JSON.stringify(f)).ok).toBe(true);
+    });
+  });
+
+  describe('image payloads', () => {
+    const withImage = (img: unknown): any => {
+      const f = exported(richProject());
+      f.images[Object.keys(f.images)[0]!] = img;
+      return f;
+    };
+
+    it('refuses a non base64 payload', () => {
+      failsWith(withImage({ mime: 'image/png', data: '!!!not base64***' }), /^Fichier invalide : images\.[^ ]+\.data image corrompue/);
+    });
+
+    it('refuses a payload with a data: prefix, bad padding or wrong length', () => {
+      for (const data of ['data:image/png;base64,iVBORw0KGgo=', 'iVBORw0KGgo', 'iVBO=Rw0K', 'a', '']) {
+        failsWith(withImage({ mime: 'image/png', data }), /^Fichier invalide : images\./);
+      }
+    });
+
+    it('refuses non raster mime types', () => {
+      for (const mime of ['text/html', 'image/svg+xml', 'application/pdf', 'png', 'image/png ']) {
+        failsWith(withImage({ mime, data: 'iVBORw0KGgo=' }), /^Fichier invalide : images\.[^ ]+\.mime type d'image non pris en charge/);
+      }
+    });
+
+    it('accepts png, jpeg, webp and gif with valid base64', () => {
+      for (const mime of ['image/png', 'image/jpeg', 'image/webp', 'image/gif']) {
+        for (const data of ['AA==', 'AAA=', 'AAAA', 'iVBORw0KGgo=', 'a+/9']) {
+          expect(parseImport(JSON.stringify(withImage({ mime, data }))).ok).toBe(true);
+        }
+      }
+    });
   });
 });

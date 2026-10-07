@@ -139,4 +139,39 @@ describe('validateProject', () => {
     q.levels = [q.levels[0]!, { ...q.levels[0]! }];
     expect(validateProject(q).join('\n')).toMatch(/level/i);
   });
+
+  it('flags non-positive or non-finite project settings', () => {
+    for (const key of ['gridStep', 'defaultWallThickness', 'partitionThickness', 'defaultCeilingHeight'] as const) {
+      for (const v of [0, -5, Number.POSITIVE_INFINITY]) {
+        const p = createProject('T');
+        p.settings[key] = v;
+        expect(validateProject(p).some((m) => m.includes(`Setting ${key}`))).toBe(true);
+      }
+    }
+  });
+
+  it('looks ids up by own keys: prototype property names are dangling references', () => {
+    const names = ['constructor', 'toString', '__proto__', 'hasOwnProperty'];
+    for (const name of names) {
+      const level = levelFromWalls(rectRoom(0, 0, 400, 300));
+      const wallId = firstWallId(level);
+      level.openings.x = { ...createOpening(wallId, 'door', 200), id: 'x', wallId: name };
+      expect(validateProject(projectWith(level))).toContain('Level "Test" opening x: wall not found');
+
+      const l2 = levelFromWalls(rectRoom(0, 0, 400, 300));
+      l2.walls[firstWallId(l2)]!.startNodeId = name;
+      expect(validateProject(projectWith(l2)).some((m) => m.endsWith('missing node'))).toBe(true);
+
+      const l3 = levelFromWalls(rectRoom(0, 0, 400, 300));
+      const obj = createObjectFromSize({ kind: 'custom', customObjectId: name }, 1, 1, { width: 1, depth: 1, height: 1 }, 'S', '#fff');
+      l3.objects[obj.id] = obj;
+      expect(validateProject(projectWith(l3)).some((m) => m.endsWith('custom object definition not found'))).toBe(true);
+
+      const l4 = levelFromWalls(rectRoom(0, 0, 400, 300));
+      l4.dimensions.d = { id: 'd', a: { kind: 'node', nodeId: name }, b: { kind: 'objectCorner', objectId: name, corner: 0 }, offset: 0 };
+      const problems = validateProject(projectWith(l4));
+      expect(problems.some((m) => m.endsWith('node not found'))).toBe(true);
+      expect(problems.some((m) => m.endsWith('object not found'))).toBe(true);
+    }
+  });
 });

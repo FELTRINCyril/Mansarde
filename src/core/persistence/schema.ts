@@ -4,20 +4,37 @@ import type { Anchor, Background, CustomObjectDef, Level, ManualDimension, Openi
 
 // Every object is strict: unknown keys are refused (the export root is the only loose object).
 
+// Numbers: zod 4 already rejects NaN and Infinity. Every coordinate and length is further bounded
+// to +-1e6 cm (10 km) so that later geometry (wall lengths, areas) can never overflow.
+const MAX_ABS = 1e6;
 const id = z.string();
-const num = z.number(); // zod 4: rejects NaN and Infinity
+const num = z.number().min(-MAX_ABS).max(MAX_ABS); // signed: coordinates, offsets, rotation, elevation
+const pos = z.number().positive().max(MAX_ABS); // strictly positive: sizes, thicknesses, scale
+const nonNeg = z.number().min(0).max(MAX_ABS);
+const unit = z.number().min(0).max(1);
+
+/** Record of elements keyed by their own id (key and id must agree). */
+function keyedRecord<T extends z.ZodType<{ id: string }>>(value: T) {
+  return z
+    .record(z.string(), value)
+    .superRefine((rec, ctx) => {
+      for (const [key, el] of Object.entries(rec)) {
+        if (el.id !== key) ctx.addIssue({ code: 'custom', path: [key, 'id'], message: 'identifiant incohérent' });
+      }
+    });
+}
 
 const vec2 = z.strictObject({ x: num, y: num });
 
 const projectSettings = z.strictObject({
-  defaultWallThickness: num,
-  partitionThickness: num,
-  defaultCeilingHeight: num,
-  gridStep: num,
+  defaultWallThickness: pos,
+  partitionThickness: pos,
+  defaultCeilingHeight: pos,
+  gridStep: pos,
 });
 
 const wallNode = z.strictObject({ id, x: num, y: num });
-const wall = z.strictObject({ id, startNodeId: id, endNodeId: id, thickness: num, height: num });
+const wall = z.strictObject({ id, startNodeId: id, endNodeId: id, thickness: pos, height: pos });
 
 const opening = z.strictObject({
   id,
@@ -25,14 +42,14 @@ const opening = z.strictObject({
   kind: z.enum(['door', 'window', 'passage']),
   variant: z.enum(['single', 'double', 'sliding', 'pocket', 'fixed', 'none']),
   offset: num,
-  width: num,
-  height: num,
-  sillHeight: num,
+  width: pos,
+  height: pos,
+  sillHeight: nonNeg,
   hinge: z.enum(['start', 'end']),
   swing: z.enum(['left', 'right']),
 });
 
-const lshape = z.strictObject({ notchWidth: num, notchDepth: num });
+const lshape = z.strictObject({ notchWidth: pos, notchDepth: pos });
 
 const objectSource = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('catalog'), catalogId: z.string() }),
@@ -45,10 +62,10 @@ const placedObject = z.strictObject({
   x: num,
   y: num,
   rotation: num,
-  width: num,
-  depth: num,
-  height: num,
-  elevation: num,
+  width: pos,
+  depth: pos,
+  height: pos,
+  elevation: nonNeg,
   name: z.string(),
   color: z.string(),
   mirrored: z.boolean(),
@@ -59,9 +76,9 @@ const customObjectDef = z.strictObject({
   id,
   name: z.string(),
   shape: z.enum(['rect', 'circle', 'lshape']),
-  width: num,
-  depth: num,
-  height: num,
+  width: pos,
+  depth: pos,
+  height: pos,
   color: z.string(),
   lshape: lshape.nullable(),
 });
@@ -82,13 +99,13 @@ const roomLabel = z.strictObject({ id, name: z.string(), anchor: vec2 });
 
 const background = z.strictObject({
   imageId: id,
-  widthPx: num,
-  heightPx: num,
-  scale: num,
+  widthPx: pos,
+  heightPx: pos,
+  scale: pos,
   x: num,
   y: num,
   rotation: num,
-  opacity: num,
+  opacity: unit,
   locked: z.boolean(),
   visible: z.boolean(),
 });
@@ -97,13 +114,13 @@ const level = z.strictObject({
   id,
   name: z.string(),
   elevation: num,
-  height: num,
+  height: pos,
   background: background.nullable(),
-  nodes: z.record(z.string(), wallNode),
-  walls: z.record(z.string(), wall),
-  openings: z.record(z.string(), opening),
-  objects: z.record(z.string(), placedObject),
-  dimensions: z.record(z.string(), manualDimension),
+  nodes: keyedRecord(wallNode),
+  walls: keyedRecord(wall),
+  openings: keyedRecord(opening),
+  objects: keyedRecord(placedObject),
+  dimensions: keyedRecord(manualDimension),
   roomLabels: z.array(roomLabel),
 });
 
@@ -115,10 +132,19 @@ export const projectSchema = z.strictObject({
   updatedAt: z.string(),
   settings: projectSettings,
   levels: z.array(level),
-  customObjects: z.record(z.string(), customObjectDef),
+  customObjects: keyedRecord(customObjectDef),
 });
 
-export const imageData64Schema = z.strictObject({ mime: z.string(), data: z.string() });
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/** Image payload: strict base64 (no data: prefix) and a raster mime type the app can display. */
+export const imageData64Schema = z.strictObject({
+  mime: z.string().regex(/^image\/(png|jpeg|webp|gif)$/, { message: "type d'image non pris en charge" }),
+  data: z
+    .string()
+    .min(1, { message: 'image vide' })
+    .refine((d) => d.length % 4 === 0 && BASE64.test(d), { message: 'image corrompue (base64 invalide)' }),
+});
 
 /** Root of an export file: loose on purpose, so later versions may add informative keys. */
 export const exportFileSchema = z.looseObject({

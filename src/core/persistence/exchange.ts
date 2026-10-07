@@ -22,12 +22,32 @@ export type ImportResult =
 
 const invalid = (detail: string): ImportResult => ({ ok: false, error: `Fichier invalide : ${detail}` });
 
+/** Path of the first "__proto__" key (zod records would silently drop it), or null. */
+function findProtoKey(value: unknown, path: string): string | null {
+  if (value === null || typeof value !== 'object') return null;
+  if (Object.hasOwn(value, '__proto__')) return `${path}.__proto__`.replace(/^\./, '');
+  for (const [k, v] of Object.entries(value)) {
+    const found = findProtoKey(v, path === '' ? k : `${path}.${k}`);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
 export function serializeExport(project: Project, images: Record<Id, ImageData64>): string {
   const file: ExportFile = { app: 'plan-maison', formatVersion: FORMAT_VERSION, project, images };
   return JSON.stringify(file, null, 2);
 }
 
+/** Never throws, whatever the input string: every failure comes back as { ok: false, error }. */
 export function parseImport(text: string): ImportResult {
+  try {
+    return parseImportUnsafe(text);
+  } catch {
+    return invalid('structure inattendue');
+  }
+}
+
+function parseImportUnsafe(text: string): ImportResult {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -46,6 +66,9 @@ export function parseImport(text: string): ImportResult {
     return { ok: false, error: 'Ce fichier a été créé par une version plus récente de Plan Maison.' };
   }
 
+  const forbidden = findProtoKey(raw, '');
+  if (forbidden !== null) return invalid(`${forbidden} identifiant interdit`);
+
   let migrated: unknown;
   try {
     migrated = migrate(raw as { formatVersion: number });
@@ -61,11 +84,16 @@ export function parseImport(text: string): ImportResult {
   }
   const { project, images } = parsed.data;
 
-  const problems = validateProject(project);
+  let problems: string[];
+  try {
+    problems = validateProject(project);
+  } catch {
+    return invalid('structure incohérente');
+  }
   if (problems.length > 0) return invalid(problems[0]!);
 
   for (const level of project.levels) {
-    if (level.background && !(level.background.imageId in images)) {
+    if (level.background && !Object.hasOwn(images, level.background.imageId)) {
       return invalid('image de fond manquante');
     }
   }

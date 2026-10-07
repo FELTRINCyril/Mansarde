@@ -3,10 +3,16 @@ import type { Level, Project } from '../model/types';
 import { openingFitsWall, openingsOverlap } from '../geometry/openings';
 import { wallLength } from '../geometry/walls';
 
+// Ids come from untrusted files: look records up by own keys only (never "constructor", "toString"...).
+const has = (rec: object, key: string): boolean => Object.hasOwn(rec, key);
+
 /** Checks every document invariant; returns human-readable problems (empty = valid). */
 export function validateProject(p: Project): string[] {
   const problems: string[] = [];
   collectNonFinite(p, 'project', problems);
+  for (const [name, v] of Object.entries(p.settings)) {
+    if (!(v > 0) || !Number.isFinite(v)) problems.push(`Setting ${name} must be positive and finite`);
+  }
 
   if (p.levels.length === 0) problems.push('Project has no level');
   const seenLevels = new Set<string>();
@@ -37,8 +43,8 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
   const validWalls = new Set<string>();
   for (const wall of Object.values(level.walls)) {
     const tag = `${where} wall ${wall.id}`;
-    const hasStart = level.nodes[wall.startNodeId] !== undefined;
-    const hasEnd = level.nodes[wall.endNodeId] !== undefined;
+    const hasStart = has(level.nodes, wall.startNodeId);
+    const hasEnd = has(level.nodes, wall.endNodeId);
     if (!hasStart || !hasEnd) {
       out.push(`${tag}: missing node`);
       continue;
@@ -72,7 +78,7 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
   const byWall = new Map<string, Level['openings'][string][]>();
   for (const o of Object.values(level.openings)) {
     const tag = `${where} opening ${o.id}`;
-    if (level.walls[o.wallId] === undefined) {
+    if (!has(level.walls, o.wallId)) {
       out.push(`${tag}: wall not found`);
       continue;
     }
@@ -99,7 +105,7 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
     const tag = `${where} object ${obj.id}`;
     if (!(obj.width > 0) || !(obj.depth > 0) || !(obj.height > 0)) out.push(`${tag}: size must be positive`);
     if (!Number.isFinite(obj.x) || !Number.isFinite(obj.y)) out.push(`${tag}: coordinates must be finite`);
-    if (obj.source.kind === 'custom' && p.customObjects[obj.source.customObjectId] === undefined) {
+    if (obj.source.kind === 'custom' && !has(p.customObjects, obj.source.customObjectId)) {
       out.push(`${tag}: custom object definition not found`);
     }
   }
@@ -108,8 +114,8 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
   for (const dim of Object.values(level.dimensions)) {
     for (const [side, anchor] of [['a', dim.a], ['b', dim.b]] as const) {
       const tag = `${where} dimension ${dim.id} anchor ${side}`;
-      if (anchor.kind === 'node' && level.nodes[anchor.nodeId] === undefined) out.push(`${tag}: node not found`);
-      if (anchor.kind === 'objectCorner' && level.objects[anchor.objectId] === undefined) {
+      if (anchor.kind === 'node' && !has(level.nodes, anchor.nodeId)) out.push(`${tag}: node not found`);
+      if (anchor.kind === 'objectCorner' && !has(level.objects, anchor.objectId)) {
         out.push(`${tag}: object not found`);
       }
     }

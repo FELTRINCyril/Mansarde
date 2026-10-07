@@ -28,7 +28,8 @@ export function downloadBlob(fileName: string, blob: Blob): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // revoked later: some browsers start the download asynchronously
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function downloadText(fileName: string, text: string, mime = 'application/json'): void {
