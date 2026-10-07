@@ -3,6 +3,7 @@ import {
   area,
   bbox,
   distanceToRing,
+  mergeCollinear,
   pointInPolygon,
   pointInRing,
   rectRing,
@@ -110,5 +111,31 @@ describe('rectRing', () => {
       expect(p.x).toBeCloseTo(expected[i]?.x ?? NaN)
       expect(p.y).toBeCloseTo(expected[i]?.y ?? NaN)
     })
+  })
+})
+
+describe('mergeCollinear', () => {
+  it('drops repeated points and vertices in the middle of a straight side', () => {
+    const ring: Ring = [
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 4, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 5, y: 10 + 1e-9 },
+      { x: 0, y: 10 },
+      { x: 0, y: 3 },
+    ]
+    expect(mergeCollinear(ring)).toEqual(square)
+  })
+  it('keeps real corners and spikes going back on themselves', () => {
+    const spike: Ring = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 5, y: 0 },
+      { x: 5, y: 5 },
+    ]
+    expect(mergeCollinear(square)).toEqual(square)
+    expect(mergeCollinear(spike)).toHaveLength(4)
   })
 })

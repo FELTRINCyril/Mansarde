@@ -235,7 +235,11 @@ export function computeWallShape(level: Level, opts: { withOpenings: boolean }):
   const junctions = computeJunctions(level);
   const rings = [...bodiesFrom(junctions), ...jointsFrom(junctions)].filter(usable);
   const shape = unionRings(rings);
-  if (!opts.withOpenings) return shape;
+  return opts.withOpenings ? subtractOpenings(level, shape) : shape;
+}
+
+/** The wall shape minus the cut ring of every opening of the level. */
+export function subtractOpenings(level: Level, shape: Shape): Shape {
   const cuts = Object.values(level.openings)
     .map((o) => openingCutRing(level, o))
     .filter(usable);

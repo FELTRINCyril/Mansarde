@@ -38,3 +38,18 @@ export function rectRoom(x1: number, y1: number, x2: number, y2: number, t = 20)
     [x1, y2, x1, y1, t],
   ];
 }
+
+/** Id of the wall joining the nodes at (x1, y1) and (x2, y2), in either direction. Throws if absent. */
+export function findWall(level: Level, x1: number, y1: number, x2: number, y2: number): Id {
+  const at = (id: Id, x: number, y: number) => {
+    const n = level.nodes[id]!;
+    return Math.hypot(n.x - x, n.y - y) < 1e-6;
+  };
+  const wall = Object.values(level.walls).find(
+    (w) =>
+      (at(w.startNodeId, x1, y1) && at(w.endNodeId, x2, y2)) ||
+      (at(w.startNodeId, x2, y2) && at(w.endNodeId, x1, y1)),
+  );
+  if (!wall) throw new Error(`no wall (${x1}, ${y1}) - (${x2}, ${y2})`);
+  return wall.id;
+}

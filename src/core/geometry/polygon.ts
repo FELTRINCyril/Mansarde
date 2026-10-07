@@ -1,5 +1,5 @@
 import type { PolygonWithHoles, Ring, Vec2 } from '../model/types';
-import { deg2rad, projectOnSegment, rotate } from './vec';
+import { cross, deg2rad, dist, dot, len, projectOnSegment, rotate, sub } from './vec';
 
 /** Shoelace formula; sign depends on ring orientation. */
 export function signedArea(r: Ring): number {
@@ -75,4 +75,32 @@ export function rectRing(cx: number, cy: number, w: number, h: number, rotationD
     const q = rotate(p, rad);
     return { x: cx + q.x, y: cy + q.y };
   });
+}
+
+/**
+ * Drops repeated points and vertices lying on the straight segment between their neighbours
+ * (within eps cm), so that each straight side of the ring is a single edge. Boolean operations
+ * may leave such vertices where two input polygons met along a common line.
+ */
+export function mergeCollinear(r: Ring, eps = 1e-6): Ring {
+  let pts = r.filter((p, i) => dist(p, r[(i + 1) % r.length] as Vec2) > eps);
+  let changed = true;
+  while (changed && pts.length > 3) {
+    changed = false;
+    for (let i = 0; i < pts.length && pts.length > 3; ) {
+      const prev = pts[(i + pts.length - 1) % pts.length] as Vec2;
+      const p = pts[i] as Vec2;
+      const next = pts[(i + 1) % pts.length] as Vec2;
+      const base = sub(next, prev);
+      const l = len(base);
+      const between = dot(sub(p, prev), base) > 0 && dot(sub(next, p), base) > 0;
+      if (l > eps && between && Math.abs(cross(base, sub(p, prev))) / l <= eps) {
+        pts = pts.filter((_, k) => k !== i);
+        changed = true;
+      } else {
+        i++;
+      }
+    }
+  }
+  return pts;
 }
