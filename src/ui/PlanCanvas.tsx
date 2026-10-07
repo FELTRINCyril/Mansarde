@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type JSX, type MouseEvent, type PointerEvent } from 'react';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
+import { handleTarget, objectHandles } from '@/editor/handles';
+import { handleGlobalKey, isIgnoredKey } from '@/editor/keyboard';
 import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
 import { activeLevel, useEditor } from '@/editor/store';
 import { TOOLS, type PointerInfo, type ToolContext } from '@/editor/tools/types';
 import { fitView, screenToWorld, zoomAt, type View } from '@/editor/view';
 import { levelBounds } from '@/export/pageLayout';
+import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
+import { RoomRenameInput } from './RoomRenameInput';
 
 export interface Size { width: number; height: number }
 
@@ -14,12 +18,6 @@ export interface Size { width: number; height: number }
 const WHEEL_ZOOM = 0.0015;
 const WHEEL_LINE_PX = 16;
 const WHEEL_PAGE_PX = 400;
-
-/** Same rule as the future keyboard guard: never react to keys typed in a field. */
-function isTypingTarget(t: EventTarget | null): boolean {
-  if (!(t instanceof HTMLElement)) return false;
-  return t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName);
-}
 
 /** View that shows the whole active level in a viewport of the given size. */
 function fitActiveLevel(size: Size): View | null {
@@ -29,9 +27,12 @@ function fitActiveLevel(size: Size): View | null {
 }
 
 /**
- * The plan: PlanSvg sized to the container, the world viewBox derived from the view. Zoom and pan
- * live here (wheel = zoom around the cursor, space + drag or middle button = pan, key 0 = fit);
- * every other pointer event goes to the active tool (TOOLS) and catalog items can be dropped.
+ * The plan: PlanSvg sized to the container, the world viewBox derived from the view, the
+ * interaction overlay (OverlayLayer) and the in-place room name field on top. Zoom and pan live
+ * here (wheel = zoom around the cursor, space + drag or middle button = pan); every other pointer
+ * event goes to the active tool (TOOLS) and catalog items can be dropped. The single window key
+ * handler of the editor is here too: guard (isIgnoredKey: typing in a field, key already handled,
+ * dialog open), space for panning, then handleGlobalKey (tool keys, shortcuts, 0 = fit).
  */
 export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Size): void }): JSX.Element | null {
   const project = useEditor((s) => s.project);
@@ -40,6 +41,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const display = useEditor((s) => s.display);
   const selection = useEditor((s) => s.selection);
   const toolId = useEditor((s) => s.tool);
+  const overlay = useEditor((s) => s.overlay);
   const setView = useEditor((s) => s.setView);
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
@@ -83,6 +85,10 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
       store: useEditor,
       toWorld: (screen) => screenToWorld(useEditor.getState().view, screen),
       pxPerCm: () => useEditor.getState().view.pxPerCm,
+      fitView: () => {
+        const v = fitActiveLevel({ width: ref.current?.clientWidth ?? 0, height: ref.current?.clientHeight ?? 0 });
+        if (v) useEditor.getState().setView(v);
+      },
     }),
     [],
   );
@@ -107,27 +113,23 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     return () => el.removeEventListener('wheel', onWheel);
   }, [local]);
 
-  // space (pan modifier) and 0 (fit), ignored while typing in a field
+  // the editor's single key handler: nothing while typing in a field or behind a dialog
   useEffect(() => {
     const setSpace = (v: boolean) => {
       spaceRef.current = v;
       setSpaceDown(v);
     };
     const onDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      if (isIgnoredKey(e)) return;
       if (e.code === 'Space') {
-        // only on the plan (or nothing focused): elsewhere space keeps pressing buttons, in dialogs too
+        // only on the plan (or nothing focused): elsewhere space keeps pressing buttons
         const onPlan = e.target === document.body || (e.target instanceof Node && !!ref.current?.contains(e.target));
         if (!onPlan) return;
         e.preventDefault();
         if (!e.repeat) setSpace(true);
-      } else if (e.key === '0' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const v = fitActiveLevel({ width: ref.current?.clientWidth ?? 0, height: ref.current?.clientHeight ?? 0 });
-        if (v) {
-          e.preventDefault();
-          useEditor.getState().setView(v);
-        }
+        return;
       }
+      if (handleGlobalKey(e, useEditor, ctx)) e.preventDefault();
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpace(false);
@@ -141,7 +143,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, []);
+  }, [ctx]);
 
   const info = (e: MouseEvent): PointerInfo => {
     const screen = local(e);
@@ -204,6 +206,8 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const lowerLevel = display.showLowerLevel && lowerIndex >= 0 ? project.levels[lowerIndex] : null;
   const z = view.pxPerCm;
   const cursor = panning ? 'grabbing' : spaceDown ? 'grab' : (tool?.cursor ?? 'default');
+  const handleObject = toolId === 'select' ? handleTarget(selection, level) : null;
+  const handles = handleObject ? objectHandles(handleObject, z) : [];
 
   return (
     <div
@@ -234,10 +238,12 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
           mode="screen"
           imageUrls={p.imageUrls}
           selection={selection}
+          overlay={<OverlayLayer overlay={overlay} handles={handles} lineUnit={1 / z} />}
           width={size.width}
           height={size.height}
         />
       )}
+      <RoomRenameInput />
     </div>
   );
 }

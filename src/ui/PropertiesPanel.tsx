@@ -2,15 +2,15 @@ import { useState, type JSX } from 'react';
 import { setDimensionOffset } from '@/core/commands/dimensions';
 import { renameLevel, setLevelProps } from '@/core/commands/levels';
 import { updateOpening } from '@/core/commands/openings';
-import { renameRoom } from '@/core/commands/rooms';
 import { setWallHeight, setWallLength, setWallThickness } from '@/core/commands/walls';
 import { manualDimLine } from '@/core/geometry/autoDimensions';
 import { deriveLevel } from '@/core/geometry/derived';
-import { pointInRing } from '@/core/geometry/polygon';
 import { OPENING_DEFAULTS } from '@/core/model/defaults';
 import { formatArea, formatLength } from '@/core/model/format';
 import type { Level, OpeningKind, OpeningVariant } from '@/core/model/types';
-import { deletableCount, deleteSelectionRecipe } from '@/editor/deleteSelection';
+import { deletableCount } from '@/editor/deleteSelection';
+import { deleteSelection } from '@/editor/keyboard';
+import { renameRoomAt } from '@/editor/renameRoom';
 import type { SelectionItem } from '@/editor/selection';
 import { activeLevel, useEditor } from '@/editor/store';
 import { NumericInput, TextField } from './NumericInput';
@@ -18,16 +18,14 @@ import { Choice, ReadOnly, Section } from './fields';
 import { run } from './run';
 import { ObjectProperties } from './ObjectProperties';
 
-function DeleteButton({ level, selection }: { level: Level; selection: SelectionItem[] }): JSX.Element | null {
+function DeleteButton({ selection }: { selection: SelectionItem[] }): JSX.Element | null {
   if (deletableCount(selection) === 0) return null;
   return (
     <button
       type="button"
       className="btn btn-danger-outline btn-block"
       data-testid="delete-selection"
-      onClick={() => {
-        if (run('Supprimer', deleteSelectionRecipe(level.id, selection))) useEditor.getState().setSelection([]);
-      }}
+      onClick={() => deleteSelection(useEditor)}
     >
       Supprimer
     </button>
@@ -172,14 +170,7 @@ function OpeningProperties({ level, id }: { level: Level; id: string }): JSX.Ele
 function RoomProperties({ level, id }: { level: Level; id: string }): JSX.Element | null {
   const room = deriveLevel(level).rooms.find((r) => r.key === id);
   if (!room) return null;
-  const rename = (name: string) => {
-    const at = room.labelPoint;
-    if (!run('Renommer la pièce', renameRoom(level.id, { label: room.label, labelPoint: at }, name))) return;
-    // the room key follows its label: keep the renamed room selected
-    const next = activeLevel(useEditor.getState());
-    const renamed = next && deriveLevel(next).rooms.find((r) => pointInRing(at, r.ring));
-    if (renamed) useEditor.getState().setSelection([{ kind: 'room', id: renamed.key }]);
-  };
+  const rename = (name: string) => renameRoomAt(useEditor, level.id, room, name);
   return (
     <Section title="Pièce">
       <TextField label="Nom" value={room.label?.name ?? ''} placeholder={room.name} allowBlank testId="room-name" onCommit={rename} />
@@ -253,7 +244,7 @@ export function PropertiesPanel(): JSX.Element | null {
       )}
       {selection.length > 0 && (
         <div className="panel-section">
-          <DeleteButton level={level} selection={selection} />
+          <DeleteButton selection={selection} />
         </div>
       )}
     </aside>

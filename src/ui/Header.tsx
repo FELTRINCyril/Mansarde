@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { renameProject } from '@/core/commands/project';
+import { MOD_LABEL } from '@/editor/keyboard';
 import { useEditor, type EditorState } from '@/editor/store';
 import type { SaveStatus } from '@/storage/autosave';
 import { run } from './run';
@@ -10,8 +11,6 @@ const DIM_MODES: Array<[EditorState['display']['dimMode'], string]> = [
   ['none', 'Aucune cote'],
 ];
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-const MOD = isMac ? 'Cmd' : 'Ctrl';
 
 function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element {
   if (status.state === 'error') {
@@ -61,10 +60,10 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
         }}
       />
       <div className="header-group">
-        <button type="button" className="btn" disabled={!canUndo} title={`Annuler (${MOD}+Z)`} onClick={() => useEditor.getState().undo()}>
+        <button type="button" className="btn" disabled={!canUndo} title={`Annuler (${MOD_LABEL}+Z)`} onClick={() => useEditor.getState().undo()}>
           Annuler
         </button>
-        <button type="button" className="btn" disabled={!canRedo} title={`Rétablir (${MOD}+Maj+Z)`} onClick={() => useEditor.getState().redo()}>
+        <button type="button" className="btn" disabled={!canRedo} title={`Rétablir (${MOD_LABEL}+Maj+Z)`} onClick={() => useEditor.getState().redo()}>
           Rétablir
         </button>
       </div>
