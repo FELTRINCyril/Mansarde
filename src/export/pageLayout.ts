@@ -2,8 +2,10 @@ import { resolveAnchor } from '@/core/geometry/anchors';
 import { dimLineEnds, manualDimLine } from '@/core/geometry/autoDimensions';
 import type { DerivedLevel } from '@/core/geometry/derived';
 import { objectCorners } from '@/core/geometry/objects';
+import { openingFrame } from '@/core/geometry/openings';
 import { bbox } from '@/core/geometry/polygon';
-import type { Level, Vec2 } from '@/core/model/types';
+import { add, scale } from '@/core/geometry/vec';
+import type { Level, Opening, Vec2 } from '@/core/model/types';
 
 export type PaperFormat = 'A4' | 'A3';
 export type Orientation = 'portrait' | 'landscape';
@@ -19,6 +21,8 @@ export interface BoundsCm {
   maxX: number;
   maxY: number;
 }
+
+export const ERR_EMPTY_LEVEL = 'Ce niveau est vide : rien à exporter';
 
 export const MARGIN_MM = 10;
 export const TITLE_BLOCK_MM = { width: 70, height: 28 };
@@ -65,13 +69,34 @@ export function suggestScale(b: BoundsCm, format: PaperFormat, o: Orientation): 
 }
 
 /**
- * Bounds of what is printed: wall outlines, object corners and manual dimensions (anchors and the
- * drawn, offset line), grown by marginCm on every side. The background image is excluded.
- * Null for a level with nothing to print.
+ * Length of the swinging leaves of an opening (radius of their arcs), 0 when nothing swings out of
+ * the wall: sliding and pocket doors, fixed and sliding windows, passages. Mirrors OpeningsLayer.
+ */
+function leafLength(o: Opening): number {
+  if (o.kind === 'door' && (o.variant === 'sliding' || o.variant === 'pocket')) return 0;
+  if (o.kind === 'window' && (o.variant === 'sliding' || o.variant === 'fixed')) return 0;
+  if (o.kind === 'passage') return 0;
+  return o.variant === 'double' ? o.width / 2 : o.width;
+}
+
+/** Corners of the box swept by the leaves: the opening span, from the wall face out to the leaf length. */
+function swingExtent(level: Level, o: Opening): Vec2[] {
+  const len = leafLength(o);
+  if (len <= 0 || !level.walls[o.wallId]) return [];
+  const f = openingFrame(level, o);
+  const out = scale(f.normal, (o.swing === 'left' ? 1 : -1) * (f.thickness / 2 + len));
+  return [add(f.start, out), add(f.end, out)];
+}
+
+/**
+ * Bounds of what is printed: wall outlines, door and window swing arcs, object corners and manual
+ * dimensions (anchors and the drawn, offset line), grown by marginCm on every side. The background
+ * image is excluded. Null for a level with nothing to print.
  */
 export function levelBounds(level: Level, d: DerivedLevel, marginCm = 60): BoundsCm | null {
   const pts: Vec2[] = [];
   for (const ring of d.outlines.values()) pts.push(...ring);
+  for (const o of Object.values(level.openings)) pts.push(...swingExtent(level, o));
   for (const o of Object.values(level.objects)) pts.push(...objectCorners(o));
   for (const dim of Object.values(level.dimensions)) {
     for (const a of [dim.a, dim.b]) {
@@ -94,4 +119,65 @@ export function levelBounds(level: Level, d: DerivedLevel, marginCm = 60): Bound
 /** 0.25 mm on paper expressed in world cm at 1/scale: 0.025 * scale. */
 export function printLineUnit(scale: number): number {
   return 0.025 * scale;
+}
+
+/**
+ * Bleed around levelBounds, in print units (multiples of lineUnit, 0.25 mm on paper): the facade
+ * dimensions sit 50 cm beyond the walls and their text adds about 12 units, which exceeds the
+ * 60 cm margin at 1/50 and above. The plan keeps its place and scale; the SVG viewport just extends
+ * 5 mm into the page margins so that this text is not clipped.
+ */
+export const BLEED_PX = 20;
+
+/** Where the plan SVG goes on the sheet: its viewBox (world cm) and its box on the page (mm). */
+export interface PlanPlacement {
+  viewBox: { x: number; y: number; width: number; height: number };
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The bounds' top-left corner on the top-left margins, at exactly 1/scale, grown by the bleed. */
+export function planPlacement(b: BoundsCm, spec: PageSpec): PlanPlacement {
+  const bleedCm = BLEED_PX * printLineUnit(spec.scale);
+  const mmPerCm = 10 / spec.scale;
+  const viewBox = {
+    x: b.minX - bleedCm,
+    y: b.minY - bleedCm,
+    width: b.maxX - b.minX + 2 * bleedCm,
+    height: b.maxY - b.minY + 2 * bleedCm,
+  };
+  const bleedMm = bleedCm * mmPerCm;
+  return {
+    viewBox,
+    x: MARGIN_MM - bleedMm,
+    y: MARGIN_MM - bleedMm,
+    width: viewBox.width * mmPerCm,
+    height: viewBox.height * mmPerCm,
+  };
+}
+
+/** Title block frame in mm: bottom right corner, inside the margins. */
+export function titleBlockRect(spec: PageSpec): { x: number; y: number; width: number; height: number } {
+  const page = pageSizeMm(spec.format, spec.orientation);
+  return {
+    x: page.width - MARGIN_MM - TITLE_BLOCK_MM.width,
+    y: page.height - MARGIN_MM - TITLE_BLOCK_MM.height,
+    width: TITLE_BLOCK_MM.width,
+    height: TITLE_BLOCK_MM.height,
+  };
+}
+
+/** Length of the graphic scale bar in meters (1 m segments): 1 m at 1/20, 2 m at 1/50, 5 m beyond. */
+export function scaleBarMeters(scale: number): number {
+  if (scale <= 20) return 1;
+  if (scale <= 50) return 2;
+  return 5;
+}
+
+/** Local date as dd/mm/yyyy. */
+export function formatPrintDate(date: Date): string {
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(date.getDate())}/${two(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
