@@ -18,6 +18,7 @@ interface Ctx {
   hw: number; // half width
   ht: number; // half thickness
   s: 1 | -1; // swing side along the normal
+  stroke: string;
 }
 
 const P = (c: Ctx, a: number, b: number): Vec2 => add(c.f.center, add(scale(c.f.dir, a), scale(c.f.normal, b)));
@@ -42,11 +43,11 @@ function Leaf({ c, hingeA, len, toward, thin }: { c: Ctx; hingeA: number; len: n
   const k = thin ? STYLE.frameWidth / STYLE.leafWidth : 1;
   return (
     <>
-      <Seg p={hinge} q={open} width={STYLE.leafWidth * k * c.lineUnit} />
+      <Seg p={hinge} q={open} width={STYLE.leafWidth * k * c.lineUnit} stroke={c.stroke} />
       <path
         d={`M${num(open.x)} ${num(open.y)}A${r} ${r} 0 0 ${sweep} ${num(closed.x)} ${num(closed.y)}`}
         fill="none"
-        stroke={STYLE.openingStroke}
+        stroke={c.stroke}
         strokeWidth={STYLE.arcWidth * k * c.lineUnit}
         strokeDasharray={dashArray(c.lineUnit)}
       />
@@ -74,8 +75,8 @@ function SlidingPanels({ c, width }: { c: Ctx; width: number }): JSX.Element {
   const b = c.ht * 0.35;
   return (
     <>
-      <Seg p={P(c, -c.hw, -b)} q={P(c, overlap, -b)} width={width} />
-      <Seg p={P(c, -overlap, b)} q={P(c, c.hw, b)} width={width} />
+      <Seg p={P(c, -c.hw, -b)} q={P(c, overlap, -b)} width={width} stroke={c.stroke} />
+      <Seg p={P(c, -overlap, b)} q={P(c, c.hw, b)} width={width} stroke={c.stroke} />
     </>
   );
 }
@@ -85,14 +86,14 @@ function Faces({ c }: { c: Ctx }): JSX.Element {
   const w = STYLE.frameWidth * c.lineUnit;
   return (
     <>
-      <Seg p={P(c, -c.hw, -c.ht)} q={P(c, c.hw, -c.ht)} width={w} />
-      <Seg p={P(c, -c.hw, c.ht)} q={P(c, c.hw, c.ht)} width={w} />
+      <Seg p={P(c, -c.hw, -c.ht)} q={P(c, c.hw, -c.ht)} width={w} stroke={c.stroke} />
+      <Seg p={P(c, -c.hw, c.ht)} q={P(c, c.hw, c.ht)} width={w} stroke={c.stroke} />
     </>
   );
 }
 
 const Center = ({ c }: { c: Ctx }): JSX.Element => (
-  <Seg p={P(c, -c.hw, 0)} q={P(c, c.hw, 0)} width={STYLE.frameWidth * c.lineUnit} />
+  <Seg p={P(c, -c.hw, 0)} q={P(c, c.hw, 0)} width={STYLE.frameWidth * c.lineUnit} stroke={c.stroke} />
 );
 
 /** Half the thickness of the thickest other wall meeting this wall at the given node (0 at a free end). */
@@ -130,7 +131,7 @@ function DoorSymbol({ c }: { c: Ctx }): JSX.Element {
         : Math.min(jamb + 2 * c.hw, c.f.wallLength - c.o.offset - stop);
       return (
         <>
-          <Seg p={P(c, -c.hw, 0)} q={P(c, c.hw, 0)} width={leafWidth} />
+          <Seg p={P(c, -c.hw, 0)} q={P(c, c.hw, 0)} width={leafWidth} stroke={c.stroke} />
           <Seg p={P(c, jamb, 0)} q={P(c, inside, 0)} width={leafWidth} stroke={STYLE.pocketStroke} dashed={dashArray(c.lineUnit)} />
         </>
       );
@@ -175,22 +176,46 @@ function WindowSymbol({ c }: { c: Ctx }): JSX.Element {
   }
 }
 
+/**
+ * One opening: its gap (unless `gap` is false) and its door or window symbol (a passage is just the
+ * gap), strokes in `stroke` (the plan color by default; tool ghosts pass another one).
+ */
+export function OpeningSymbol({
+  level,
+  opening: o,
+  lineUnit,
+  stroke = STYLE.openingStroke,
+  gap = true,
+}: {
+  level: Level;
+  opening: Opening;
+  lineUnit: number;
+  stroke?: string;
+  gap?: boolean;
+}): JSX.Element | null {
+  if (!level.walls[o.wallId]) return null; // broken reference: never crash the whole plan
+  const f = openingFrame(level, o);
+  const c: Ctx = { level, f, o, lineUnit, hw: o.width / 2, ht: f.thickness / 2, s: o.swing === 'left' ? 1 : -1, stroke };
+  return (
+    <>
+      {gap && <Gap c={c} />}
+      {o.kind === 'door' && <DoorSymbol c={c} />}
+      {o.kind === 'window' && <WindowSymbol c={c} />}
+    </>
+  );
+}
+
 /** Door, window or passage symbols over their gap; a passage is just the gap. */
 export function OpeningsLayer({ level, lineUnit }: { level: Level; lineUnit: number }): JSX.Element {
   return (
     <g data-kind="openings" fill="none" strokeLinecap="butt">
-      {Object.values(level.openings).map((o) => {
-        if (!level.walls[o.wallId]) return null; // broken reference: never crash the whole plan
-        const f = openingFrame(level, o);
-        const c: Ctx = { level, f, o, lineUnit, hw: o.width / 2, ht: f.thickness / 2, s: o.swing === 'left' ? 1 : -1 };
-        return (
+      {Object.values(level.openings).map((o) =>
+        level.walls[o.wallId] ? (
           <g key={o.id} data-kind="opening" data-id={o.id}>
-            <Gap c={c} />
-            {o.kind === 'door' && <DoorSymbol c={c} />}
-            {o.kind === 'window' && <WindowSymbol c={c} />}
+            <OpeningSymbol level={level} opening={o} lineUnit={lineUnit} />
           </g>
-        );
-      })}
+        ) : null,
+      )}
     </g>
   );
 }

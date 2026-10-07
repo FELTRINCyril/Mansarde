@@ -1,9 +1,9 @@
 import type { Level, Opening, PlacedObject, Vec2 } from '../model/types';
-import type { DerivedLevel } from './derived';
+import { deriveLevel, type DerivedLevel } from './derived';
 import { openingFrame, openingInterval } from './openings';
 import { ringEdges } from './polygon';
-import { add, deg2rad, rotate, scale, segmentIntersection, sub } from './vec';
-import { wallFrame } from './walls';
+import { add, deg2rad, dot, lineIntersection, rotate, scale, segmentIntersection, sub } from './vec';
+import { wallFrame, type WallFrame } from './walls';
 
 export interface Clearance {
   side: 'left' | 'right' | 'front' | 'back';
@@ -68,18 +68,68 @@ export function placeAtClearance(o: PlacedObject, c: Clearance, value: number): 
   return { x: o.x + c.dir.x * move, y: o.y + c.dir.y * move };
 }
 
+/** Distance (cm) outside a wall face at which openingClearances probes along that face. */
+const FACE_PROBE = 0.05;
+
 /**
- * Dynamic dimensions of an opening (spec 6.5), measured along the wall axis: from the previous
- * obstacle (wall start node or end of the neighbour opening) to the opening start, and from the
- * opening end to the next obstacle (neighbour opening or wall end node). Openings of the same
- * wall that overlap this one (possible during a drag) are ignored.
+ * Position along the wall axis (0 = start node) of the nearest wall face met when going from the
+ * axis position `from` towards `to` (one wall end). Probes along both faces of the wall, just outside
+ * them, against the wall shape without openings: the inner face of a perpendicular or oblique
+ * neighbour wall is met there, while the wall itself never is. The position is where the edge met
+ * crosses the face line itself (not the probe line), so that oblique faces are exact. Nothing
+ * before the end: the end.
  */
-export function openingClearances(level: Level, opening: Opening): OpeningClearance[] {
+function faceLimit(wall: WallFrame, halfThickness: number, edges: [Vec2, Vec2][], from: number, to: number): number {
+  const along = to - from;
+  if (Math.abs(along) < EPS) return to;
+  let best = to;
+  for (const side of [-1, 1]) {
+    const shift = scale(wall.normal, side * (halfThickness + FACE_PROBE));
+    const a = add(add(wall.start, scale(wall.dir, from)), shift);
+    const b = add(add(wall.start, scale(wall.dir, to)), shift);
+    const face = add(wall.start, scale(wall.normal, side * halfThickness));
+    for (const [c, d] of edges) {
+      const hit = segmentIntersection(a, b, c, d);
+      if (!hit) continue;
+      // where the edge's line crosses the face line itself (exact for oblique edges, unlike the probe line)
+      const exact = lineIntersection(face, wall.dir, c, sub(d, c));
+      const s = exact ? dot(sub(exact, wall.start), wall.dir) : from + hit.t * along;
+      if (along < 0 ? s > best : s < best) best = s;
+    }
+  }
+  return best;
+}
+
+/**
+ * Free stretch of a wall between the faces of the walls met at its ends, as positions along its
+ * axis (0 = start node): the nearest faces seen from the middle of the wall (see faceLimit). An
+ * isolated wall gives [0, length]. Used to place new openings clear of the neighbour walls.
+ */
+export function wallFaceInterval(level: Level, wallId: string, d: DerivedLevel = deriveLevel(level)): [number, number] {
+  const wall = wallFrame(level, wallId);
+  const half = (level.walls[wallId]?.thickness ?? 0) / 2;
+  const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
+  const mid = wall.length / 2;
+  return [faceLimit(wall, half, edges, mid, 0), faceLimit(wall, half, edges, mid, wall.length)];
+}
+
+/**
+ * Dynamic dimensions of an opening (spec 6.5, ruling R29), measured along the wall: from the
+ * previous obstacle to the opening start, and from the opening end to the next obstacle. An
+ * obstacle is the nearest wall face along the wall (the inner face of the wall met at that end,
+ * see faceLimit; the wall end itself when no wall meets it) or the edge of a neighbour opening of
+ * the same wall. Openings of the same wall that overlap this one (possible during a drag) are
+ * ignored. Distances are never negative (an edge already inside the neighbour wall reports 0 or
+ * its distance to the end). `d` defaults to the derived geometry of the level.
+ */
+export function openingClearances(level: Level, opening: Opening, d: DerivedLevel = deriveLevel(level)): OpeningClearance[] {
   const wall = wallFrame(level, opening.wallId);
+  const half = (level.walls[opening.wallId]?.thickness ?? 0) / 2;
+  const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
   const f = openingFrame(level, opening);
   const [lo, hi] = openingInterval(opening);
-  let before = 0;
-  let after = wall.length;
+  let before = lo >= 0 ? faceLimit(wall, half, edges, lo, 0) : 0;
+  let after = hi <= wall.length ? faceLimit(wall, half, edges, hi, wall.length) : wall.length;
   for (const other of Object.values(level.openings)) {
     if (other.id === opening.id || other.wallId !== opening.wallId) continue;
     const [otherLo, otherHi] = openingInterval(other);
@@ -88,7 +138,13 @@ export function openingClearances(level: Level, opening: Opening): OpeningCleara
   }
   const at = (s: number) => add(wall.start, scale(wall.dir, s));
   return [
-    { side: 'before', from: at(before), to: f.start, distance: lo - before },
-    { side: 'after', from: f.end, to: at(after), distance: after - hi },
+    { side: 'before', from: at(before), to: f.start, distance: Math.max(0, lo - before) },
+    { side: 'after', from: f.end, to: at(after), distance: Math.max(0, after - hi) },
   ];
+}
+
+/** New offset of the opening, moved along its wall so that the clearance c becomes `value`. */
+export function placeOpeningAtClearance(o: Opening, c: OpeningClearance, value: number): number {
+  const move = c.distance - value;
+  return c.side === 'before' ? o.offset - move : o.offset + move;
 }

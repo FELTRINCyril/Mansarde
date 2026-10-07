@@ -3,6 +3,7 @@ import { HANDLE_PX, type ObjectHandle } from '@/editor/handles';
 import type { Overlay } from '@/editor/store';
 import { isOutlineGhost } from '@/editor/tools/types';
 import { DimLineView } from './DimLineView';
+import { OpeningGhostView } from './OpeningGhostView';
 import { ringsPath } from './path';
 import { dashArray, num, STYLE } from './style';
 
@@ -60,6 +61,7 @@ export function OverlayLayer({
           ))}
         </g>
       )}
+      <OpeningGhostView ghost={ghost} lineUnit={lineUnit} />
       {handles.length > 0 && (
         <g data-kind="handles" stroke={STYLE.selection} strokeWidth={STYLE.handleWidth * lineUnit} fill={STYLE.paper}>
           {handles.map((h) =>

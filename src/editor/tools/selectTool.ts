@@ -3,19 +3,22 @@ import { setDimensionOffset } from '@/core/commands/dimensions';
 import { moveObjects, setObjectTransform, updateObject } from '@/core/commands/objects';
 import { moveOpening } from '@/core/commands/openings';
 import { mergeNode, moveNodes, moveWalls } from '@/core/commands/walls';
-import { manualDimLine, OPENING_GAP, type DimLine } from '@/core/geometry/autoDimensions';
-import { objectClearances, openingClearances } from '@/core/geometry/clearances';
+import { manualDimLine, type DimLine } from '@/core/geometry/autoDimensions';
+import { wallFaceInterval } from '@/core/geometry/clearances';
 import { deriveLevel } from '@/core/geometry/derived';
 import { hitTest, hitTestRect } from '@/core/geometry/hit';
 import { openingCutRing } from '@/core/geometry/openings';
 import { snapObjectToWalls, snapPoint } from '@/core/geometry/snap';
-import { add, dist, dot, len, normalize, perp, rad2deg, sub } from '@/core/geometry/vec';
+import { add, dist, dot, len, lerp, normalize, perp, rad2deg, sub } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
 import { SNAP_PX } from '@/core/model/defaults';
 import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { handleTarget, hitHandle, objectLocalToWorld, worldToObjectLocal } from '../handles';
+import { openNumericInput } from '../numericOverlay';
 import type { SelectionItem } from '../selection';
-import { activeLevel, type EditorStore } from '../store';
+import { activeLevel, type EditorState, type EditorStore } from '../store';
+import { worldToScreen } from '../view';
+import { measureObject, measureOpening, measureTarget, nextSide, typedRecipe, type MeasureTarget } from './clearanceDims';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
 
 /** A press becomes a drag once the pointer has moved this far (screen px). */
@@ -46,6 +49,10 @@ interface Session {
   additive: boolean; // Shift at press: the rectangle adds to the selection
   baseSelection: SelectionItem[];
   grab: Vec2; // opening: (cursor - center) along the wall in x; resize: handle - cursor in the object frame
+  last: Vec2; // last pointer position (screen px): where the typed distance field opens
+  activeSide: string | null; // clearance chosen with Tab (side name, the list changes while dragging)
+  typing: boolean; // the numeric field is open: pointer moves are ignored
+  released: boolean; // the pointer was released while typing: the gesture waits for the field
 }
 
 const GESTURE_LABELS: Record<Exclude<DragPlan['kind'], 'marquee'>, string> = {
@@ -86,7 +93,7 @@ const levelOf = (project: { levels: Level[] } | null | undefined, id: Id): Level
 
 /** Dynamic dimensions of an object: its clearances to the nearest wall faces (spec 6.5). */
 function objectDims(level: Level, o: PlacedObject): DimLine[] {
-  return objectClearances(o, deriveLevel(level)).map((c) => ({ a: c.from, b: c.to, offset: 0, value: c.distance, kind: 'dynamic' }));
+  return measureObject(level, o).dims;
 }
 
 /** Dynamic dimensions of an opening, drawn like its width dimension (beyond the face opposite to the swing). */
@@ -94,12 +101,35 @@ function openingDims(level: Level, id: Id): DimLine[] {
   const o = level.openings[id];
   const wall = o && level.walls[o.wallId];
   if (!o || !wall) return [];
-  const offset = (o.swing === 'left' ? -1 : 1) * (wall.thickness / 2 + OPENING_GAP);
-  return openingClearances(level, o).map((c) => ({ a: c.from, b: c.to, offset, value: c.distance, kind: 'dynamic' }));
+  return measureOpening(level, o).dims;
 }
 
+/** Element whose clearances a drag shows: a single object moved alone, or an opening. */
+function sessionTarget(s: Session): MeasureTarget | null {
+  const plan = s.plan;
+  if (plan?.kind === 'opening') return { kind: 'opening', levelId: s.levelId, id: plan.id };
+  if (plan?.kind === 'move' && plan.wallIds.length === 0 && plan.objectIds.length === 1) {
+    return { kind: 'object', levelId: s.levelId, id: plan.objectIds[0]! };
+  }
+  return null;
+}
+
+/** The single selected object or opening of the active level, if that is the whole selection. */
+function selectedTarget(st: EditorState): MeasureTarget | null {
+  const level = activeLevel(st);
+  const item = st.selection.length === 1 ? st.selection[0]! : null;
+  if (!level || !item) return null;
+  if (item.kind === 'object' && level.objects[item.id]) return { kind: 'object', levelId: level.id, id: item.id };
+  if (item.kind === 'opening' && level.openings[item.id]) return { kind: 'opening', levelId: level.id, id: item.id };
+  return null;
+}
+
+const sameTarget = (a: MeasureTarget, b: MeasureTarget): boolean => a.kind === b.kind && a.id === b.id && a.levelId === b.levelId;
+const isDigit = (k: string): boolean => /^[0-9]$/.test(k);
+const TYPED_LABEL = 'Distance';
+
 /** Wall the cursor hovers (axis distance within half the thickness + the snap tolerance), the closest one. */
-function hoveredWall(level: Level, p: Vec2, tol: number): Id | null {
+export function hoveredWall(level: Level, p: Vec2, tol: number): Id | null {
   let best: Id | null = null;
   let bestD = Infinity;
   for (const w of Object.values(level.walls)) {
@@ -138,6 +168,8 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  */
 export function createSelectTool(): Tool {
   let session: Session | null = null;
+  /** Clearances of the selected element shown with Tab without dragging (and after a typed drag). */
+  let keyboard: { target: MeasureTarget; activeSide: string | null } | null = null;
 
   const clearTransient = (store: EditorStore) =>
     store.getState().setOverlay({ marquee: null, guides: [], dynamicDims: [], activeDimIndex: null, ghost: null });
@@ -226,7 +258,10 @@ export function createSelectTool(): Tool {
     const f = wallFrame(base, wallId);
     let offset = dot(sub(e.world, f.start), f.dir) - s.grab.x;
     if (!e.alt) offset = Math.round(offset);
-    if (f.length >= o.width) offset = clamp(offset, o.width / 2, f.length - o.width / 2);
+    // kept between the faces of the walls met at the ends (ruling R29), else at least within the wall
+    const [faceLo, faceHi] = wallFaceInterval(base, wallId);
+    if (faceHi - faceLo >= o.width) offset = clamp(offset, faceLo + o.width / 2, faceHi - o.width / 2);
+    else if (f.length >= o.width) offset = clamp(offset, o.width / 2, f.length - o.width / 2);
     const ok = st.updateGesture(moveOpening(s.levelId, id, wallId, offset));
     const level = levelOf(c.store.getState().project, s.levelId);
     st.setOverlay(
@@ -297,12 +332,90 @@ export function createSelectTool(): Tool {
     }
   }
 
+  // ----- Tab and typed distances (spec 7.4, ruling R27) -----
+
+  /** Shows the clearances of the keyboard measure from the current project; ends it when they are gone. */
+  function showKeyboardMeasure(c: ToolContext): void {
+    const level = keyboard && levelOf(c.store.getState().project, keyboard.target.levelId);
+    const m = keyboard && level ? measureTarget(level, keyboard.target) : null;
+    if (!keyboard || !m || m.dims.length === 0) return endKeyboardMeasure(c.store);
+    const i = keyboard.activeSide === null ? -1 : m.sides.indexOf(keyboard.activeSide);
+    c.store.getState().setOverlay({ dynamicDims: m.dims, activeDimIndex: i < 0 ? null : i });
+  }
+
+  function endKeyboardMeasure(store: EditorStore): void {
+    if (!keyboard) return;
+    keyboard = null;
+    clearTransient(store);
+  }
+
+  /** Highlights the Tab-chosen clearance of a drag again after its dimensions were recomputed. */
+  function syncActive(s: Session, c: ToolContext): void {
+    const target = sessionTarget(s);
+    const level = levelOf(c.store.getState().project, s.levelId);
+    if (!target || !level || s.activeSide === null) return;
+    const i = measureTarget(level, target).sides.indexOf(s.activeSide);
+    c.store.getState().setOverlay({ activeDimIndex: i < 0 ? null : i });
+  }
+
+  /**
+   * Tab (Shift+Tab backwards) chooses the next clearance of the dragged element, or of the single
+   * selected object / opening when nothing is dragged; a digit then opens the numeric field with
+   * it. Null: not a key for this (left to the other shortcuts). Any other key ends the keyboard
+   * measure (Escape is used for that).
+   */
+  function typedKey(e: KeyboardEvent, c: ToolContext): boolean | null {
+    if (e.metaKey || e.ctrlKey || e.altKey) return null;
+    const st = c.store.getState();
+    const s = session;
+    if (s && (s.phase !== 'drag' || s.typing)) return null;
+    const target = s ? sessionTarget(s) : selectedTarget(st);
+    const level = target && levelOf(st.project, target.levelId);
+    const m = target && level ? measureTarget(level, target) : null;
+    const known = !s && keyboard && target && sameTarget(keyboard.target, target) ? keyboard : null;
+    if (e.key === 'Tab') {
+      if (!target || !m || m.sides.length === 0) {
+        if (!s) endKeyboardMeasure(c.store);
+        return s ? true : null;
+      }
+      const active = nextSide(m.sides, s ? s.activeSide : (known?.activeSide ?? null), e.shiftKey);
+      if (s) s.activeSide = active;
+      else keyboard = { target, activeSide: active };
+      st.setOverlay({ dynamicDims: m.dims, activeDimIndex: active === null ? null : m.sides.indexOf(active) });
+      return true;
+    }
+    if (isDigit(e.key) && target && m && m.sides.length > 0 && (s || known)) {
+      const holder = s ?? known!;
+      if (holder.activeSide === null || !m.sides.includes(holder.activeSide)) holder.activeSide = m.sides[0]!;
+      const i = m.sides.indexOf(holder.activeSide);
+      const dim = m.dims[i]!;
+      st.setOverlay({ dynamicDims: m.dims, activeDimIndex: i });
+      const screen = s ? s.last : worldToScreen(st.view, lerp(dim.a, dim.b, 0.5));
+      openNumericInput(c.store, { initial: e.key, screen, kind: 'nonNegative', label: TYPED_LABEL });
+      if (s) s.typing = true;
+      return true; // used: PlanCanvas prevents the default, the digit is not typed twice
+    }
+    if (!s && keyboard) {
+      endKeyboardMeasure(c.store);
+      if (e.key === 'Escape') return true;
+    }
+    return null;
+  }
+
+  /** The pointer was released while typing and the field closed without a value: the drop stands. */
+  function finishReleased(c: ToolContext): void {
+    session = null;
+    c.store.getState().commitGesture();
+    clearTransient(c.store);
+  }
+
   return {
     id: 'select',
     cursor: 'default',
 
     onPointerDown(e, c) {
       if (e.button !== 0) return;
+      endKeyboardMeasure(c.store);
       const st = c.store.getState();
       const level = activeLevel(st);
       if (!st.project || !level) return;
@@ -316,6 +429,10 @@ export function createSelectTool(): Tool {
         additive: e.shift,
         baseSelection: st.selection,
         grab: { x: 0, y: 0 },
+        last: e.screen,
+        activeSide: null,
+        typing: false,
+        released: false,
       };
       session = s;
 
@@ -349,7 +466,8 @@ export function createSelectTool(): Tool {
 
     onPointerMove(e, c) {
       const s = session;
-      if (!s || !s.plan) return;
+      if (!s || !s.plan || s.typing) return;
+      s.last = e.screen;
       if (s.phase === 'pending') {
         if (dist(e.screen, s.start.screen) < DRAG_THRESHOLD_PX) return;
         if (!begin(s, s.plan, c)) {
@@ -359,9 +477,14 @@ export function createSelectTool(): Tool {
         s.phase = 'drag';
       }
       drag(s, s.plan, e, c);
+      if (s.activeSide !== null) syncActive(s, c);
     },
 
     onPointerUp(e, c) {
+      if (session?.typing) {
+        session.released = true; // the field decides: Enter places, Escape keeps the drop
+        return;
+      }
       const s = session;
       session = null;
       if (!s) return;
@@ -398,6 +521,8 @@ export function createSelectTool(): Tool {
     },
 
     onKeyDown(e, c) {
+      const typed = typedKey(e, c);
+      if (typed !== null) return typed;
       if (e.key !== 'Escape' || !session) return false;
       const s = session;
       session = null;
@@ -406,8 +531,42 @@ export function createSelectTool(): Tool {
       return true;
     },
 
+    onNumericSubmit(value, c) {
+      const st = c.store.getState();
+      const s = session;
+      if (s?.typing) {
+        s.typing = false;
+        const target = sessionTarget(s);
+        const level = levelOf(st.project, s.levelId); // the preview: the value applies to what is shown
+        const recipe = target && level && s.activeSide !== null ? typedRecipe(level, target, s.activeSide, value) : null;
+        if (target && recipe && st.updateGesture(recipe)) {
+          session = null;
+          st.commitGesture();
+          keyboard = { target, activeSide: s.activeSide };
+          showKeyboardMeasure(c);
+          return;
+        }
+        st.showToast(target?.kind === 'opening' ? 'Pas assez de place sur ce mur' : 'Position impossible');
+        if (s.released) finishReleased(c);
+        return;
+      }
+      if (!keyboard || keyboard.activeSide === null) return;
+      const level = levelOf(st.project, keyboard.target.levelId);
+      const recipe = level && typedRecipe(level, keyboard.target, keyboard.activeSide, value);
+      if (recipe) st.execute(keyboard.target.kind === 'opening' ? GESTURE_LABELS.opening : GESTURE_LABELS.move, recipe);
+      showKeyboardMeasure(c);
+    },
+
+    onNumericCancel(c) {
+      const s = session;
+      if (!s?.typing) return;
+      s.typing = false;
+      if (s.released) finishReleased(c);
+    },
+
     onDeactivate(c) {
       session = null;
+      keyboard = null;
       clearTransient(c.store);
     },
   };

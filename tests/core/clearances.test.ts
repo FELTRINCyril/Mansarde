@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { objectClearances, openingClearances, placeAtClearance } from '@/core/geometry/clearances';
+import { objectClearances, openingClearances, placeAtClearance, placeOpeningAtClearance, wallFaceInterval } from '@/core/geometry/clearances';
 import { deriveLevel } from '@/core/geometry/derived';
 import { snapObjectToWalls } from '@/core/geometry/snap';
 import { deg2rad, rotate } from '@/core/geometry/vec';
@@ -96,17 +96,48 @@ describe('placeAtClearance', () => {
 });
 
 describe('openingClearances', () => {
-  it('distances to the wall ends along the axis', () => {
-    const level = levelFromWalls(rectRoom(0, 0, 400, 300));
-    const door = createOpening(findWall(level, 400, 0, 400, 300), 'door', 150, { width: 80 });
+  it('distances to the wall ends along the axis when no wall meets them', () => {
+    const level = levelFromWalls([[0, 0, 300, 0]]);
+    const door = createOpening(findWall(level, 0, 0, 300, 0), 'door', 150, { width: 80 });
     const cs = openingClearances(level, door);
     expect(cs.map((c) => c.side)).toEqual(['before', 'after']);
     expect(cs[0]!.distance).toBeCloseTo(110, 6);
     expect(cs[1]!.distance).toBeCloseTo(110, 6);
-    expect(cs[0]!.from).toEqual({ x: 400, y: 0 });
-    expect(cs[0]!.to).toEqual({ x: 400, y: 110 });
-    expect(cs[1]!.from).toEqual({ x: 400, y: 190 });
-    expect(cs[1]!.to).toEqual({ x: 400, y: 300 });
+    expect(cs[0]!.from).toEqual({ x: 0, y: 0 });
+    expect(cs[0]!.to).toEqual({ x: 110, y: 0 });
+    expect(cs[1]!.from).toEqual({ x: 190, y: 0 });
+    expect(cs[1]!.to).toEqual({ x: 300, y: 0 });
+  });
+
+  it('measures to the inner face of the perpendicular walls (ruling R29)', () => {
+    // right wall x = 400 from y = 0 to 300; top and bottom walls 20 cm thick: inner faces at y = 10 and 290
+    const level = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const door = createOpening(findWall(level, 400, 0, 400, 300), 'door', 150, { width: 80 });
+    const [before, after] = openingClearances(level, door);
+    expect(before!.distance).toBeCloseTo(100, 6);
+    expect(after!.distance).toBeCloseTo(100, 6);
+    expect(before!.from.x).toBeCloseTo(400, 6);
+    expect(before!.from.y).toBeCloseTo(10, 6);
+    expect(before!.to).toEqual({ x: 400, y: 110 });
+    expect(after!.from).toEqual({ x: 400, y: 190 });
+    expect(after!.to.y).toBeCloseTo(290, 6);
+  });
+
+  it('takes the face of a thicker neighbour wall', () => {
+    // left wall 30 cm thick: its inner face is at x = 15
+    const level = levelFromWalls([[0, 0, 400, 0], [0, 0, 0, 300, 30]]);
+    const door = createOpening(findWall(level, 0, 0, 400, 0), 'door', 100, { width: 80 });
+    const [before, after] = openingClearances(level, door);
+    expect(before!.distance).toBeCloseTo(60 - 15, 6);
+    expect(after!.distance).toBeCloseTo(400 - 140, 6); // free end
+  });
+
+  it('measures to the face of an oblique neighbour wall', () => {
+    // wall B along y = x, 20 cm thick: its face towards wall A is the line x = y + 10 * sqrt(2); at y = 10, x = 24.142
+    const level = levelFromWalls([[0, 0, 300, 0], [0, 0, 100, 100]]);
+    const door = createOpening(findWall(level, 0, 0, 300, 0), 'door', 150, { width: 80 });
+    const [before] = openingClearances(level, door);
+    expect(before!.distance).toBeCloseTo(110 - (10 + 10 * Math.SQRT2), 6);
   });
 
   it('stops at a neighbour opening on the same wall, ignores other walls', () => {
@@ -119,8 +150,36 @@ describe('openingClearances', () => {
     const door = createOpening(right, 'door', 150, { width: 80 });
     level.openings[door.id] = door;
     const [before, after] = openingClearances(level, door);
-    expect(before!.distance).toBeCloseTo(110, 6);
+    expect(before!.distance).toBeCloseTo(100, 6);
     expect(after!.distance).toBeCloseTo(220 - 190, 6);
     expect(after!.to).toEqual({ x: 400, y: 220 });
+  });
+
+  it('never reports a negative distance when the opening edge lies inside a neighbour wall', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const door = createOpening(findWall(level, 400, 0, 400, 300), 'door', 45, { width: 80 }); // edge at y = 5 < 10
+    const [before] = openingClearances(level, door);
+    expect(before!.distance).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('placeOpeningAtClearance', () => {
+  it('returns the offset giving the chosen clearance the typed value', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const door = createOpening(findWall(level, 400, 0, 400, 300), 'door', 150, { width: 80 });
+    const [before, after] = openingClearances(level, door);
+    expect(placeOpeningAtClearance(door, before!, 60)).toBeCloseTo(110, 6);
+    expect(placeOpeningAtClearance(door, after!, 30)).toBeCloseTo(220, 6);
+  });
+});
+
+describe('wallFaceInterval', () => {
+  it('is the whole wall when nothing meets it, between the inner faces of the neighbour walls otherwise', () => {
+    const lone = levelFromWalls([[0, 0, 300, 0]]);
+    expect(wallFaceInterval(lone, findWall(lone, 0, 0, 300, 0))).toEqual([0, 300]);
+    const room = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const [lo, hi] = wallFaceInterval(room, findWall(room, 0, 0, 400, 0));
+    expect(lo).toBeCloseTo(10, 6);
+    expect(hi).toBeCloseTo(390, 6);
   });
 });
