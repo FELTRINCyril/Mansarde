@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeRooms } from '@/core/geometry/rooms';
+import { computeWallShape } from '@/core/geometry/walls';
 import { pointInRing } from '@/core/geometry/polygon';
 import { levelFromWalls, rectRoom } from './fixtures';
 
@@ -41,7 +42,9 @@ describe('computeRooms', () => {
     base.roomLabels = [{ id: 'a', name: 'Salon', anchor: { x: 100, y: 100 } }, { id: 'b', name: 'Chambre', anchor: { x: 300, y: 100 } }];
     const split = levelFromWalls([...rectRoom(0, 0, 400, 300), [200, 0, 200, 300, 10]]);
     split.roomLabels = base.roomLabels;
-    expect(computeRooms(split).map((r) => r.name).sort()).toEqual(['Chambre', 'Salon']);
+    const rooms = computeRooms(split);
+    expect(rooms.map((r) => r.name).sort()).toEqual(['Chambre', 'Salon']);
+    for (const room of rooms) expect(pointInRing(room.label!.anchor, room.ring)).toBe(true);
   });
   it('crossing walls without shared node split rooms', () => {
     const lvl = levelFromWalls([...rectRoom(0, 0, 400, 400), [200, -10, 200, 410, 10], [-10, 200, 410, 200, 10]]);
@@ -60,6 +63,49 @@ describe('computeRooms', () => {
   });
   it('accepts a precomputed wall shape', () => {
     const lvl = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const shape = computeWallShape(lvl, { withOpenings: false });
+    const rooms = computeRooms(lvl, shape);
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]!.ring).toBe(shape[0]!.holes[0]);
     expect(computeRooms(lvl, [])).toHaveLength(0);
+  });
+
+  describe('free-standing closed box inside a room', () => {
+    // outer room 600x500 (t=20): hole 580x480. Box axes 150x150 (t=10): outer footprint 160x160,
+    // inner room 140x140. Outer room net area = 580*480 - 160*160 = 278400 - 25600 = 252800.
+    const build = () => levelFromWalls([...rectRoom(0, 0, 600, 500), ...rectRoom(200, 150, 350, 300, 10)]);
+    const sejour = { id: 's', name: 'Séjour', anchor: { x: 100, y: 100 } };
+    const wc = { id: 'w', name: 'WC', anchor: { x: 275, y: 225 } };
+
+    it('yields two rooms with net areas and the island recorded', () => {
+      const rooms = computeRooms(build());
+      expect(rooms).toHaveLength(2);
+      const outer = rooms.find((r) => r.area > 100000)!;
+      const inner = rooms.find((r) => r.area < 100000)!;
+      expect(outer.area).toBeCloseTo(580 * 480 - 160 * 160, 3);
+      expect(outer.islands).toHaveLength(1);
+      expect(inner.area).toBeCloseTo(140 * 140, 3);
+      expect(inner.islands).toHaveLength(0);
+    });
+
+    it.each([
+      ['Séjour first', [sejour, wc]],
+      ['WC first', [wc, sejour]],
+    ])('each room gets its own label (%s)', (_name, labels) => {
+      const lvl = build();
+      lvl.roomLabels = labels;
+      const rooms = computeRooms(lvl);
+      expect(rooms.map((r) => r.name).sort()).toEqual(['Séjour', 'WC']);
+      for (const room of rooms) {
+        expect(pointInRing(room.label!.anchor, room.ring)).toBe(true);
+        expect(room.islands.some((i) => pointInRing(room.label!.anchor, i))).toBe(false);
+      }
+    });
+
+    it('outer label point is not on the island', () => {
+      const outer = computeRooms(build()).find((r) => r.area > 100000)!;
+      expect(pointInRing(outer.labelPoint, outer.ring)).toBe(true);
+      expect(outer.islands.some((i) => pointInRing(outer.labelPoint, i))).toBe(false);
+    });
   });
 });
