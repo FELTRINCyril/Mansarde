@@ -4,7 +4,9 @@ import type { Overlay } from '@/editor/store';
 import { isSegmentGhost } from '@/editor/tools/calibrateTool';
 import { isOutlineGhost } from '@/editor/tools/types';
 import { CalibrationSegment } from './CalibrationSegment';
+import { isDrawGhost } from '@/editor/tools/drawing';
 import { DimLineView } from './DimLineView';
+import { DrawGhostView } from './DrawGhostView';
 import { ringsPath } from './path';
 import { dashArray, num, STYLE } from './style';
 
@@ -29,6 +31,7 @@ export function OverlayLayer({
   const half = (HANDLE_PX / 2) * lineUnit;
   return (
     <g data-kind="overlay">
+      {isDrawGhost(ghost) && <DrawGhostView ghost={ghost} lineUnit={lineUnit} />}
       {guides.map((g, i) => (
         <line
           key={`guide-${i}`}

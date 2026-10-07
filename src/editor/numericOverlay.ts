@@ -45,6 +45,25 @@ export function applyNumericInput(store: EditorStore, ctx: ToolContext, text: st
   return true;
 }
 
+/**
+ * Tab: offered to the active tool's onNumericTab with the parsed value (null for an empty field).
+ * 'unhandled' when the tool has no such handler (Tab keeps its browser default), 'invalid' when the
+ * text does not parse (the field stays open), else 'ok'.
+ */
+export function tabNumericInput(store: EditorStore, ctx: ToolContext, text: string): 'unhandled' | 'invalid' | 'ok' {
+  const ni = store.getState().overlay.numericInput;
+  const tool = TOOLS[store.getState().tool];
+  if (!ni || !tool?.onNumericTab) return 'unhandled';
+  if (text.trim() === '') {
+    tool.onNumericTab(null, ctx);
+    return 'ok';
+  }
+  const r = submitNumeric(text, ni.kind);
+  if (!r.ok) return 'invalid';
+  tool.onNumericTab(r.value, ctx);
+  return 'ok';
+}
+
 /** Escape or blur: closes the field and tells the active tool. Does nothing when the field is already closed. */
 export function cancelNumericInput(store: EditorStore, ctx: ToolContext): void {
   if (!store.getState().overlay.numericInput) return;
