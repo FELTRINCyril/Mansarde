@@ -5,6 +5,7 @@ import { deriveLevel } from '@/core/geometry/derived';
 import type { DimLine } from '@/core/geometry/autoDimensions';
 import type { Guide } from '@/core/geometry/snap';
 import type { Id, Level, PlacedObject, Project, RoomLabel, Vec2 } from '@/core/model/types';
+import type { NumericKind } from '@/ui/numeric';
 import { pruneSelection, type SelectionItem } from './selection';
 import { DEFAULT_VIEW, isValidView, type View } from './view';
 
@@ -14,13 +15,19 @@ export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension
 export interface RoomRename { levelId: Id; label: RoomLabel | null; labelPoint: Vec2; placeholder: string }
 
 /**
+ * Shared numeric field shown near the cursor while a tool is active (see numericOverlay.ts). `screen` is
+ * canvas px; `value` is the text being typed, `kind` selects the parsing rules, `label` an optional caption.
+ */
+export interface NumericInput { value: string; screen: Vec2; kind: NumericKind; label?: string }
+
+/**
  * Transient interaction state drawn by OverlayLayer (world cm unless stated): snap guides, dynamic
  * dimensions, selection rectangle, tool ghost, plus the in-place inputs (numeric value, room name).
  */
 export interface Overlay {
   guides: Guide[]; previewInvalid: boolean;
   dynamicDims: DimLine[]; activeDimIndex: number | null;
-  numericInput: { value: string; screen: Vec2 } | null;
+  numericInput: NumericInput | null;
   marquee: { a: Vec2; b: Vec2 } | null;
   ghost: unknown; // tool-specific preview payload, typed by each tool (see OutlineGhost in tools/types)
   rename: RoomRename | null;

@@ -10,6 +10,7 @@ import { fitView, screenToWorld, zoomAt, type View } from '@/editor/view';
 import { levelBounds } from '@/export/pageLayout';
 import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
+import { NumericOverlayInput } from './NumericOverlayInput';
 import { RoomRenameInput } from './RoomRenameInput';
 
 export interface Size { width: number; height: number }
@@ -244,6 +245,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
         />
       )}
       <RoomRenameInput />
+      <NumericOverlayInput ctx={ctx} canvas={size} restoreFocus={() => ref.current?.focus({ preventScroll: true })} />
     </div>
   );
 }

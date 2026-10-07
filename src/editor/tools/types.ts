@@ -35,6 +35,13 @@ export interface Tool {
   onPointerUp?(e: PointerInfo, c: ToolContext): void;
   onDoubleClick?(e: PointerInfo, c: ToolContext): void;
   onKeyDown?(e: KeyboardEvent, c: ToolContext): boolean; // true = handled
+  /**
+   * The shared numeric field (overlay.numericInput, see numericOverlay.ts) was validated: the field is
+   * already closed and the value parsed (cm, or degrees for the angle kind).
+   */
+  onNumericSubmit?(valueCm: number, c: ToolContext): void;
+  /** The shared numeric field was dismissed (Escape or blur) without applying anything. */
+  onNumericCancel?(c: ToolContext): void;
   /** Called when another tool becomes active (and on teardown): drop any internal state. */
   onDeactivate?(c: ToolContext): void;
 }
