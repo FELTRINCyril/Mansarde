@@ -26,17 +26,7 @@ async function saveSample(page: Page, testInfo: TestInfo, name: string): Promise
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  // The first import of jspdf / svg2pdf.js makes the Vite dev server optimize them and reload the
-  // page: load the modules once, again after such a reload.
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await page.evaluate((m) => Promise.all(Object.values(m).map((path) => import(path))), M);
-      return;
-    } catch (e) {
-      if (attempt >= 2 || !String(e).includes('Execution context was destroyed')) throw e;
-      await page.waitForLoadState('load');
-    }
-  }
+  await page.evaluate((m) => Promise.all(Object.values(m).map((path) => import(path))), M);
 });
 
 test('pdf: A4 landscape at 1/50, with accents in the names', async ({ page }, testInfo) => {

@@ -805,3 +805,100 @@ select {
   height: 26px;
   margin: 0 4px 0 8px;
 }
+
+/* ===== Export dialog ===== */
+
+.modal-wide {
+  width: 520px;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.tab-active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.export-field {
+  grid-template-columns: 90px minmax(0, 1fr);
+  margin: 10px 0;
+}
+
+.segmented {
+  display: inline-flex;
+}
+
+.segmented-item {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  margin-left: -1px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.segmented-item:first-child {
+  margin-left: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.segmented-item:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.segmented-item-active {
+  position: relative;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.export-check {
+  margin: 10px 0 4px;
+  white-space: normal;
+}
+
+.export-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid;
+  border-radius: var(--radius);
+  line-height: 1.4;
+}
+
+.export-message-warn {
+  background: #fdf3dc;
+  border-color: #ecd49a;
+  color: #6b4a06;
+}
+
+.export-body .banner {
+  margin-top: 12px;
+  border: 1px solid #efc3bd;
+  border-radius: var(--radius);
+}

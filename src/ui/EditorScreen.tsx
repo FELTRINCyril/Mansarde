@@ -7,7 +7,7 @@ import { startAutosave, type SaveStatus } from '@/storage/autosave';
 import type { ProjectStore } from '@/storage/db';
 import { Banner } from './Banner';
 import { CatalogPanel } from './CatalogPanel';
-import { Modal } from './ConfirmDialog';
+import { ExportDialog } from './ExportDialog';
 import { Header } from './Header';
 import { LevelTabs } from './LevelTabs';
 import { PlanCanvas, type Size } from './PlanCanvas';
@@ -96,32 +96,6 @@ function useOpenProject(
   return { imageUrls, error, ready };
 }
 
-function ExportPlaceholderDialog(p: { onExportJson(): void; onClose(): void }): JSX.Element {
-  return (
-    <Modal title="Exporter" onClose={p.onClose} testId="export-dialog">
-      <div className="modal-body">
-        <p className="hint">Le fichier .json contient tout le projet, images de fond comprises. Il peut être réimporté depuis l'écran des projets.</p>
-      </div>
-      <div className="modal-actions">
-        <button type="button" className="btn" onClick={p.onClose}>
-          Fermer
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          data-testid="export-json"
-          onClick={() => {
-            p.onExportJson();
-            p.onClose();
-          }}
-        >
-          Exporter le projet (.json)
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 export function EditorScreen(p: EditorScreenProps): JSX.Element {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: 'idle' });
   const { imageUrls, error, ready } = useOpenProject(p, setSaveStatus);
@@ -135,11 +109,6 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
     const s = size.current;
     placeObjectAt(useEditor, ref, screenToWorld(useEditor.getState().view, { x: s.width / 2, y: s.height / 2 }));
   }, []);
-
-  const exportCurrent = () => {
-    const project = useEditor.getState().project;
-    if (project) p.onExportProject(project);
-  };
 
   if (error) {
     return (
@@ -166,7 +135,7 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
       </div>
       <LevelTabs />
       {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} />}
-      {dialog === 'export' && <ExportPlaceholderDialog onExportJson={exportCurrent} onClose={() => setDialog(null)} />}
+      {dialog === 'export' && <ExportDialog projectStore={p.projectStore} onExportJson={p.onExportProject} onClose={() => setDialog(null)} />}
     </div>
   );
 }
