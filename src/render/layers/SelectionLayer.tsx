@@ -55,7 +55,7 @@ export function SelectionLayer({
         const key = `${item.kind}-${item.id}`;
         if (item.kind === 'node') {
           const n = level.nodes[item.id];
-          return n && <circle key={key} data-id={item.id} cx={num(n.x)} cy={num(n.y)} r={STYLE.selectionNodeRadius * lineUnit} fill={STYLE.paper} />;
+          return n && <circle key={key} data-kind="selected-node" data-id={item.id} cx={num(n.x)} cy={num(n.y)} r={STYLE.selectionNodeRadius * lineUnit} fill={STYLE.paper} />;
         }
         if (item.kind === 'dimension') {
           const m = level.dimensions[item.id];
@@ -63,7 +63,7 @@ export function SelectionLayer({
           return dim && <DimLineView key={key} dim={dim} lineUnit={lineUnit} color={STYLE.selection} kind="selected-dimension" id={item.id} />;
         }
         const rings = outline(item, level, derived, customObjects);
-        return rings && <path key={key} data-id={item.id} d={ringsPath(rings)} fillRule="evenodd" />;
+        return rings && <path key={key} data-kind={`selected-${item.kind}`} data-id={item.id} d={ringsPath(rings)} fillRule="evenodd" />;
       })}
     </g>
   );

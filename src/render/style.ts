@@ -62,13 +62,19 @@ export function textWidth(text: string, fontSize: number): number {
   return text.length * fontSize * 0.55;
 }
 
-/** Text angle in degrees within ]-90, 90]: a text is never drawn upside down. */
+/**
+ * Text angle in degrees within [-90, 90[: a text is never drawn upside down, and a vertical text
+ * reads bottom-to-top (ISO 129, ruling R23): directions in [90, 270[ are turned by 180 degrees.
+ */
 export function readableAngle(deg: number): number {
   let a = ((deg % 360) + 360) % 360; // [0, 360)
-  if (a > 90 && a <= 270) a -= 180;
-  else if (a > 270) a -= 360;
-  return a;
+  if (a >= 90 && a < 270) a -= 180;
+  else if (a >= 270) a -= 360;
+  return a === 0 ? 0 : a;
 }
+
+/** Height of digits and capitals, in em (Helvetica ~0.72): offset of a baseline hanging below a line. */
+export const CAP_HEIGHT = 0.75;
 
 /** Dash array in world units for a dash pattern in display pixels. */
 export function dashArray(lineUnit: number, pattern: readonly number[] = STYLE.dash): string {

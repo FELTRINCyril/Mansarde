@@ -3,7 +3,7 @@ import { computeAutoDimensions, manualDimLine, OPENING_GAP } from '@/core/geomet
 import type { DerivedLevel } from '@/core/geometry/derived';
 import type { Level } from '@/core/model/types';
 import { DimLineView } from '../DimLineView';
-import { STYLE } from '../style';
+import { CAP_HEIGHT, STYLE } from '../style';
 
 export type DimMode = 'all' | 'manual' | 'none';
 
@@ -11,7 +11,7 @@ export type DimMode = 'all' | 'manual' | 'none';
  * Opening widths put their text between the wall and the line when it fits in the OPENING_GAP
  * space: the room dimensions run just beyond, with their text on the room side.
  */
-const openingTextFits = (lineUnit: number): boolean => (STYLE.dimTextGap + 0.75 * STYLE.dimText + 2) * lineUnit <= OPENING_GAP;
+const openingTextFits = (lineUnit: number): boolean => (STYLE.dimTextGap + CAP_HEIGHT * STYLE.dimText + 2) * lineUnit <= OPENING_GAP;
 
 /**
  * Automatic dimensions (rooms, facades, openings; 'all' only) then manual ones ('all' and
