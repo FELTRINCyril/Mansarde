@@ -43,6 +43,31 @@ describe('view math', () => {
   });
 });
 
+describe('view math never produces NaN or Infinity', () => {
+  const ok = (p: { x: number; y: number }) => Number.isFinite(p.x) && Number.isFinite(p.y);
+  const badViews: View[] = [
+    { pxPerCm: 0, tx: 0, ty: 0 }, { pxPerCm: -2, tx: 0, ty: 0 }, { pxPerCm: NaN, tx: 0, ty: 0 },
+    { pxPerCm: Infinity, tx: 0, ty: 0 }, { pxPerCm: 1, tx: NaN, ty: 0 }, { pxPerCm: 1, tx: 0, ty: -Infinity },
+  ];
+
+  it('invalid views fall back to the default view', () => {
+    for (const bad of badViews) {
+      expect(worldToScreen(bad, { x: 10, y: 20 })).toEqual({ x: 10, y: 20 });
+      expect(screenToWorld(bad, { x: 10, y: 20 })).toEqual({ x: 10, y: 20 });
+      expect(finiteView(zoomAt(bad, { x: 5, y: 5 }, 2))).toBe(true);
+      expect(finiteView(zoomAt(bad, { x: 5, y: 5 }, NaN))).toBe(true);
+    }
+  });
+
+  it('non-finite points give finite results', () => {
+    for (const p of [{ x: NaN, y: 1 }, { x: 1, y: Infinity }, { x: -Infinity, y: NaN }]) {
+      expect(ok(worldToScreen(view, p))).toBe(true);
+      expect(ok(screenToWorld(view, p))).toBe(true);
+      expect(zoomAt(view, p, 2)).toEqual(view);
+    }
+  });
+});
+
 describe('fitView', () => {
   const viewport = { width: 800, height: 600 };
 

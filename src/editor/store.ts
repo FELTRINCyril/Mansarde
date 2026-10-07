@@ -6,7 +6,7 @@ import type { DimLine } from '@/core/geometry/autoDimensions';
 import type { Guide } from '@/core/geometry/snap';
 import type { Id, Level, PlacedObject, Project, Vec2 } from '@/core/model/types';
 import { pruneSelection, type SelectionItem } from './selection';
-import type { View } from './view';
+import { DEFAULT_VIEW, isValidView, type View } from './view';
 
 export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate';
 
@@ -47,7 +47,11 @@ export interface EditorState {
   beginGesture(label: string): void;
   /** Applies recipe to the gesture base (not cumulatively on the preview). Refusal keeps the last valid preview and flags previewInvalid. */
   updateGesture(recipe: Recipe): boolean;
-  /** Pushes ONE history entry, computed from the base and the last accepted recipe; nothing if there is none or it changes nothing. */
+  /**
+   * Pushes ONE history entry, computed from the base and the last accepted recipe; nothing if there
+   * is none or it changes nothing. The recipe is applied a second time here (updateGesture applied
+   * it for the preview), so it must be deterministic: create ids and read clocks outside the recipe.
+   */
   commitGesture(): void;
   cancelGesture(): void;
   /** Both cancel an active gesture first, then prune the selection and fix activeLevelId. */
@@ -58,6 +62,7 @@ export interface EditorState {
   setSelection(s: SelectionItem[]): void;
   /** Ignored when the level does not exist; clears the selection. */
   setActiveLevel(id: Id): void;
+  /** Ignores an invalid view (non-finite or non-positive zoom, non-finite translation): the current one is kept. */
   setView(v: View): void;
   setOverlay(p: Partial<Overlay>): void;
   setDisplay(p: Partial<EditorState['display']>): void;
@@ -66,12 +71,11 @@ export interface EditorState {
 
 export type EditorStore = ReturnType<typeof createEditorStore>;
 
-export const emptyOverlay: Overlay = {
+/** A fresh overlay on every call: never share a mutable object between resets. */
+export const createOverlay = (): Overlay => ({
   guides: [], previewInvalid: false, dynamicDims: [], activeDimIndex: null,
   numericInput: null, marquee: null, ghost: null,
-};
-
-const DEFAULT_VIEW: View = { pxPerCm: 1, tx: 0, ty: 0 };
+});
 
 export function activeLevel(s: EditorState): Level | undefined {
   return s.project?.levels.find((l) => l.id === s.activeLevelId);
@@ -112,7 +116,7 @@ export function createEditorStore() {
       tool: 'select',
       view: DEFAULT_VIEW,
       gesture: null,
-      overlay: emptyOverlay,
+      overlay: createOverlay(),
       display: { dimMode: 'all', showLowerLevel: true, showGrid: true },
       clipboard: [],
       toast: null,
@@ -120,13 +124,13 @@ export function createEditorStore() {
       openProject: (p) =>
         set({
           project: p, history: emptyHistory, activeLevelId: p.levels[0]?.id ?? null, selection: [],
-          gesture: null, overlay: emptyOverlay, tool: 'select',
+          gesture: null, overlay: createOverlay(), tool: 'select',
         }),
 
       closeProject: () =>
         set({
           project: null, history: emptyHistory, activeLevelId: null, selection: [],
-          gesture: null, overlay: emptyOverlay, tool: 'select',
+          gesture: null, overlay: createOverlay(), tool: 'select',
         }),
 
       execute: (label, recipe) => {
@@ -194,7 +198,7 @@ export function createEditorStore() {
 
       setTool: (tool) => {
         dropGesture();
-        set({ tool, overlay: emptyOverlay });
+        set({ tool, overlay: createOverlay() });
       },
 
       setSelection: (selection) => set({ selection }),
@@ -204,7 +208,9 @@ export function createEditorStore() {
         set({ activeLevelId: id, selection: [] });
       },
 
-      setView: (view) => set({ view }),
+      setView: (view) => {
+        if (isValidView(view)) set({ view });
+      },
       setOverlay: (p) => set((s) => ({ overlay: { ...s.overlay, ...p } })),
       setDisplay: (p) => set((s) => ({ display: { ...s.display, ...p } })),
       showToast: (message) => set({ toast: { message, id: ++toastId } }),

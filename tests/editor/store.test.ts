@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { addLevel } from '@/core/commands/levels';
-import { addObject, moveObjects } from '@/core/commands/objects';
+import { addLevel, deleteLevel } from '@/core/commands/levels';
+import { addObject, deleteObjects, moveObjects } from '@/core/commands/objects';
 import { addRectRoom } from '@/core/commands/walls';
 import { deriveLevel } from '@/core/geometry/derived';
 import { createObjectFromSize } from '@/core/model/factory';
 import type { Id, PlacedObject, Project } from '@/core/model/types';
 import { pruneSelection } from '@/editor/selection';
-import { activeLevel, createEditorStore } from '@/editor/store';
+import { activeLevel, createEditorStore, createOverlay } from '@/editor/store';
 import { emptyProject, lvl } from '../core/helpers';
 
 const box = (x = 100, y = 100): PlacedObject =>
@@ -299,6 +299,47 @@ describe('undo / redo', () => {
   });
 });
 
+describe('selection and active level after other edits', () => {
+  it('execute(deleteLevel of the active level) prunes the selection and falls back to an existing level', () => {
+    const { store, levelId } = openedStore();
+    const s = () => store.getState();
+    const out = { levelId: '' };
+    s().execute('Add level', addLevel(levelId, 'above', 'Etage', out));
+    s().setActiveLevel(out.levelId);
+    const o = box();
+    s().execute('Add object', addObject(out.levelId, o));
+    s().setSelection([{ kind: 'object', id: o.id }]);
+    expect(s().execute('Delete level', deleteLevel(out.levelId))).toBe(true);
+    expect(s().project!.levels.map((l) => l.id)).toEqual([levelId]);
+    expect(s().activeLevelId).toBe(levelId);
+    expect(s().selection).toEqual([]);
+  });
+
+  it('commitGesture prunes a selection that points at an element the gesture removed', () => {
+    const { store, levelId, id } = storeWithObject();
+    const other = box(400, 400);
+    store.getState().execute('Add', addObject(levelId, other));
+    store.getState().setSelection([{ kind: 'object', id }, { kind: 'object', id: other.id }]);
+    store.getState().beginGesture('Delete');
+    store.getState().updateGesture(deleteObjects(levelId, [id]));
+    store.getState().commitGesture();
+    expect(store.getState().selection).toEqual([{ kind: 'object', id: other.id }]);
+  });
+
+  it('a room selection is pruned after an undo that removes the room', () => {
+    const { store, levelId } = openedStore();
+    const s = () => store.getState();
+    s().execute('Room', addRectRoom(levelId, { x: 0, y: 0 }, { x: 400, y: 300 }, 20, 250));
+    const rooms = deriveLevel(s().project!.levels[0]!).rooms;
+    expect(rooms).toHaveLength(1);
+    s().setSelection([{ kind: 'room', id: rooms[0]!.key }]);
+    s().undo();
+    expect(s().selection).toEqual([]);
+    s().redo();
+    expect(s().selection).toEqual([]); // not restored by redo
+  });
+});
+
 describe('simple setters', () => {
   it('setActiveLevel clears the selection and ignores unknown levels', () => {
     const { store, levelId, id } = storeWithObject();
@@ -320,6 +361,36 @@ describe('simple setters', () => {
     expect(store.getState().overlay.previewInvalid).toBe(true);
     store.getState().setDisplay({ showGrid: false });
     expect(store.getState().display).toEqual({ dimMode: 'all', showLowerLevel: true, showGrid: false });
+  });
+
+  it('setView ignores invalid views and keeps the current one', () => {
+    const { store } = openedStore();
+    const good = { pxPerCm: 2, tx: 1, ty: 2 };
+    store.getState().setView(good);
+    for (const bad of [
+      { pxPerCm: 0, tx: 0, ty: 0 }, { pxPerCm: -1, tx: 0, ty: 0 }, { pxPerCm: NaN, tx: 0, ty: 0 },
+      { pxPerCm: Infinity, tx: 0, ty: 0 }, { pxPerCm: 1, tx: NaN, ty: 0 }, { pxPerCm: 1, tx: 0, ty: Infinity },
+    ]) {
+      store.getState().setView(bad);
+      expect(store.getState().view).toBe(good);
+    }
+  });
+
+  it('resets give a fresh overlay each time (no shared mutable object)', () => {
+    const { store } = openedStore();
+    const a = store.getState().overlay;
+    store.getState().setTool('wall');
+    const b = store.getState().overlay;
+    store.getState().setTool('rect');
+    const c = store.getState().overlay;
+    expect(b).not.toBe(a);
+    expect(c).not.toBe(b);
+    expect(b.guides).not.toBe(c.guides);
+    expect(createOverlay()).not.toBe(createOverlay());
+    expect(createOverlay().guides).not.toBe(createOverlay().guides);
+    b.guides.push({} as never); // mutating one never leaks into the next reset
+    expect(c.guides).toEqual([]);
+    expect(createOverlay().guides).toEqual([]);
   });
 
   it('showToast gives each toast a new id, even for the same message', () => {

@@ -10,13 +10,17 @@ const messageOf = (e: unknown): string => (e instanceof Error ? e.message : Stri
  * the timer; the latest project is saved delayMs after the last change.
  * - If the project id changes (or the project is closed) while a save is pending, the pending
  *   project is saved immediately: its last edit is never dropped nor saved under another id.
+ * - Opening a project (id change, or reopening after a close) does not save it: the project
+ *   object seen first is the unmodified baseline. Only a later, different object with the same id
+ *   (an edit) is saved.
  * - Null is never saved. Intermediate states of a gesture are not saved, only its committed result.
  * - Saves run one at a time, in order. A failure stays reported (state 'error') until a later save
  *   of the same project succeeds, even if other projects save fine in between.
  * - Status: 'saving' as soon as a change is waiting, 'saved' when nothing is waiting or running.
  *   'idle' is never emitted: it is the caller's initial state.
- * - The initial state of the store is not saved. Unsubscribing cancels the pending timer without
- *   flushing; a save already running keeps reporting its outcome.
+ * - The initial state of the store is not saved. Unsubscribing flushes the pending save (so a
+ *   teardown or pagehide never loses an edit); saves already running keep reporting their outcome.
+ * - A throwing onStatus is logged and never breaks the save queue.
  * Returns the unsubscribe function.
  */
 export function startAutosave(
@@ -37,7 +41,11 @@ export function startAutosave(
     const key = s.state === 'error' ? `error:${s.message}` : s.state;
     if (key === emitted) return;
     emitted = key;
-    onStatus(s);
+    try {
+      onStatus(s);
+    } catch (e) {
+      console.error('autosave: onStatus callback threw', e);
+    }
   };
 
   const report = (): void => {
@@ -49,17 +57,19 @@ export function startAutosave(
   const enqueue = (p: Project): void => {
     running++;
     emit({ state: 'saving' });
-    queue = queue.then(async () => {
-      try {
-        await saver(p);
-        failures.delete(p.id);
-      } catch (e) {
-        failures.set(p.id, messageOf(e));
-      } finally {
-        running--;
-        report();
-      }
-    });
+    queue = queue
+      .then(async () => {
+        try {
+          await saver(p);
+          failures.delete(p.id);
+        } catch (e) {
+          failures.set(p.id, messageOf(e));
+        } finally {
+          running--;
+          report();
+        }
+      })
+      .catch((e: unknown) => console.error('autosave: unexpected queue failure', e));
   };
 
   const flush = (): void => {
@@ -76,12 +86,17 @@ export function startAutosave(
     if (state.gesture) return;
     const project = state.project;
     if (project === lastSeen) return;
+    const previous = lastSeen;
     lastSeen = project;
     if (!project) {
       flush();
       return;
     }
-    if (pending && pending.id !== project.id) flush();
+    if (previous?.id !== project.id) {
+      // a project was just opened: flush the previous one, keep this one as the unmodified baseline
+      flush();
+      return;
+    }
     pending = project;
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
@@ -93,8 +108,6 @@ export function startAutosave(
 
   return () => {
     unsubscribe();
-    if (timer !== null) clearTimeout(timer);
-    timer = null;
-    pending = null;
+    flush();
   };
 }

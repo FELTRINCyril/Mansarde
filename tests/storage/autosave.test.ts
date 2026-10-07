@@ -62,7 +62,7 @@ describe('autosave', () => {
     expect(saver).toHaveBeenCalledTimes(1);
   });
 
-  it('a project change before the delay flushes the previous project immediately, then saves the new one after the delay', async () => {
+  it('a project change before the delay flushes A immediately; B (unmodified) is not saved, an edit of B is saved after the delay', async () => {
     const { store, first, saved, saver } = setup();
     store.getState().execute('a', addObject(first.levels[0]!.id, obj()));
     const lastOfA = store.getState().project!;
@@ -74,11 +74,25 @@ describe('autosave', () => {
     expect(saver).toHaveBeenCalledTimes(1);
     expect(saved[0]).toBe(lastOfA); // A with its last edit, not B
     expect(saved[0]!.id).toBe(first.id);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(saver).toHaveBeenCalledTimes(1); // opening B did not save it
+    store.getState().execute('b', addObject(other.levels[0]!.id, obj()));
     await vi.advanceTimersByTimeAsync(499);
     expect(saver).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(saver).toHaveBeenCalledTimes(2);
-    expect(saved[1]).toBe(other);
+    expect(saved[1]).toBe(store.getState().project);
+    expect(saved[1]!.id).toBe(other.id);
+  });
+
+  it('opening a project with nothing pending saves nothing and emits no status', async () => {
+    const { store, saver, statuses } = setup();
+    store.getState().openProject(emptyProject());
+    store.getState().closeProject();
+    store.getState().openProject(emptyProject());
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(saver).not.toHaveBeenCalled();
+    expect(statuses).toEqual([]);
   });
 
   it('closing the project flushes the pending save and never saves null', async () => {
@@ -118,7 +132,9 @@ describe('autosave', () => {
     const { store, first, statuses, saver } = setup();
     saver.mockRejectedValueOnce(new Error('disque plein'));
     store.getState().execute('a', addObject(first.levels[0]!.id, obj()));
-    store.getState().openProject(emptyProject()); // flushes A (rejects)
+    const b = emptyProject();
+    store.getState().openProject(b); // flushes A (rejects)
+    store.getState().execute('b', addObject(b.levels[0]!.id, obj()));
     await vi.advanceTimersByTimeAsync(500); // saves B (ok)
     expect(saver).toHaveBeenCalledTimes(2);
     expect(statuses.at(-1)).toEqual({ state: 'error', message: 'disque plein' });
@@ -177,15 +193,50 @@ describe('autosave', () => {
     expect(saver).toHaveBeenCalledTimes(1);
   });
 
-  it('unsubscribe cancels the timer; later changes are ignored', async () => {
-    const { store, first, saver, stop } = setup();
+  it('unsubscribe flushes the pending edit exactly once, then ignores later changes', async () => {
+    const { store, first, saved, saver, stop } = setup();
     store.getState().execute('a', addObject(first.levels[0]!.id, obj()));
+    await vi.advanceTimersByTimeAsync(100);
+    store.getState().execute('b', addObject(first.levels[0]!.id, obj()));
+    const latest = store.getState().project!;
+    stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(saver).toHaveBeenCalledTimes(1);
+    expect(saved[0]).toBe(latest);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(saver).toHaveBeenCalledTimes(1); // the cancelled timer does not save again
+    store.getState().execute('c', addObject(first.levels[0]!.id, obj()));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(saver).toHaveBeenCalledTimes(1);
+  });
+
+  it('unsubscribe with nothing pending saves nothing', async () => {
+    const { saver, stop } = setup();
+    stop();
     stop();
     await vi.advanceTimersByTimeAsync(5000);
     expect(saver).not.toHaveBeenCalled();
-    store.getState().execute('b', addObject(first.levels[0]!.id, obj()));
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(saver).not.toHaveBeenCalled();
+  });
+
+  it('a throwing onStatus does not break the save queue', async () => {
+    const store = createEditorStore();
+    const first = emptyProject();
+    store.getState().openProject(first);
+    const saver = vi.fn(async (_p: Project) => {});
+    const onStatus = vi.fn(() => {
+      throw new Error('ui exploded');
+    });
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    startAutosave(store, saver, onStatus);
+    const levelId = first.levels[0]!.id;
+    store.getState().execute('a', addObject(levelId, obj()));
+    await vi.advanceTimersByTimeAsync(500);
+    store.getState().execute('b', addObject(levelId, obj()));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(saver).toHaveBeenCalledTimes(2);
+    expect(onStatus).toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalled();
+    errorLog.mockRestore();
   });
 
   it('an in-flight save that fails after unsubscribe still reports its error', async () => {

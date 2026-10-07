@@ -7,20 +7,37 @@ export const MIN_ZOOM = 0.05, MAX_ZOOM = 20;
 
 export interface Bounds { minX: number; minY: number; maxX: number; maxY: number }
 
+export const DEFAULT_VIEW: View = { pxPerCm: 1, tx: 0, ty: 0 };
+
+/** A view the math can use: finite translation, finite strictly positive zoom. */
+export const isValidView = (v: View): boolean =>
+  Number.isFinite(v.pxPerCm) && v.pxPerCm > 0 && Number.isFinite(v.tx) && Number.isFinite(v.ty);
+
 const clampZoom = (z: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 const finiteOr = (n: number, fallback: number): number => (Number.isFinite(n) ? n : fallback);
 
-export function worldToScreen(v: View, p: Vec2): Vec2 {
+/*
+ * Guards: an invalid view is replaced by DEFAULT_VIEW and a non-finite coordinate counts as 0, so
+ * the helpers never return NaN or Infinity (callers are expected to pass valid input anyway).
+ */
+export function worldToScreen(view: View, p: Vec2): Vec2 {
+  const v = isValidView(view) ? view : DEFAULT_VIEW;
+  p = { x: finiteOr(p.x, 0), y: finiteOr(p.y, 0) };
   return { x: p.x * v.pxPerCm + v.tx, y: p.y * v.pxPerCm + v.ty };
 }
 
-export function screenToWorld(v: View, p: Vec2): Vec2 {
+export function screenToWorld(view: View, p: Vec2): Vec2 {
+  const v = isValidView(view) ? view : DEFAULT_VIEW;
+  p = { x: finiteOr(p.x, 0), y: finiteOr(p.y, 0) };
   return { x: (p.x - v.tx) / v.pxPerCm, y: (p.y - v.ty) / v.pxPerCm };
 }
 
 /** Zooms by factor around a screen point: the world point under it does not move. Zoom is clamped. */
-export function zoomAt(v: View, screenPoint: Vec2, factor: number): View {
-  if (!Number.isFinite(factor) || factor <= 0) return v;
+export function zoomAt(view: View, screenPoint: Vec2, factor: number): View {
+  const v = isValidView(view) ? view : DEFAULT_VIEW;
+  if (!Number.isFinite(factor) || factor <= 0 || !Number.isFinite(screenPoint.x) || !Number.isFinite(screenPoint.y)) {
+    return v;
+  }
   const pxPerCm = clampZoom(v.pxPerCm * factor);
   const world = screenToWorld(v, screenPoint);
   return { pxPerCm, tx: screenPoint.x - world.x * pxPerCm, ty: screenPoint.y - world.y * pxPerCm };
