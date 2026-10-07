@@ -14,6 +14,9 @@ export interface SymbolProps {
   lineUnit: number;
   stroke: string;
   fill: string;
+  /** Rotation (degrees) and mirror the renderer applies to the symbol; only used to keep text labels readable. */
+  rotation?: number;
+  mirrored?: boolean;
 }
 export type SymbolComponent = (p: SymbolProps) => JSX.Element;
 
@@ -72,15 +75,32 @@ function Arrow({ pts, head }: { pts: Array<[number, number]>; head: number }): J
 
 /**
  * Short centered text label. The font is 10 * lineUnit, shrunk to fit inside the box; the label is
- * skipped when it would be smaller than 6 * lineUnit (unreadable).
+ * skipped when it would be smaller than 6 * lineUnit (unreadable). The renderer's mirror is undone
+ * and the text turned by 180 degrees when the symbol rotation would show it upside down. Full
+ * opacity even inside the renderer's translucent fill group.
  */
-function Label({ text, w, d, lineUnit, color }: { text: string; w: number; d: number; lineUnit: number; color: string }): JSX.Element | null {
+function Label({ text, p }: { text: string; p: SymbolProps }): JSX.Element | null {
+  const { w, d, lineUnit } = p;
   const byWidth = (0.85 * w) / (0.6 * text.length);
   const byDepth = 0.8 * d;
   const size = Math.min(10 * lineUnit, byWidth, byDepth);
   if (!(size >= 6 * lineUnit)) return null;
+  const angle = (((p.rotation ?? 0) % 360) + 360) % 360;
+  const upsideDown = angle > 90 && angle <= 270;
+  const transform = [p.mirrored ? 'scale(-1 1)' : '', upsideDown ? 'rotate(180)' : ''].filter(Boolean).join(' ');
   return (
-    <text x={0} y={0} dy="0.35em" fontSize={size} textAnchor="middle" fill={color} stroke="none" fontFamily="sans-serif">
+    <text
+      x={0}
+      y={0}
+      dy={0.35 * size}
+      fontSize={size}
+      textAnchor="middle"
+      fill={p.stroke}
+      fillOpacity={1}
+      stroke="none"
+      fontFamily="Helvetica, Arial, sans-serif"
+      transform={transform || undefined}
+    >
       {text}
     </text>
   );
@@ -375,7 +395,7 @@ function appliance(text: string): SymbolComponent {
   return (p) => (
     <Sym p={p}>
       <Box x={-p.w / 2} y={-p.d / 2} w={p.w} h={p.d} fill={p.fill} />
-      <Label text={text} w={p.w} d={p.d} lineUnit={p.lineUnit} color={p.stroke} />
+      <Label text={text} p={p} />
     </Sym>
   );
 }

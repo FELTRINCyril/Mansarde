@@ -15,7 +15,7 @@ export interface DimLine {
 
 const ROOM_OFFSET = 25;
 const FACADE_OFFSET = 50;
-const OPENING_GAP = 20; // beyond the wall face
+export const OPENING_GAP = 20; // beyond the wall face
 const MIN_FACE_LENGTH = 10; // faces of this length or less get no dimension
 
 /**
