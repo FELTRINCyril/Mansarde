@@ -612,7 +612,7 @@ select {
 }
 
 .numeric-overlay-label {
-  max-width: 56px;
+  max-width: 40px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
