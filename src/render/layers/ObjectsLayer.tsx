@@ -17,8 +17,9 @@ function ObjectSymbol({ o, customObjects, lineUnit }: { o: PlacedObject; customO
   };
   if (o.source.kind === 'custom') {
     const def = customObjects[o.source.customObjectId];
-    // the placed object's own notch wins, like objectFootprint (hit test)
-    return <GenericSymbol {...common} shape={def?.shape ?? 'rect'} lshape={o.lshape ?? def?.lshape ?? null} />;
+    // ruling R22: the placed object's lshape is the only source of the notch (copied from the
+    // definition at placement), exactly like objectFootprint (hit test, selection)
+    return <GenericSymbol {...common} shape={def?.shape ?? 'rect'} lshape={o.lshape} />;
   }
   const Sym = SYMBOLS[o.source.catalogId];
   if (Sym) return <Sym {...common} />;

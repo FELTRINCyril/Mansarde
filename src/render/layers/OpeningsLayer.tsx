@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 import { openingFrame, type OpeningFrame } from '@/core/geometry/openings';
 import { add, cross, scale, sub } from '@/core/geometry/vec';
 import type { Level, Opening, Vec2 } from '@/core/model/types';
+import { ringsPath } from '../path';
 import { dashArray, num, STYLE } from '../style';
 
 /**
@@ -10,6 +11,7 @@ import { dashArray, num, STYLE } from '../style';
  * (+b = left of the wall = swing 'left'). The wall faces are at b = +-thickness/2.
  */
 interface Ctx {
+  level: Level;
   f: OpeningFrame;
   o: Opening;
   lineUnit: number;
@@ -93,6 +95,21 @@ const Center = ({ c }: { c: Ctx }): JSX.Element => (
   <Seg p={P(c, -c.hw, 0)} q={P(c, c.hw, 0)} width={STYLE.frameWidth * c.lineUnit} />
 );
 
+/** Half the thickness of the thickest other wall meeting this wall at the given node (0 at a free end). */
+function neighbourHalfThickness(level: Level, wallId: string, nodeId: string): number {
+  let half = 0;
+  for (const w of Object.values(level.walls)) {
+    if (w.id !== wallId && (w.startNodeId === nodeId || w.endNodeId === nodeId)) half = Math.max(half, w.thickness / 2);
+  }
+  return half;
+}
+
+/** The gap across the wall thickness, painted with the page color (no grid or image showing through). */
+function Gap({ c }: { c: Ctx }): JSX.Element {
+  const ring = [P(c, -c.hw, -c.ht), P(c, c.hw, -c.ht), P(c, c.hw, c.ht), P(c, -c.hw, c.ht)];
+  return <path data-kind="opening-gap" d={ringsPath([ring])} fill={STYLE.paper} stroke="none" />;
+}
+
 function DoorSymbol({ c }: { c: Ctx }): JSX.Element {
   const leafWidth = STYLE.leafWidth * c.lineUnit;
   switch (c.o.variant) {
@@ -104,8 +121,13 @@ function DoorSymbol({ c }: { c: Ctx }): JSX.Element {
       // the leaf across the opening, and dashed (light, over the dark wall) where it slides into the wall
       const atStart = c.o.hinge === 'start';
       const jamb = atStart ? -c.hw : c.hw;
-      // the pocket is as long as the leaf, but stops at the wall end (axis node)
-      const inside = atStart ? Math.max(jamb - 2 * c.hw, -c.o.offset) : Math.min(jamb + 2 * c.hw, c.f.wallLength - c.o.offset);
+      // the pocket is as long as the leaf, but stops at the face of the wall met at that end
+      const wall = c.level.walls[c.o.wallId]!;
+      const nodeId = atStart ? wall.startNodeId : wall.endNodeId;
+      const stop = neighbourHalfThickness(c.level, wall.id, nodeId);
+      const inside = atStart
+        ? Math.max(jamb - 2 * c.hw, -c.o.offset + stop)
+        : Math.min(jamb + 2 * c.hw, c.f.wallLength - c.o.offset - stop);
       return (
         <>
           <Seg p={P(c, -c.hw, 0)} q={P(c, c.hw, 0)} width={leafWidth} />
@@ -153,16 +175,17 @@ function WindowSymbol({ c }: { c: Ctx }): JSX.Element {
   }
 }
 
-/** Door, window or passage symbols; a passage is just the gap cut in the wall. */
+/** Door, window or passage symbols over their gap; a passage is just the gap. */
 export function OpeningsLayer({ level, lineUnit }: { level: Level; lineUnit: number }): JSX.Element {
   return (
     <g data-kind="openings" fill="none" strokeLinecap="butt">
       {Object.values(level.openings).map((o) => {
         if (!level.walls[o.wallId]) return null; // broken reference: never crash the whole plan
         const f = openingFrame(level, o);
-        const c: Ctx = { f, o, lineUnit, hw: o.width / 2, ht: f.thickness / 2, s: o.swing === 'left' ? 1 : -1 };
+        const c: Ctx = { level, f, o, lineUnit, hw: o.width / 2, ht: f.thickness / 2, s: o.swing === 'left' ? 1 : -1 };
         return (
           <g key={o.id} data-kind="opening" data-id={o.id}>
+            <Gap c={c} />
             {o.kind === 'door' && <DoorSymbol c={c} />}
             {o.kind === 'window' && <WindowSymbol c={c} />}
           </g>

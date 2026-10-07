@@ -3,7 +3,7 @@ import { pointInRing } from '@/core/geometry/polygon';
 import type { Room } from '@/core/geometry/rooms';
 import { formatArea } from '@/core/model/format';
 import type { Vec2 } from '@/core/model/types';
-import { FONT_FAMILY, num, STYLE, textWidth } from '../style';
+import { CAP_HEIGHT, FONT_FAMILY, num, STYLE, textWidth } from '../style';
 
 /** Rough check: the rectangle of size w x h centered on c lies inside the room (corners only). */
 function boxFits(room: Room, c: Vec2, w: number, h: number): boolean {
@@ -39,7 +39,7 @@ function RoomLabel({ room, lineUnit }: { room: Room; lineUnit: number }): JSX.El
         {room.name}
       </text>
       {showArea && (
-        <text {...common} fontSize={areaSize} dy={num(0.2 * nameSize + 0.75 * areaSize)}>
+        <text {...common} fontSize={areaSize} dy={num(0.2 * nameSize + CAP_HEIGHT * areaSize)}>
           {area}
         </text>
       )}

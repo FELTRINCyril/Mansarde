@@ -4,8 +4,8 @@ import type { GenericShape, LShapeParams } from '../core/model/types';
 /**
  * Parametric top-view symbols, drawn in centimeters, centered at (0,0) in the object's local axes.
  * The back side (the one placed against a wall) is -y, the front is +y. Stroke width is lineUnit.
- * No transform scale is used: every ellipse and radius is computed from w and d, and every
- * coordinate stays finite for any w, d > 0. The main body uses `fill` (the renderer applies it at
+ * Shapes never use a transform scale: every ellipse and radius is computed from w and d, and every
+ * coordinate stays finite for any w, d > 0 (only the text Label uses scale(-1 1) to undo a mirror). The main body uses `fill` (the renderer applies it at
  * reduced opacity), detail lines use fill="none".
  */
 export interface SymbolProps {
@@ -76,7 +76,8 @@ function Arrow({ pts, head }: { pts: Array<[number, number]>; head: number }): J
 /**
  * Short centered text label. The font is 10 * lineUnit, shrunk to fit inside the box; the label is
  * skipped when it would be smaller than 6 * lineUnit (unreadable). The renderer's mirror is undone
- * and the text turned by 180 degrees when the symbol rotation would show it upside down. Full
+ * and the text turned by 180 degrees when the symbol rotation is in [90, 270[ (upside down, or
+ * vertical top-to-bottom). Full
  * opacity even inside the renderer's translucent fill group.
  */
 function Label({ text, p }: { text: string; p: SymbolProps }): JSX.Element | null {
@@ -86,7 +87,7 @@ function Label({ text, p }: { text: string; p: SymbolProps }): JSX.Element | nul
   const size = Math.min(10 * lineUnit, byWidth, byDepth);
   if (!(size >= 6 * lineUnit)) return null;
   const angle = (((p.rotation ?? 0) % 360) + 360) % 360;
-  const upsideDown = angle > 90 && angle <= 270;
+  const upsideDown = angle >= 90 && angle < 270; // same rule as dimension texts (ISO 129, ruling R23)
   const transform = [p.mirrored ? 'scale(-1 1)' : '', upsideDown ? 'rotate(180)' : ''].filter(Boolean).join(' ');
   return (
     <text

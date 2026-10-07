@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createObjectFromSize, createOpening } from '@/core/model/factory';
-import type { Background, Level, Project } from '@/core/model/types';
+import { formatLength } from '@/core/model/format';
+import type { Background, Level, PlacedObject, Project } from '@/core/model/types';
 import { PlanSvg, type PlanSvgProps } from '@/render/PlanSvg';
 import { findWall, levelFromWalls, rectRoom } from '../core/fixtures';
 import { lvl, projectFrom } from '../core/helpers';
@@ -104,6 +105,7 @@ describe('PlanSvg', () => {
     const overlay = <circle data-kind="test-overlay" cx={0} cy={0} r={5} />;
     const selection = [{ kind: 'object' as const, id: BED_ID }];
     const screen = render(sampleProject(), { selection, overlay });
+    expect(screen).toContain(`data-kind="selected-object" data-id="${BED_ID}"`);
     expect(screen).toContain('data-kind="grid"');
     expect(screen).toContain('data-kind="selection"');
     expect(screen).toContain('data-kind="test-overlay"');
@@ -131,14 +133,28 @@ describe('PlanSvg', () => {
     expect(markup).toContain('font-family="Helvetica, Arial, sans-serif"');
   });
 
-  it('keeps dimension text readable: rotation always within ]-90, 90]', () => {
+  it('keeps dimension text readable: rotation always within [-90, 90[, verticals bottom-to-top (ISO 129)', () => {
     const markup = render(sampleProject());
     const angles = [...markup.matchAll(/<text[^>]*transform="rotate\(([-\d.e]+)/g)].map((m) => Number(m[1]));
     expect(angles.length).toBeGreaterThan(0);
     for (const a of angles) {
-      expect(a).toBeGreaterThan(-90);
-      expect(a).toBeLessThanOrEqual(90);
+      expect(a).toBeGreaterThanOrEqual(-90);
+      expect(a).toBeLessThan(90);
     }
+    expect(angles).toContain(-90); // vertical room and facade dimensions
+    expect(angles).not.toContain(90);
+  });
+
+  it('draws a diagonal manual dimension with a readable angle and no NaN', () => {
+    const p = sampleProject();
+    // from (300, 0) down-left to (0, 300): direction 135 degrees, text turned to -45
+    lvl(p).dimensions[DIM_ID] = { id: DIM_ID, a: { kind: 'point', x: 300, y: 0 }, b: { kind: 'point', x: 0, y: 300 }, offset: 20 };
+    const markup = render(p, { dimMode: 'manual' });
+    const start = markup.indexOf(`data-kind="dimension" data-id="${DIM_ID}"`);
+    const group = markup.slice(start, markup.indexOf('</g>', start));
+    expect(group).not.toMatch(/NaN|Infinity/);
+    expect(group).toContain(formatLength(Math.hypot(300, 300)));
+    expect(group).toMatch(/transform="rotate\(-45 /);
   });
 
   it('draws a single door leaf from the hinge towards the swing side', () => {
@@ -153,6 +169,35 @@ describe('PlanSvg', () => {
     level.openings[DOOR_ID] = { ...level.openings[DOOR_ID]!, hinge: 'end', swing: 'right' };
     const [flipped] = linesOf(render(p), 'opening', DOOR_ID);
     expect(flipped).toEqual([141.5, -10, 141.5, -93]);
+
+    level.openings[DOOR_ID] = { ...level.openings[DOOR_ID]!, hinge: 'start', swing: 'right' };
+    expect(linesOf(render(p), 'opening', DOOR_ID)[0]).toEqual([58.5, -10, 58.5, -93]);
+
+    level.openings[DOOR_ID] = { ...level.openings[DOOR_ID]!, hinge: 'end', swing: 'left' };
+    expect(linesOf(render(p), 'opening', DOOR_ID)[0]).toEqual([141.5, 10, 141.5, 93]);
+  });
+
+  it('closes the arc on the opposite jamb, on the swing side', () => {
+    const p = sampleProject();
+    const level = lvl(p);
+    for (const [hinge, swing, end] of [
+      ['start', 'left', '141.5 10'],
+      ['end', 'right', '58.5 -10'],
+    ] as const) {
+      level.openings[DOOR_ID] = { ...level.openings[DOOR_ID]!, hinge, swing };
+      const markup = render(p);
+      const start = markup.indexOf(`data-kind="opening" data-id="${DOOR_ID}"`);
+      const group = markup.slice(start, markup.indexOf('</g>', start));
+      expect(group).toMatch(new RegExp(`<path d="M[^"]*A83 83 0 0 [01] ${end}"`));
+    }
+  });
+
+  it('paints the door and window gaps with the page color so the grid does not show through', () => {
+    const markup = render(sampleProject());
+    const start = markup.indexOf(`data-kind="opening" data-id="${DOOR_ID}"`);
+    const group = markup.slice(start, markup.indexOf('</g>', start));
+    // the gap across the wall thickness: x 58.5..141.5, y -10..10
+    expect(group).toMatch(/<path data-kind="opening-gap" d="M58.5 -10L141.5 -10L141.5 10L58.5 10Z" fill="#ffffff"/);
   });
 
   it('places objects with translate, rotate and mirror scale', () => {
@@ -194,13 +239,14 @@ describe('PlanSvg', () => {
     }
   });
 
-  it('stops the pocket of a sliding pocket door at the wall end', () => {
+  it('stops the pocket of a sliding pocket door at the face of the neighbour wall', () => {
     const p = sampleProject();
     const level = lvl(p);
-    // door center 50 cm from the wall start, 83 wide: the 83 cm pocket would reach x = -74.5
-    level.openings[DOOR_ID] = { ...level.openings[DOOR_ID]!, variant: 'pocket', offset: 50 };
+    // door center 60 cm from the wall start, 83 wide (jamb at 18.5): the 83 cm pocket would reach
+    // x = -64.5; the left wall (20 cm thick) has its inner face at x = 10
+    level.openings[DOOR_ID] = { ...level.openings[DOOR_ID]!, variant: 'pocket', offset: 60 };
     const xs = linesOf(render(p), 'opening', DOOR_ID).flatMap(([x1, , x2]) => [x1!, x2!]);
-    expect(Math.min(...xs)).toBe(0);
+    expect(Math.min(...xs)).toBe(10);
   });
 
   it('renders custom objects with their definition shape', () => {
@@ -226,6 +272,35 @@ describe('PlanSvg', () => {
     );
     const markup = render(p);
     expect(markup).toMatch(/data-kind="object" data-id="o2"[^]*?<ellipse/);
+  });
+
+  it('draws a custom L object from the placed object lshape only (R22)', () => {
+    const p = sampleProject();
+    p.customObjects['c2'] = {
+      id: 'c2',
+      name: 'Bureau en L',
+      shape: 'lshape',
+      width: 200,
+      depth: 150,
+      height: 75,
+      color: '#888888',
+      lshape: { notchWidth: 120, notchDepth: 90 },
+    };
+    const place = (lshape: PlacedObject['lshape']) =>
+      createObjectFromSize({ kind: 'custom', customObjectId: 'c2' }, 200, 150, { width: 200, depth: 150, height: 75 }, 'Bureau en L', '#888888', {
+        id: 'o3',
+        lshape,
+      });
+    const groupOf = (markup: string) => {
+      const start = markup.indexOf('data-kind="object" data-id="o3"');
+      return markup.slice(start, markup.indexOf('</g></g>', start));
+    };
+    lvl(p).objects['o3'] = place(null);
+    const plain = groupOf(render(p));
+    expect(plain).toContain('<rect');
+    expect(plain).not.toContain('<polygon');
+    lvl(p).objects['o3'] = place({ notchWidth: 120, notchDepth: 90 });
+    expect(groupOf(render(p))).toContain('<polygon');
   });
 
   it('draws the background image at its scale, rotation and opacity, only when visible and known', () => {

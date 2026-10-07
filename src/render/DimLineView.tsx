@@ -3,13 +3,11 @@ import { dimLineEnds, type DimLine } from '@/core/geometry/autoDimensions';
 import { add, angleOf, deg2rad, dot, lerp, normalize, perp, scale, sub } from '@/core/geometry/vec';
 import { formatLength } from '@/core/model/format';
 import type { Vec2 } from '@/core/model/types';
-import { FONT_FAMILY, num, readableAngle, STYLE } from './style';
+import { CAP_HEIGHT, FONT_FAMILY, num, readableAngle, STYLE } from './style';
 
 function Seg({ p, q, width }: { p: Vec2; q: Vec2; width: number }): JSX.Element {
   return <line x1={num(p.x)} y1={num(p.y)} x2={num(q.x)} y2={num(q.y)} strokeWidth={width} />;
 }
-
-const CAP_HEIGHT = 0.75; // digit height, in em: baseline offset when the text hangs below the line
 
 /**
  * A dimension: extension lines from the measured points, the dimension line with 45 degree ticks,
