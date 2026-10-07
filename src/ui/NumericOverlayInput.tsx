@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
-import { applyNumericInput, cancelNumericInput, placeNumericField } from '@/editor/numericOverlay';
+import { applyNumericInput, cancelNumericInput, numericSession, placeNumericField } from '@/editor/numericOverlay';
 import { useEditor } from '@/editor/store';
 import type { ToolContext } from '@/editor/tools/types';
 
@@ -12,6 +12,8 @@ const stop = (e: { stopPropagation(): void }) => e.stopPropagation();
  * field stays open) then calls the active tool's onNumericSubmit; Escape and blur close it and call
  * onNumericCancel. As an input it is covered by the keyboard typing guard, and Escape is
  * preventDefault-ed so the global handler leaves it alone. Pointer events never reach the plan.
+ * The field is keyed on the opening (numericSession), so a reopening, even a synchronous one from
+ * onNumericSubmit, starts with a fresh state (no stale red border).
  */
 export function NumericOverlayInput(p: {
   ctx: ToolContext;
@@ -19,20 +21,29 @@ export function NumericOverlayInput(p: {
   /** Gives the focus back to the plan once the field is closed. */
   restoreFocus(): void;
 }): JSX.Element | null {
+  const open = useEditor((s) => s.overlay.numericInput !== null);
+  if (!open) return null;
+  const session = numericSession();
+  return <NumericField key={session} session={session} {...p} />;
+}
+
+function NumericField(p: {
+  session: number;
+  ctx: ToolContext;
+  canvas: { width: number; height: number };
+  restoreFocus(): void;
+}): JSX.Element | null {
   const ni = useEditor((s) => s.overlay.numericInput);
-  const open = ni !== null;
   const ref = useRef<HTMLInputElement>(null);
   const leaving = useRef(false);
   const [invalid, setInvalid] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    leaving.current = false;
     const el = ref.current;
     if (!el) return;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
-  }, [open]);
+  }, []);
 
   if (!ni) return null;
   const at = placeNumericField(ni.screen, p.canvas);
@@ -44,8 +55,8 @@ export function NumericOverlayInput(p: {
       leaving.current = false;
       return;
     }
-    setInvalid(false);
-    p.restoreFocus();
+    // a tool that reopened the field from its callback keeps the focus for the new field
+    if (!useEditor.getState().overlay.numericInput) p.restoreFocus();
   };
 
   return (
@@ -85,7 +96,8 @@ export function NumericOverlayInput(p: {
           }
         }}
         onBlur={() => {
-          if (!leaving.current) cancelNumericInput(useEditor, p.ctx);
+          // ignore the blur of a field already replaced by a newer opening
+          if (!leaving.current && p.session === numericSession()) cancelNumericInput(useEditor, p.ctx);
         }}
       />
       <span className="numeric-overlay-unit">{ni.kind === 'angle' ? '\u00b0' : 'cm'}</span>

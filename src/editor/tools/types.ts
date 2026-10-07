@@ -34,7 +34,12 @@ export interface Tool {
   onPointerMove?(e: PointerInfo, c: ToolContext): void;
   onPointerUp?(e: PointerInfo, c: ToolContext): void;
   onDoubleClick?(e: PointerInfo, c: ToolContext): void;
-  onKeyDown?(e: KeyboardEvent, c: ToolContext): boolean; // true = handled
+  /**
+   * true = handled. A tool that opens the numeric field (openNumericInput) for a typed digit MUST
+   * return true: PlanCanvas then preventDefaults the key, otherwise the digit would also be typed
+   * into the freshly focused field (twice in the field, once from `initial`).
+   */
+  onKeyDown?(e: KeyboardEvent, c: ToolContext): boolean;
   /**
    * The shared numeric field (overlay.numericInput, see numericOverlay.ts) was validated: the field is
    * already closed and the value parsed (cm, or degrees for the angle kind).

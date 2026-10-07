@@ -7,11 +7,17 @@ import { TOOLS, type ToolContext } from './tools/types';
 export const NUMERIC_FIELD_SIZE: Vec2 = { x: 150, y: 34 };
 export const NUMERIC_FIELD_OFFSET: Vec2 = { x: 14, y: 14 };
 
+let session = 0;
+
+/** Counter bumped by every openNumericInput: the UI keys its field on it, so each opening starts fresh. */
+export const numericSession = (): number => session;
+
 /** Opens (or replaces) the shared numeric field. `initial` is the text already typed (the first digit). */
 export function openNumericInput(
   store: EditorStore,
   opts: { initial: string; screen: Vec2; kind: NumericKind; label?: string },
 ): void {
+  session++;
   const numericInput = { value: opts.initial, screen: opts.screen, kind: opts.kind, label: opts.label };
   store.getState().setOverlay({ numericInput });
 }
