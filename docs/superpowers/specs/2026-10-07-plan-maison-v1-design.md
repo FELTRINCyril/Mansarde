@@ -76,11 +76,17 @@ src/
 éléments d'interaction). `ui` et `export` sont au sommet. La V2 (vue 3D Three.js) consommera
 `core` tel quel.
 
-**Bibliothèques** : React, Zustand, Immer, une bibliothèque de booléens de polygones (union des
-murs, découpe des ouvertures ; choix final entre `clipper2-js` et `polygon-clipping` fait au
-moment du plan d'implémentation selon la robustesse constatée sur les cas de test), `idb`
-(IndexedDB), `zod` (validation des imports), `jspdf` + `svg2pdf.js` (PDF). Tests : Vitest,
-Playwright. Aucune autre dépendance sans raison précise.
+**Bibliothèques** : React, Zustand, Immer, `polygon-clipping` (union des murs, découpe des
+ouvertures ; retenue face à `clipper2-js`, dont le paquet npm dépend d'Angular), `polylabel`
+(position des libellés de pièces), `idb` (IndexedDB), `zod` (validation des imports),
+`jspdf` + `svg2pdf.js` (PDF). Tests : Vitest, Playwright, `fake-indexeddb` pour tester le
+stockage. Aucune autre dépendance sans raison précise.
+
+**Épaisseur des traits** : plutôt que `vector-effect: non-scaling-stroke` (mal géré par
+`svg2pdf.js`), les composants de rendu reçoivent une unité de trait `lineUnit` (en cm du
+monde) : `1 / zoom` à l'écran, et une valeur dérivée de l'échelle en impression. Les symboles
+d'objets sont dessinés de façon paramétrique en cm (un cercle reste rond quand on étire
+l'objet), plutôt qu'étirés depuis un repère normalisé.
 
 ## 5. Modèle de données
 
@@ -276,8 +282,8 @@ réapparaît alors dans le catalogue du projet.
   fins doublés dans l'épaisseur du mur ; un symbole par variante.
 - **Pièces** : remplissage léger, nom et surface au pôle d'inaccessibilité. Taille du texte
   constante à l'écran.
-- **Objets** : symbole SVG dessiné dans un repère normalisé, étiré aux dimensions de l'objet,
-  traits d'épaisseur constante (`vector-effect: non-scaling-stroke`).
+- **Objets** : symbole SVG dessiné de façon paramétrique aux dimensions de l'objet (en cm),
+  traits d'épaisseur constante à l'écran grâce à `lineUnit` (voir 4).
 - **Cotes automatiques** :
   - pour chaque pièce, la longueur de chaque face de mur intérieure (dimensions intérieures) ;
   - pour les murs de façade, la longueur de la face extérieure ;
@@ -293,7 +299,7 @@ réapparaît alors dans le catalogue du projet.
 
 - **PNG** : niveau actif cadré sur son contenu avec une marge, résolution au choix
   (1x, 2x, 4x).
-- **PDF à l'échelle** : format A4 ou A3, portrait ou paysage, échelle 1/20, 1/50 ou 1/100.
+- **PDF à l'échelle** : format A4 ou A3, portrait ou paysage, échelle 1/20, 1/50, 1/100 ou 1/200.
   Contenu vectoriel (`svg2pdf.js`) avec un cartouche en bas à droite (nom du projet, niveau,
   échelle, date) et une barre d'échelle graphique. Si le plan ne tient pas sur la page à
   l'échelle choisie, l'app le signale et propose la plus grande échelle normalisée qui tient,
