@@ -1,5 +1,7 @@
 import type { Ring, Vec2 } from '@/core/model/types';
 import type { createEditorStore, ToolId } from '../store';
+import { calibrateTool } from './calibrateTool';
+import { moveBackgroundTool } from './moveBackgroundTool';
 import { selectTool } from './selectTool';
 
 /**
@@ -65,4 +67,6 @@ export function isOutlineGhost(g: unknown): g is OutlineGhost {
 /** Tool implementations by id; filled by later tasks (wall, rect, door/window, dimension, calibrate). */
 export const TOOLS: Partial<Record<ToolId, Tool>> = {
   select: selectTool,
+  calibrate: calibrateTool,
+  moveBackground: moveBackgroundTool,
 };

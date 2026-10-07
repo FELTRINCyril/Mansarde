@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import type { Id, Project } from '@/core/model/types';
 import { placeObjectAt } from '@/editor/placeObject';
 import { useEditor } from '@/editor/store';
@@ -7,6 +7,7 @@ import { startAutosave, type SaveStatus } from '@/storage/autosave';
 import type { ProjectStore, StoredImage } from '@/storage/db';
 import { imageSize } from '@/storage/files';
 import { Banner } from './Banner';
+import { BackgroundServicesContext, type BackgroundServices } from './backgroundServices';
 import { CatalogPanel } from './CatalogPanel';
 import { ExportDialog } from './ExportDialog';
 import { Header } from './Header';
@@ -45,17 +46,30 @@ async function readableImages(images: StoredImage[]): Promise<StoredImage[]> {
 function useOpenProject(
   p: EditorScreenProps,
   onSaveStatus: (s: SaveStatus) => void,
-): { imageUrls: Record<Id, string>; imageProblems: string[]; error: string | null; ready: boolean } {
+): {
+  imageUrls: Record<Id, string>;
+  registerImage(imageId: Id, blob: Blob): void;
+  imageProblems: string[];
+  error: string | null;
+  ready: boolean;
+} {
   const [imageUrls, setImageUrls] = useState<Record<Id, string>>({});
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const { projectId, projectStore, initialProject, saver, onSavesPending } = p;
+  // every object URL created for this editor session, revoked when it closes (a deleted or replaced
+  // background keeps its URL meanwhile: undo can bring it back)
+  const urls = useRef<string[]>([]);
+  const registerImage = useCallback((imageId: Id, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    urls.current.push(url);
+    setImageUrls((m) => ({ ...m, [imageId]: url }));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     let stop: (() => Promise<void>) | null = null;
-    const urls: string[] = [];
     const start = () => {
       stop = startAutosave(useEditor, saver, onSaveStatus);
     };
@@ -84,7 +98,7 @@ function useOpenProject(
       const map: Record<Id, string> = {};
       for (const img of images) {
         const url = URL.createObjectURL(img.blob);
-        urls.push(url);
+        urls.current.push(url);
         map[img.id] = url;
       }
       setImageUrls(map);
@@ -101,16 +115,17 @@ function useOpenProject(
       window.removeEventListener('pageshow', onShow);
       if (stop) onSavesPending(stop());
       useEditor.getState().closeProject();
-      for (const url of urls) URL.revokeObjectURL(url);
+      for (const url of urls.current) URL.revokeObjectURL(url);
+      urls.current = [];
     };
   }, [projectId, projectStore, initialProject, saver, onSaveStatus, onSavesPending]);
 
-  return { imageUrls, imageProblems, error, ready };
+  return { imageUrls, registerImage, imageProblems, error, ready };
 }
 
 export function EditorScreen(p: EditorScreenProps): JSX.Element {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: 'idle' });
-  const { imageUrls, imageProblems, error, ready } = useOpenProject(p, setSaveStatus);
+  const { imageUrls, registerImage, imageProblems, error, ready } = useOpenProject(p, setSaveStatus);
   const [imageProblemsClosed, setImageProblemsClosed] = useState(false);
   const [dialog, setDialog] = useState<'settings' | 'export' | null>(null);
   const size = useRef<Size>({ width: 0, height: 0 });
@@ -122,6 +137,15 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
     const s = size.current;
     placeObjectAt(useEditor, ref, screenToWorld(useEditor.getState().view, { x: s.width / 2, y: s.height / 2 }));
   }, []);
+
+  const backgroundServices = useMemo<BackgroundServices>(
+    () => ({
+      projectStore: p.projectStore,
+      registerImage,
+      viewCenter: () => screenToWorld(useEditor.getState().view, { x: size.current.width / 2, y: size.current.height / 2 }),
+    }),
+    [p.projectStore, registerImage],
+  );
 
   if (error) {
     return (
@@ -149,7 +173,9 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
         <main className="editor-center">
           <PlanCanvas imageUrls={imageUrls} onResize={onResize} />
         </main>
-        <PropertiesPanel />
+        <BackgroundServicesContext.Provider value={backgroundServices}>
+          <PropertiesPanel />
+        </BackgroundServicesContext.Provider>
       </div>
       <LevelTabs />
       {dialog === 'settings' && <SettingsDialog onClose={() => setDialog(null)} />}
