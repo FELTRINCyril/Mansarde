@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { CATALOG, getCatalogEntry } from '../../src/catalog/catalog';
 import { SYMBOLS, GenericSymbol } from '../../src/catalog/symbols';
 
-const FORBIDDEN = /[—–… ×‘’“”→]/;
+const FORBIDDEN = /[\u2014\u2013\u2026\u00a0\u00d7\u2018\u2019\u201c\u201d\u2192]/;
 const GENERIC_IDS = ['generic-rect', 'generic-circle', 'generic-lshape'];
 const SIZES: Array<[number, number]> = [
   [100, 50],
@@ -134,14 +134,44 @@ describe('symbols', () => {
   });
 
   it('adds the short text labels only when they fit', () => {
-    expect(render('fridge', 60, 65)).toContain('>Frigo<');
+    const fridge = render('fridge', 60, 65);
+    expect(fridge).toContain('>Frigo<');
+    expect(fridge).toContain('font-size="10"');
     expect(render('dishwasher', 60, 60)).toContain('>LV<');
     expect(render('washing-machine', 60, 60)).toContain('>LL<');
     expect(render('fridge', 5, 5)).not.toContain('<text');
-    expect(render('fridge', 300, 20)).not.toContain('NaN');
-    const wide = render('fridge', 300, 20);
-    const m = /font-size="([^"]+)"/.exec(wide);
-    if (m) expect(Number(m[1])).toBeLessThanOrEqual(20);
+    expect(render('fridge', 60, 7)).not.toContain('<text');
+    // elongated but deep enough: the font is shrunk to 80 percent of the depth cap, never above 10
+    expect(render('fridge', 300, 20)).toContain('font-size="10"');
+  });
+
+  it('draws the round table as an ellipse computed from w and d', () => {
+    const markup = render('table-round', 100, 50);
+    expect(markup).toContain('rx="50"');
+    expect(markup).toContain('ry="25"');
+  });
+
+  it('places the bed pillows in the back half (y < 0)', () => {
+    for (const [id, w, d] of [['bed-90', 90, 190], ['bed-140', 140, 190], ['bed-180', 180, 200]] as const) {
+      const pillows = [...render(id, w, d).matchAll(/<rect[^>]*>/g)]
+        .map((m) => m[0])
+        .filter((r) => !/rx="0"/.test(r));
+      expect(pillows.length, id).toBe(id === 'bed-90' ? 1 : 2);
+      for (const r of pillows) {
+        const y = Number(/ y="([^"]+)"/.exec(r)?.[1]);
+        const h = Number(/height="([^"]+)"/.exec(r)?.[1]);
+        expect(y, id).toBeLessThan(0);
+        expect(y + h, id).toBeLessThan(0);
+      }
+    }
+  });
+
+  it('keeps dresser, counter and tv-unit visually distinct', () => {
+    const lines = (id: string, w: number, d: number) => (render(id, w, d).match(/<line/g) ?? []).length;
+    expect(lines('dresser', 100, 50)).toBe(3);
+    expect(lines('counter', 120, 60)).toBe(2); // back line + one module joint
+    expect(lines('tv-unit', 160, 45)).toBe(1);
+    expect(render('tv-unit', 160, 45)).toContain('<rect');
   });
 });
 
@@ -168,5 +198,11 @@ describe('GenericSymbol', () => {
       }
     }
     assertClean(gen('lshape', 100, 100, { notchWidth: -5, notchDepth: 500 }));
+  });
+
+  it('falls back to a rectangle when lshape is null, like objectFootprint', () => {
+    const markup = gen('lshape', 200, 150, null);
+    expect(markup).toContain('<rect');
+    expect(markup).not.toContain('<polygon');
   });
 });

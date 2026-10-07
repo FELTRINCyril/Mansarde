@@ -135,7 +135,7 @@ const Wardrobe: SymbolComponent = (p) => {
   const { w, d, lineUnit } = p;
   const hw = w / 2;
   const hd = d / 2;
-  const e = Math.min(d * 0.12, 6);
+  const e = Math.min(d * 0.3, 18); // door leaf depth: ticks stay readable at plan scale
   const doors = Math.max(1, Math.round(w / 60));
   const lines: JSX.Element[] = [];
   for (let i = 1; i < doors; i++) {
@@ -153,21 +153,19 @@ const Wardrobe: SymbolComponent = (p) => {
   );
 };
 
+/** Drawer lines run across the full width, spread over the depth. */
 const Dresser: SymbolComponent = (p) => {
   const { w, d } = p;
   const hw = w / 2;
   const hd = d / 2;
-  const e = Math.min(d * 0.15, 8);
-  const drawers = Math.max(1, Math.round(w / 40));
   const lines: JSX.Element[] = [];
-  for (let i = 1; i < drawers; i++) {
-    const x = -hw + (i * w) / drawers;
-    lines.push(<Line key={i} x1={x} y1={hd - e} x2={x} y2={hd} />);
+  for (let i = 1; i <= 3; i++) {
+    const y = -hd + (i * d) / 4;
+    lines.push(<Line key={i} x1={-hw} y1={y} x2={hw} y2={y} />);
   }
   return (
     <Sym p={p}>
       <Box x={-hw} y={-hd} w={w} h={d} fill={p.fill} />
-      <Line x1={-hw} y1={hd - e} x2={hw} y2={hd - e} />
       {lines}
     </Sym>
   );
@@ -250,12 +248,16 @@ const RoundTable: SymbolComponent = (p) => (
   </Sym>
 );
 
+/** Screen drawn as a thick strip along the back, shelf line at the front. */
 const TvUnit: SymbolComponent = (p) => {
   const { w, d } = p;
   const e = Math.min(d * 0.15, 6);
+  const sw = w * 0.6;
+  const sh = Math.min(d * 0.15, 6);
   return (
     <Sym p={p}>
       <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
+      <Box x={-sw / 2} y={-d / 2 + e} w={sw} h={sh} fill={p.stroke} />
       <Line x1={-w / 2} y1={d / 2 - e} x2={w / 2} y2={d / 2 - e} />
     </Sym>
   );
@@ -315,13 +317,23 @@ const Chair: SymbolComponent = (p) => {
   );
 };
 
+/** Worktop: thin back line (splashback) and a joint between each 60 cm cabinet module. */
 const Counter: SymbolComponent = (p) => {
   const { w, d } = p;
+  const hw = w / 2;
+  const hd = d / 2;
   const e = Math.min(d * 0.1, 4);
+  const modules = clamp(Math.round(w / 60), 1, 60);
+  const joints: JSX.Element[] = [];
+  for (let i = 1; i < modules; i++) {
+    const x = -hw + (i * w) / modules;
+    joints.push(<Line key={i} x1={x} y1={-hd + e} x2={x} y2={hd} />);
+  }
   return (
     <Sym p={p}>
-      <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
-      <Line x1={-w / 2} y1={d / 2 - e} x2={w / 2} y2={d / 2 - e} />
+      <Box x={-hw} y={-hd} w={w} h={d} fill={p.fill} />
+      <Line x1={-hw} y1={-hd + e} x2={hw} y2={-hd + e} />
+      {joints}
     </Sym>
   );
 };
@@ -462,8 +474,9 @@ const StairsQuarter: SymbolComponent = (p) => {
   const s = Math.min(w, d); // depth of the winder landing at the back
   const yb = -hd + s; // bottom edge of the landing
   const run = d - s; // straight run length, from yb to the front
-  const head = Math.min(w * 0.25, 20);
+  const head = Math.min(w * 0.3, 25);
   const m = Math.min(w, d) * 0.1;
+  const ay = -hd + s * 0.25; // the arrow turns near the outer (back) edge, away from the pivot
   const winders: JSX.Element[] = [];
   for (let k = 1; k <= 3; k++) {
     const theta = (Math.PI / 2) * (k / 4);
@@ -482,9 +495,9 @@ const StairsQuarter: SymbolComponent = (p) => {
       {winders}
       <Arrow
         pts={[
-          [0, hd - m],
-          [0, -hd + s / 2],
-          [-hw + m, -hd + s / 2],
+          [hw / 2, hd - m],
+          [hw / 2, ay],
+          [-hw + m, ay],
         ]}
         head={head}
       />
@@ -535,7 +548,7 @@ export const SYMBOLS: Record<string, SymbolComponent> = {
 /**
  * Generic rectangle, ellipse or L. The L removes its notch at the local (+x, +y) corner, matching
  * objectFootprint; `mirrored` is handled by the renderer's transform, not here. A null `lshape`
- * falls back to a notch of 60 percent of each side.
+ * falls back to a plain rectangle, like objectFootprint.
  */
 export function GenericSymbol(p: SymbolProps & { shape: GenericShape; lshape: LShapeParams | null }): JSX.Element {
   const { w, d } = p;
@@ -548,9 +561,9 @@ export function GenericSymbol(p: SymbolProps & { shape: GenericShape; lshape: LS
       </Sym>
     );
   }
-  if (p.shape === 'lshape') {
-    const nw = clamp(p.lshape?.notchWidth ?? w * 0.6, 0, w);
-    const nd = clamp(p.lshape?.notchDepth ?? d * 0.6, 0, d);
+  if (p.shape === 'lshape' && p.lshape) {
+    const nw = clamp(p.lshape.notchWidth, 0, w);
+    const nd = clamp(p.lshape.notchDepth, 0, d);
     const pts: Array<[number, number]> = [
       [-hw, -hd],
       [hw, -hd],

@@ -46,7 +46,7 @@ export const CATALOG: CatalogEntry[] = [
   sym('wardrobe', 'Armoire', 'Chambre', 120, 60, 200, BEDROOM),
   sym('dresser', 'Commode', 'Chambre', 100, 50, 85, BEDROOM),
   sym('crib', 'Berceau', 'Chambre', 60, 120, 90, BEDROOM),
-  // Séjour
+  // Sejour
   sym('sofa-2', 'Canapé 2 places', 'Séjour', 160, 90, 85, LIVING),
   sym('sofa-3', 'Canapé 3 places', 'Séjour', 210, 95, 85, LIVING),
   sym('sofa-corner', "Canapé d'angle", 'Séjour', 250, 200, 85, LIVING),
@@ -75,7 +75,7 @@ export const CATALOG: CatalogEntry[] = [
   // Structure
   sym('stairs-straight', 'Escalier droit', 'Structure', 90, 300, 270, STRUCTURE),
   sym('stairs-quarter', 'Escalier quart tournant', 'Structure', 90, 250, 270, STRUCTURE),
-  // Génériques
+  // Generiques
   { id: 'generic-rect', name: 'Rectangle', category: 'Génériques', width: 100, depth: 60, height: 75, color: GENERIC, shape: 'rect' },
   { id: 'generic-circle', name: 'Cercle', category: 'Génériques', width: 80, depth: 80, height: 75, color: GENERIC, shape: 'circle' },
   {
