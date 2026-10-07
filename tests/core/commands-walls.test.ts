@@ -1,6 +1,5 @@
-import { applyPatches } from 'immer';
 import { describe, expect, it } from 'vitest';
-import { applyCommand, type Recipe } from '@/core/commands/apply';
+import { applyCommand } from '@/core/commands/apply';
 import { reconcileOpenings } from '@/core/commands/reconcile';
 import {
   addRectRoom,
@@ -17,43 +16,10 @@ import {
 } from '@/core/commands/walls';
 import { computeRooms } from '@/core/geometry/rooms';
 import { wallLength } from '@/core/geometry/walls';
-import { createOpening, createProject } from '@/core/model/factory';
+import { createOpening } from '@/core/model/factory';
 import type { Id, Level, ManualDimension, Project } from '@/core/model/types';
-import { levelFromWalls, rectRoom, type WallSegment } from './fixtures';
-
-const T0 = new Date('2026-01-01T00:00:00.000Z');
-
-function emptyProject(): Project {
-  return createProject('Maison', T0);
-}
-
-function projectFrom(segments: WallSegment[], setup?: (level: Level) => void): Project {
-  const p = createProject('Maison', T0);
-  const level = levelFromWalls(segments);
-  setup?.(level);
-  p.levels = [level];
-  return p;
-}
-
-const lvl = (p: Project): Level => p.levels[0]!;
-const levelId = (p: Project): Id => lvl(p).id;
-
-/** Applies a recipe that must succeed, checks the round trip through the inverse patches. */
-function run(p: Project, recipe: Recipe): Project {
-  const r = applyCommand(p, recipe);
-  if (!r.ok) throw new Error(`unexpected refusal: ${r.error}`);
-  expect(r.project.updatedAt).not.toBe(p.updatedAt);
-  expect(applyPatches(r.project, r.inverse)).toEqual(p);
-  return r.project;
-}
-
-function refuse(p: Project, recipe: Recipe): string {
-  const snapshot = JSON.stringify(p);
-  const r = applyCommand(p, recipe);
-  if (r.ok) throw new Error('expected a refusal');
-  expect(JSON.stringify(p)).toBe(snapshot);
-  return r.error;
-}
+import { levelFromWalls, rectRoom } from './fixtures';
+import { emptyProject, levelId, lvl, projectFrom, refuse, run } from './helpers';
 
 function nodeAt(level: Level, x: number, y: number): Id {
   const n = Object.values(level.nodes).find((n) => Math.hypot(n.x - x, n.y - y) < 1e-6);
