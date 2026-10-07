@@ -9,7 +9,7 @@ import type { NumericKind } from '@/ui/numeric';
 import { pruneSelection, type SelectionItem } from './selection';
 import { DEFAULT_VIEW, isValidView, type View } from './view';
 
-export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate';
+export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate' | 'moveBackground';
 
 /** Room name being edited in place (double-click in a room, select tool). */
 export interface RoomRename { levelId: Id; label: RoomLabel | null; labelPoint: Vec2; placeholder: string }

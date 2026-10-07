@@ -1,7 +1,9 @@
 import type { JSX } from 'react';
 import { HANDLE_PX, type ObjectHandle } from '@/editor/handles';
 import type { Overlay } from '@/editor/store';
+import { isSegmentGhost } from '@/editor/tools/calibrateTool';
 import { isOutlineGhost } from '@/editor/tools/types';
+import { CalibrationSegment } from './CalibrationSegment';
 import { DimLineView } from './DimLineView';
 import { ringsPath } from './path';
 import { dashArray, num, STYLE } from './style';
@@ -60,6 +62,7 @@ export function OverlayLayer({
           ))}
         </g>
       )}
+      {isSegmentGhost(ghost) && <CalibrationSegment ghost={ghost} lineUnit={lineUnit} />}
       {handles.length > 0 && (
         <g data-kind="handles" stroke={STYLE.selection} strokeWidth={STYLE.handleWidth * lineUnit} fill={STYLE.paper}>
           {handles.map((h) =>

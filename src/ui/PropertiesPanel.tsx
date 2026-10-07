@@ -14,6 +14,7 @@ import { renameRoomAt } from '@/editor/renameRoom';
 import type { SelectionItem } from '@/editor/selection';
 import { activeLevel, useEditor } from '@/editor/store';
 import { NumericInput, TextField } from './NumericInput';
+import { BackgroundPanel } from './BackgroundPanel';
 import { Choice, ReadOnly, Section } from './fields';
 import { run } from './run';
 import { MultiProperties } from './MultiProperties';
@@ -235,6 +236,7 @@ export function PropertiesPanel(): JSX.Element | null {
   return (
     <aside className="properties" aria-label="Propriétés" data-testid="properties-panel">
       {selection.length === 0 && <LevelProperties key={level.id} level={level} />}
+      {selection.length === 0 && <BackgroundPanel key={`bg:${level.id}`} level={level} />}
       {single && <SingleItem key={`${single.kind}:${single.id}`} level={level} item={single} />}
       {selection.length > 1 && <MultiProperties key={selection.map((i) => i.id).join(',')} level={level} selection={selection} />}
       {selection.length > 0 && (

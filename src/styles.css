@@ -824,6 +824,28 @@ select {
   margin: 4px 0;
 }
 
+.panel-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.input-range {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-unit-wide {
+  width: 40px;
+  text-align: right;
+}
+
 /* ===== Level tabs ===== */
 
 .level-tabs {

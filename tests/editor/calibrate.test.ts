@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calibrateBackground } from '@/editor/background';
+import { CALIBRATE_START, calibrateClick, calibrateGhost, calibrateResult } from '@/editor/tools/calibrateTool';
 import type { Background, Vec2 } from '@/core/model/types';
 
 const bg = (over: Partial<Background> = {}): Background => ({
@@ -77,5 +78,48 @@ describe('calibrateBackground', () => {
 
   it('throws when the two points coincide', () => {
     expect(() => calibrateBackground(bg(), { x: 5, y: 5 }, { x: 5, y: 5 }, 100)).toThrow();
+  });
+});
+
+describe('calibrate state machine', () => {
+  const MIN = 1;
+
+  it('walks first -> second -> length with two clicks', () => {
+    const s1 = calibrateClick(CALIBRATE_START, { x: 100, y: 100 }, MIN);
+    expect(s1).toEqual({ phase: 'second', p1: { x: 100, y: 100 } });
+    const s2 = calibrateClick(s1, { x: 300, y: 100 }, MIN);
+    expect(s2).toEqual({ phase: 'length', p1: { x: 100, y: 100 }, p2: { x: 300, y: 100 } });
+  });
+
+  it('ignores a second click too close to the first point', () => {
+    const s1 = calibrateClick(CALIBRATE_START, { x: 100, y: 100 }, MIN);
+    expect(calibrateClick(s1, { x: 100.2, y: 100.2 }, MIN)).toBe(s1);
+  });
+
+  it('ignores clicks once the length is awaited', () => {
+    const s2 = calibrateClick(calibrateClick(CALIBRATE_START, { x: 0, y: 0 }, MIN), { x: 50, y: 0 }, MIN);
+    expect(calibrateClick(s2, { x: 9, y: 9 }, MIN)).toBe(s2);
+  });
+
+  it('previews nothing at first, a segment from the second phase on', () => {
+    expect(calibrateGhost(CALIBRATE_START, { x: 5, y: 5 })).toBeNull();
+    const s1 = calibrateClick(CALIBRATE_START, { x: 100, y: 100 }, MIN);
+    expect(calibrateGhost(s1, { x: 200, y: 150 })).toEqual({
+      kind: 'segment',
+      a: { x: 100, y: 100 },
+      b: { x: 200, y: 150 },
+      points: [{ x: 100, y: 100 }],
+    });
+    const s2 = calibrateClick(s1, { x: 300, y: 100 }, MIN);
+    expect(calibrateGhost(s2, { x: 0, y: 0 })?.points).toEqual([{ x: 100, y: 100 }, { x: 300, y: 100 }]);
+  });
+
+  it('applies the typed length only once both points are known', () => {
+    const s1 = calibrateClick(CALIBRATE_START, { x: 0, y: 0 }, MIN);
+    expect(calibrateResult(s1, bg(), 800)).toBeNull();
+    const s2 = calibrateClick(s1, { x: 400, y: 0 }, MIN);
+    const r = calibrateResult(s2, bg(), 800);
+    expect(r?.scale).toBe(2);
+    expect(calibrateResult(s2, bg(), 0)).toBeNull();
   });
 });
