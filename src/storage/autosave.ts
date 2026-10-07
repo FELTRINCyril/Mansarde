@@ -21,14 +21,16 @@ const messageOf = (e: unknown): string => (e instanceof Error ? e.message : Stri
  * - The initial state of the store is not saved. Unsubscribing flushes the pending save (so a
  *   teardown or pagehide never loses an edit); saves already running keep reporting their outcome.
  * - A throwing onStatus is logged and never breaks the save queue.
- * Returns the unsubscribe function.
+ * Returns the unsubscribe function; it returns a promise settled once every save queued so far
+ * (the flushed one included) has completed, successfully or not: wait for it before reading the
+ * stored projects back.
  */
 export function startAutosave(
   store: EditorStore,
   saver: (p: Project) => Promise<void>,
   onStatus: (s: SaveStatus) => void,
   delayMs = 500,
-): () => void {
+): () => Promise<void> {
   let lastSeen: Project | null = store.getState().project;
   let pending: Project | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -109,5 +111,6 @@ export function startAutosave(
   return () => {
     unsubscribe();
     flush();
+    return queue;
   };
 }

@@ -16,6 +16,7 @@ import { activeLevel, useEditor } from '@/editor/store';
 import { NumericInput, TextField } from './NumericInput';
 import { Choice, ReadOnly, Section } from './fields';
 import { run } from './run';
+import { MultiProperties } from './MultiProperties';
 import { ObjectProperties } from './ObjectProperties';
 
 function DeleteButton({ level, selection }: { level: Level; selection: SelectionItem[] }): JSX.Element | null {
@@ -244,13 +245,7 @@ export function PropertiesPanel(): JSX.Element | null {
     <aside className="properties" aria-label="Propriétés" data-testid="properties-panel">
       {selection.length === 0 && <LevelProperties key={level.id} level={level} />}
       {single && <SingleItem key={`${single.kind}:${single.id}`} level={level} item={single} />}
-      {selection.length > 1 && (
-        <Section title="Sélection">
-          <p className="panel-text" data-testid="selection-count">
-            {selection.length} éléments sélectionnés
-          </p>
-        </Section>
-      )}
+      {selection.length > 1 && <MultiProperties key={selection.map((i) => i.id).join(',')} level={level} selection={selection} />}
       {selection.length > 0 && (
         <div className="panel-section">
           <DeleteButton level={level} selection={selection} />

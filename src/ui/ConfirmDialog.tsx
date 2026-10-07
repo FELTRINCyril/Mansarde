@@ -1,18 +1,18 @@
 import { useEffect, useId, useRef, useState, type JSX, type ReactNode } from 'react';
 
-/** Modal frame: Escape or a click on the backdrop closes it. */
+/**
+ * Modal frame: Escape or a click on the backdrop closes it. The Escape listener runs in the bubble
+ * phase and skips events already handled (preventDefault) by a field, e.g. a NumericInput revert.
+ */
 export function Modal(p: { title: string; onClose(): void; children: ReactNode; testId?: string; wide?: boolean }): JSX.Element {
   const titleId = useId();
   const { onClose } = p;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
+      if (e.key === 'Escape' && !e.defaultPrevented) onClose();
     };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>

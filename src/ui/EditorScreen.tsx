@@ -4,11 +4,13 @@ import { placeObjectAt } from '@/editor/placeObject';
 import { useEditor } from '@/editor/store';
 import { screenToWorld } from '@/editor/view';
 import { startAutosave, type SaveStatus } from '@/storage/autosave';
-import type { ProjectStore } from '@/storage/db';
+import type { ProjectStore, StoredImage } from '@/storage/db';
+import { imageSize } from '@/storage/files';
 import { Banner } from './Banner';
 import { CatalogPanel } from './CatalogPanel';
 import { ExportDialog } from './ExportDialog';
 import { Header } from './Header';
+import { levelsWithMissingImages, missingImageMessage } from './imageCheck';
 import { LevelTabs } from './LevelTabs';
 import { PlanCanvas, type Size } from './PlanCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -23,8 +25,16 @@ export interface EditorScreenProps {
   /** Newer in-memory version of the project (its last save failed); loaded from the store otherwise. */
   initialProject?: Project;
   saver(p: Project): Promise<void>;
+  /** Receives the promise of the saves flushed when the editor closes (settled once they completed). */
+  onSavesPending(done: Promise<void>): void;
   onExportProject(p: Project): void;
   onClose(): void;
+}
+
+/** The stored images the browser can decode; the others are reported as missing backgrounds. */
+async function readableImages(images: StoredImage[]): Promise<StoredImage[]> {
+  const decoded = await Promise.allSettled(images.map((img) => imageSize(img.blob)));
+  return images.filter((_, i) => decoded[i]!.status === 'fulfilled');
 }
 
 /**
@@ -35,21 +45,22 @@ export interface EditorScreenProps {
 function useOpenProject(
   p: EditorScreenProps,
   onSaveStatus: (s: SaveStatus) => void,
-): { imageUrls: Record<Id, string>; error: string | null; ready: boolean } {
+): { imageUrls: Record<Id, string>; imageProblems: string[]; error: string | null; ready: boolean } {
   const [imageUrls, setImageUrls] = useState<Record<Id, string>>({});
+  const [imageProblems, setImageProblems] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const { projectId, projectStore, initialProject, saver } = p;
+  const { projectId, projectStore, initialProject, saver, onSavesPending } = p;
 
   useEffect(() => {
     let cancelled = false;
-    let stop: (() => void) | null = null;
+    let stop: (() => Promise<void>) | null = null;
     const urls: string[] = [];
     const start = () => {
       stop = startAutosave(useEditor, saver, onSaveStatus);
     };
     const onHide = () => {
-      stop?.();
+      if (stop) onSavesPending(stop());
       stop = null;
     };
     const onShow = (e: PageTransitionEvent) => {
@@ -67,8 +78,9 @@ function useOpenProject(
       } catch (e) {
         console.warn('Could not prune unreferenced images', e);
       }
-      const images = await projectStore.listImages(project.id);
+      const images = await readableImages(await projectStore.listImages(project.id));
       if (cancelled) return;
+      setImageProblems(levelsWithMissingImages(project, new Set(images.map((i) => i.id))).map(missingImageMessage));
       const map: Record<Id, string> = {};
       for (const img of images) {
         const url = URL.createObjectURL(img.blob);
@@ -87,18 +99,19 @@ function useOpenProject(
       cancelled = true;
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('pageshow', onShow);
-      stop?.();
+      if (stop) onSavesPending(stop());
       useEditor.getState().closeProject();
       for (const url of urls) URL.revokeObjectURL(url);
     };
-  }, [projectId, projectStore, initialProject, saver, onSaveStatus]);
+  }, [projectId, projectStore, initialProject, saver, onSaveStatus, onSavesPending]);
 
-  return { imageUrls, error, ready };
+  return { imageUrls, imageProblems, error, ready };
 }
 
 export function EditorScreen(p: EditorScreenProps): JSX.Element {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: 'idle' });
-  const { imageUrls, error, ready } = useOpenProject(p, setSaveStatus);
+  const { imageUrls, imageProblems, error, ready } = useOpenProject(p, setSaveStatus);
+  const [imageProblemsClosed, setImageProblemsClosed] = useState(false);
   const [dialog, setDialog] = useState<'settings' | 'export' | null>(null);
   const size = useRef<Size>({ width: 0, height: 0 });
   const onResize = useCallback((s: Size) => {
@@ -124,6 +137,11 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
 
   return (
     <div className="editor" data-testid="editor">
+      {!imageProblemsClosed && imageProblems.length > 0 && (
+        <Banner kind="error" testId="image-error" onClose={() => setImageProblemsClosed(true)}>
+          {imageProblems.join(' ')}
+        </Banner>
+      )}
       <Header saveStatus={saveStatus} onBack={p.onClose} onSettings={() => setDialog('settings')} onExport={() => setDialog('export')} />
       <div className="editor-main">
         <Toolbar />

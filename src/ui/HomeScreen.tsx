@@ -12,6 +12,7 @@ import {
 import { Banner } from './Banner';
 import { ConfirmDialog, PromptDialog } from './ConfirmDialog';
 import { formatModified } from './dateFormat';
+import { ProjectThumbnail } from './ProjectThumbnail';
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -20,8 +21,15 @@ type Dialog = { kind: 'new' } | { kind: 'rename'; meta: ProjectMeta } | { kind: 
 const levelCount = (n: number): string => (n > 1 ? `${n} niveaux` : `${n} niveau`);
 
 /** Project list: create, open, rename, duplicate, export, import, delete. */
-export function HomeScreen(p: { projectStore: ProjectStore; onOpen(id: Id): void; onExport(id: Id): Promise<void>; onDeleted(id: Id): void }): JSX.Element {
-  const { projectStore } = p;
+export function HomeScreen(p: {
+  projectStore: ProjectStore;
+  onOpen(id: Id): void;
+  onExport(id: Id): Promise<void>;
+  onDeleted(id: Id): void;
+  /** Settled once the saves of a just closed editor completed: the list must not be read before. */
+  waitForSaves(): Promise<void>;
+}): JSX.Element {
+  const { projectStore, waitForSaves } = p;
   const [projects, setProjects] = useState<ProjectMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -30,12 +38,13 @@ export function HomeScreen(p: { projectStore: ProjectStore; onOpen(id: Id): void
 
   const refresh = useCallback(async () => {
     try {
+      await waitForSaves();
       setProjects(await projectStore.listProjects());
     } catch (e) {
       setError(`Impossible de lire la liste des projets : ${messageOf(e)}`);
       setProjects([]);
     }
-  }, [projectStore]);
+  }, [projectStore, waitForSaves]);
 
   useEffect(() => {
     void refresh();
@@ -111,6 +120,7 @@ export function HomeScreen(p: { projectStore: ProjectStore; onOpen(id: Id): void
           <ul className="project-list" aria-label="Projets">
             {projects.map((m) => (
               <li key={m.id} className="project-card" data-testid="project-item">
+                <ProjectThumbnail projectStore={projectStore} id={m.id} updatedAt={m.updatedAt} />
                 <button type="button" className="project-open" onClick={() => p.onOpen(m.id)}>
                   <span className="project-title" data-testid="project-name-cell">
                     {m.name}

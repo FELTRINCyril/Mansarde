@@ -210,6 +210,28 @@ describe('autosave', () => {
     expect(saver).toHaveBeenCalledTimes(1);
   });
 
+  it('unsubscribe returns a promise settled once the flushed save (and any running one) completed', async () => {
+    const { store, first, saver, stop } = setup();
+    let finish!: () => void;
+    saver.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    store.getState().execute('a', addObject(first.levels[0]!.id, obj()));
+    let done = false;
+    void stop().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(saver).toHaveBeenCalledTimes(1);
+    expect(done).toBe(false);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+  });
+
+  it('the promise returned by unsubscribe resolves even when the save fails', async () => {
+    const { store, first, saver, stop } = setup();
+    saver.mockImplementationOnce(async () => { throw new Error('plein'); });
+    store.getState().execute('a', addObject(first.levels[0]!.id, obj()));
+    await expect(stop()).resolves.toBeUndefined();
+  });
+
   it('unsubscribe with nothing pending saves nothing', async () => {
     const { saver, stop } = setup();
     stop();
