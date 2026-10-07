@@ -12,7 +12,10 @@ import { nextLevelName } from '@/editor/levelNames';
 import { objectFromRef, placeObjectAt, placeObjectRecipe } from '@/editor/placeObject';
 import { createEditorStore } from '@/editor/store';
 import { formatModified } from '@/ui/dateFormat';
+import { levelsWithMissingImages, missingImageMessage } from '@/ui/imageCheck';
 import { commitNumericAs, formatNumber } from '@/ui/numeric';
+import { thumbnailViewBox } from '@/ui/thumbnail';
+import { updateObjectsRecipe } from '@/ui/multiEdit';
 import { emptyProject, levelId, lvl, projectFrom, run } from '../core/helpers';
 import { findWall, rectRoom } from '../core/fixtures';
 
@@ -192,5 +195,48 @@ describe('objectFromRef L shapes (R22)', () => {
 describe('formatNumber', () => {
   it('shows at most one decimal with a comma and never -0', () => {
     expect([350, 82.46, 0, -0.01, -270].map(formatNumber)).toEqual(['350', '82,5', '0', '0', '-270']);
+  });
+});
+
+describe('levelsWithMissingImages', () => {
+  it('lists the levels whose background image is not available', () => {
+    let p = emptyProject();
+    p = ok(p, addLevel(levelId(p), 'above', 'Étage 1'));
+    const bg = (imageId: string) => ({
+      imageId, widthPx: 10, heightPx: 10, scale: 1, x: 0, y: 0, rotation: 0, opacity: 1, locked: false, visible: true,
+    });
+    p = { ...p, levels: [{ ...p.levels[0]!, background: bg('a') }, { ...p.levels[1]!, background: bg('b') }] };
+    expect(levelsWithMissingImages(p, new Set(['a']))).toEqual(['Étage 1']);
+    expect(levelsWithMissingImages(p, new Set(['a', 'b']))).toEqual([]);
+    expect(missingImageMessage('RDC')).toBe('Image de fond introuvable pour le niveau RDC.');
+  });
+});
+
+describe('thumbnailViewBox', () => {
+  it('grows the short axis to the thumbnail aspect, centered', () => {
+    // 600 x 100 at 3:2 -> height grows to 400
+    expect(thumbnailViewBox({ minX: 0, minY: 0, maxX: 600, maxY: 100 }, 120, 80)).toEqual({ x: 0, y: -150, width: 600, height: 400 });
+    // 300 x 400 at 3:2 -> width grows to 600
+    expect(thumbnailViewBox({ minX: -150, minY: 0, maxX: 150, maxY: 400 }, 120, 80)).toEqual({ x: -300, y: 0, width: 600, height: 400 });
+  });
+});
+
+describe('updateObjectsRecipe', () => {
+  const two = () => {
+    let p = emptyProject();
+    const a = createObjectFromSize({ kind: 'catalog', catalogId: 'chair' }, 0, 0, { width: 45, depth: 50, height: 90 }, 'A', '#111111');
+    const b = createObjectFromSize({ kind: 'catalog', catalogId: 'chair' }, 100, 0, { width: 45, depth: 50, height: 80 }, 'B', '#222222');
+    p = ok(p, addObject(levelId(p), a));
+    p = ok(p, addObject(levelId(p), b));
+    return { p, ids: [a.id, b.id] };
+  };
+  it('applies one patch to every object in a single command', () => {
+    const { p, ids } = two();
+    const next = run(p, updateObjectsRecipe(levelId(p), ids, { height: 120, color: '#abcdef' }));
+    for (const id of ids) expect(lvl(next).objects[id]).toMatchObject({ height: 120, color: '#abcdef' });
+  });
+  it('refuses the whole batch when one value is invalid', () => {
+    const { p, ids } = two();
+    expect(applyCommand(p, updateObjectsRecipe(levelId(p), ids, { height: 0 }))).toEqual({ ok: false, error: 'Dimension invalide' });
   });
 });

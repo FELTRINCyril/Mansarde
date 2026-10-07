@@ -189,3 +189,143 @@ test('a failed save shows a persistent banner that names the project once it is 
   await page.getByTestId('project-item').getByRole('button', { name: 'Ouvrir' }).click();
   await expect(page.getByTestId('level-height')).toHaveValue('270');
 });
+
+test('an immediate return to the projects lists the last edits (no wait for "Enregistré")', async ({ page }) => {
+  await page.goto('/');
+  await createProject(page, 'Rapide');
+  await page.getByTestId('level-menu-0').click();
+  await page.getByRole('menuitem', { name: 'Ajouter au-dessus' }).click();
+  await page.getByTestId('back-to-projects').click();
+  await expect(projectItem(page, 'Rapide')).toContainText('2 niveaux');
+
+  await projectItem(page, 'Rapide').getByRole('button', { name: 'Ouvrir' }).click();
+  await page.getByTestId('project-name').fill('Rapide renommé');
+  await page.getByTestId('back-to-projects').click();
+  await expect(projectItem(page, 'Rapide renommé')).toBeVisible();
+  await expect(projectItem(page, 'Rapide')).toHaveCount(0);
+});
+
+test('a missing or unreadable background image is reported per level', async ({ page }) => {
+  await page.goto('/');
+  await createProject(page, 'Images');
+  await page.getByTestId('level-menu-0').click();
+  await page.getByRole('menuitem', { name: 'Ajouter au-dessus' }).click();
+  await page.getByTestId('back-to-projects').click();
+  await expect(projectItem(page, 'Images')).toContainText('2 niveaux');
+
+  await page.evaluate(async () => {
+    const ps = window.__planMaison!.projectStore;
+    const meta = (await ps.listProjects())[0]!;
+    const p = (await ps.getProject(meta.id))!;
+    const bg = (imageId: string) => ({
+      imageId, widthPx: 10, heightPx: 10, scale: 1, x: 0, y: 0, rotation: 0, opacity: 1, locked: false, visible: true,
+    });
+    p.levels[0]!.background = bg('img-missing');
+    p.levels[1]!.background = bg('img-corrupt');
+    await ps.putImage({
+      id: 'img-corrupt', projectId: p.id, mime: 'image/png', blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }),
+      widthPx: 10, heightPx: 10,
+    });
+    await ps.saveProject(p);
+  });
+  await projectItem(page, 'Images').getByRole('button', { name: 'Ouvrir' }).click();
+  const banner = page.getByTestId('image-error');
+  await expect(banner).toContainText('Image de fond introuvable pour le niveau RDC.');
+  await expect(banner).toContainText('Image de fond introuvable pour le niveau Étage 1.');
+  await banner.getByRole('button', { name: 'Fermer' }).click();
+  await expect(banner).toHaveCount(0);
+});
+
+test('multiple selection edits the common properties of walls or objects in one step', async ({ page }) => {
+  await page.goto('/');
+  await createProject(page, 'Multi');
+  await page.evaluate(async () => {
+    const url = '/src/core/commands/walls.ts';
+    const { addRectRoom } = await import(/* @vite-ignore */ url);
+    const s = window.__planMaison!.store.getState();
+    s.execute('Pièce', addRectRoom(s.activeLevelId!, { x: 0, y: 0 }, { x: 400, y: 300 }, 20, 250));
+  });
+  const state = () =>
+    page.evaluate(() => {
+      const s = window.__planMaison!.store.getState();
+      const level = s.project!.levels[0]!;
+      return { walls: Object.values(level.walls), objects: Object.values(level.objects), past: s.history.past.length };
+    });
+
+  // walls only: thickness and height, one history entry for all walls
+  await page.evaluate(() => {
+    const s = window.__planMaison!.store.getState();
+    s.setSelection(Object.keys(s.project!.levels[0]!.walls).map((id) => ({ kind: 'wall' as const, id })));
+  });
+  await expect(page.getByTestId('selection-count')).toHaveText('4 éléments sélectionnés');
+  await expect(page.getByTestId('walls-thickness')).toHaveValue('20');
+  const before = await state();
+  await page.getByTestId('walls-thickness').fill('30');
+  await page.getByTestId('walls-thickness').press('Enter');
+  await page.getByTestId('walls-height').fill('270');
+  await page.getByTestId('walls-height').press('Enter');
+  let after = await state();
+  expect(after.walls.map((w) => [w.thickness, w.height])).toEqual(before.walls.map(() => [30, 270]));
+  expect(after.past).toBe(before.past + 2);
+
+  // objects only: height, laying height and color, with differing values shown as empty
+  await page.getByTestId('catalog-item-catalog-bed-90').click();
+  await page.getByTestId('catalog-item-catalog-nightstand').click();
+  await page.evaluate(() => {
+    const s = window.__planMaison!.store.getState();
+    s.setSelection(Object.keys(s.project!.levels[0]!.objects).map((id) => ({ kind: 'object' as const, id })));
+  });
+  await expect(page.getByTestId('selection-count')).toHaveText('2 éléments sélectionnés');
+  await expect(page.getByTestId('walls-thickness')).toHaveCount(0);
+  await expect(page.getByTestId('objects-height')).toHaveValue('50');
+  await page.getByTestId('objects-elevation').fill('10');
+  await page.getByTestId('objects-elevation').press('Enter');
+  await page.getByTestId('objects-height').fill('70');
+  await page.getByTestId('objects-height').press('Enter');
+  await page.getByTestId('objects-color').evaluate((el: HTMLInputElement) => {
+    el.value = '#336699';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  after = await state();
+  expect(after.objects.map((o) => [o.height, o.elevation, o.color])).toEqual([
+    [70, 10, '#336699'],
+    [70, 10, '#336699'],
+  ]);
+  await expect(page.getByTestId('delete-selection')).toBeVisible();
+  await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+  after = await state();
+  expect(after.objects.map((o) => o.color)).not.toContain('#336699');
+  expect(after.objects.map((o) => o.height)).toEqual([70, 70]);
+});
+
+test('Escape in a field of a dialog reverts the field without closing the dialog', async ({ page }) => {
+  await page.goto('/');
+  await createProject(page, 'Echap');
+  await page.getByTestId('open-settings').click();
+  const grid = page.getByTestId('setting-gridStep');
+  await grid.fill('abc');
+  await grid.press('Escape');
+  await expect(page.getByTestId('settings-dialog')).toBeVisible();
+  await expect(grid).toHaveValue('10');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-dialog')).toHaveCount(0);
+});
+
+test('project list items show a preview of the first level', async ({ page }) => {
+  await page.goto('/');
+  await createProject(page, 'Vide');
+  await page.getByTestId('back-to-projects').click();
+  await expect(projectItem(page, 'Vide').getByTestId('project-thumb')).toHaveText('Plan vide');
+
+  await createProject(page, 'Avec pièce');
+  await page.evaluate(async () => {
+    const url = '/src/core/commands/walls.ts';
+    const { addRectRoom } = await import(/* @vite-ignore */ url);
+    const s = window.__planMaison!.store.getState();
+    s.execute('Pièce', addRectRoom(s.activeLevelId!, { x: 0, y: 0 }, { x: 400, y: 300 }, 20, 250));
+  });
+  await page.getByTestId('back-to-projects').click();
+  const thumb = projectItem(page, 'Avec pièce').getByTestId('project-thumb');
+  await expect(thumb.locator('svg[data-kind="plan"] [data-kind="wall-shape"]')).toHaveCount(1);
+  await expect(thumb.locator('svg')).toHaveAttribute('width', '120');
+});

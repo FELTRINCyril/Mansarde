@@ -5,6 +5,7 @@ import { commitNumericAs, formatNumber, type NumericKind } from './numeric';
  * Numeric field of the properties panel. Commits on Enter or blur through commitNumericAs (lengths
  * via parseCmInput, R5 bound); an invalid text gets a red border and is never committed; Escape
  * reverts to the current value. The displayed value follows valueCm unless the user is typing.
+ * `mixed` (multiple selection with different values) shows an empty field; any valid value is committed.
  */
 export function NumericInput(p: {
   label: string;
@@ -13,6 +14,7 @@ export function NumericInput(p: {
   testId?: string;
   kind?: NumericKind;
   unit?: string;
+  mixed?: boolean;
 }): JSX.Element {
   const kind = p.kind ?? 'positive';
   const [draft, setDraft] = useState<string | null>(null);
@@ -27,15 +29,15 @@ export function NumericInput(p: {
     }
     setDraft(null);
     setInvalid(false);
-    if (r.value !== p.valueCm) p.onCommit(r.value);
+    if (p.mixed || r.value !== p.valueCm) p.onCommit(r.value);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       commit();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === 'Escape' && draft !== null) {
+      // handled: a dialog around the field stays open; a second Escape (nothing to revert) closes it
       e.preventDefault();
-      e.stopPropagation();
       setDraft(null);
       setInvalid(false);
     }
@@ -49,7 +51,8 @@ export function NumericInput(p: {
           inputMode="decimal"
           aria-invalid={invalid}
           data-testid={p.testId}
-          value={draft ?? formatNumber(p.valueCm)}
+          placeholder={p.mixed ? 'Différentes' : undefined}
+          value={draft ?? (p.mixed ? '' : formatNumber(p.valueCm))}
           onChange={(e) => {
             setDraft(e.target.value);
             setInvalid(false);
@@ -94,9 +97,8 @@ export function TextField(p: {
           if (e.key === 'Enter') {
             e.preventDefault();
             commit();
-          } else if (e.key === 'Escape') {
+          } else if (e.key === 'Escape' && draft !== null) {
             e.preventDefault();
-            e.stopPropagation();
             setDraft(null);
           }
         }}

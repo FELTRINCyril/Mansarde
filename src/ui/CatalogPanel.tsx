@@ -12,7 +12,7 @@ const MY_OBJECTS = 'Mes objets';
 const NO_CUSTOM: Record<string, CustomObjectDef> = {};
 
 /** Lower case without accents, for the search. */
-const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 function Preview(p: { id?: string; shape: GenericShape | 'symbol'; w: number; d: number; color: string; lshape: LShapeParams | null }): JSX.Element {
   const size = Math.max(p.w, p.d) * 1.08;

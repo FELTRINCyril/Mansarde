@@ -51,7 +51,7 @@ export async function duplicateProject(store: ProjectStore, id: Id): Promise<Pro
     for (const img of images) await store.putImage({ ...img, id: imageIdMap.get(img.id)!, projectId: copy.id });
     await store.saveProject(copy);
   } catch (e) {
-    await store.deleteProject(copy.id).catch(() => undefined);
+    await store.deleteProject(copy.id).catch((err: unknown) => console.error('duplicateProject: rollback failed', err));
     throw e;
   }
   return copy;
@@ -91,7 +91,7 @@ export async function importProjectText(
     for (const img of stored) await store.putImage(img);
     await store.saveProject(project);
   } catch (e) {
-    await store.deleteProject(project.id).catch(() => undefined);
+    await store.deleteProject(project.id).catch((err: unknown) => console.error('importProjectText: rollback failed', err));
     return { ok: false, error: `Import impossible : ${messageOf(e)}` };
   }
   return { ok: true, project };

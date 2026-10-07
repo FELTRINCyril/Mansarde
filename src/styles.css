@@ -92,6 +92,7 @@ select {
 }
 
 .btn:focus-visible,
+.btn:has(input:focus-visible),
 .input:focus-visible,
 .tool:focus-visible {
   outline: 2px solid var(--accent);
@@ -429,6 +430,29 @@ select {
 
 .project-card:hover {
   border-color: var(--border-strong);
+}
+
+.project-thumb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 80px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.project-thumb > svg {
+  display: block;
+}
+
+.project-thumb-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  background: var(--surface-2);
 }
 
 .project-open {

@@ -20,14 +20,14 @@ export function commitNumeric(text: string): NumericResult {
 export type NumericKind = 'positive' | 'nonNegative' | 'signed' | 'angle';
 
 const ZERO_RE = /^(?:0+(?:[.,]0*)?|[.,]0+)\s*(?:cm|m)?$/i;
-const ANGLE_RE = /^-?(?:\d+(?:[.,]\d*)?|[.,]\d+)\s*°?$/;
+const ANGLE_RE = /^-?(?:\d+(?:[.,]\d*)?|[.,]\d+)\s*\u00b0?$/;
 
 export function commitNumericAs(text: string, kind: NumericKind): NumericResult {
   const t = text.trim();
   if (kind === 'positive') return commitNumeric(t);
   if (kind === 'angle') {
     if (!ANGLE_RE.test(t)) return { ok: false };
-    const value = Number(t.replace('°', '').replace(',', '.').trim());
+    const value = Number(t.replace('\u00b0', '').replace(',', '.').trim());
     return Number.isFinite(value) && Math.abs(value) <= MAX_NUMERIC_CM ? { ok: true, value: value + 0 } : { ok: false };
   }
   const negative = t.startsWith('-');

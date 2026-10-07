@@ -11,7 +11,7 @@ import { run } from './run';
 import { NumericInput, TextField } from './NumericInput';
 
 /** Color input committed on the native "change" event (picker closed), not on every "input" while dragging. */
-function ColorField(p: { label: string; value: string; onCommit(v: string): void }): JSX.Element {
+export function ColorField(p: { label: string; value: string; onCommit(v: string): void; testId?: string }): JSX.Element {
   const ref = useRef<HTMLInputElement>(null);
   const { onCommit } = p;
   useEffect(() => {
@@ -25,7 +25,7 @@ function ColorField(p: { label: string; value: string; onCommit(v: string): void
     <label className="field">
       <span className="field-label">{p.label}</span>
       {/* uncontrolled: React would otherwise reset the value on every input event */}
-      <input ref={ref} type="color" className="input input-color" key={p.value} defaultValue={p.value} data-testid="object-color" />
+      <input ref={ref} type="color" className="input input-color" key={p.value} defaultValue={p.value} data-testid={p.testId ?? 'object-color'} />
     </label>
   );
 }

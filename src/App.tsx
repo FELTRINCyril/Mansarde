@@ -46,6 +46,12 @@ export default function App(): JSX.Element {
   const [dbError, setDbError] = useState<string | null>(null);
   const [open, setOpen] = useState<OpenTarget | null>(null);
   const [failures, setFailures] = useState<Record<Id, SaveFailure>>({});
+  // saves flushed by a closing editor: the project list is read only once they completed
+  const savesDone = useRef<Promise<void>>(Promise.resolve());
+  const trackSaves = useCallback((done: Promise<void>) => {
+    savesDone.current = Promise.all([savesDone.current, done]).then(() => undefined);
+  }, []);
+  const waitForSaves = useCallback(() => savesDone.current, []);
   const failuresRef = useRef(failures);
   useEffect(() => {
     failuresRef.current = failures;
@@ -135,6 +141,7 @@ export default function App(): JSX.Element {
         initialProject={open.initial}
         projectStore={projectStore}
         saver={saver}
+        onSavesPending={trackSaves}
         onExportProject={onExportOpen}
         onClose={closeProject}
       />
@@ -145,6 +152,7 @@ export default function App(): JSX.Element {
         projectStore={projectStore}
         onOpen={openProject}
         onExport={exportById}
+        waitForSaves={waitForSaves}
         onDeleted={(id) =>
           setFailures((f) => {
             const { [id]: _deleted, ...rest } = f;
