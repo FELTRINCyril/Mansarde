@@ -117,14 +117,11 @@ function computeVolumes(level: Level): DerivedVolumes {
   const cupboardFootprints = new Map<Id, Ring>();
   const cupboardProfiles = new Map<Id, ProfilePoint[]>();
   for (const c of Object.values(level.cupboards)) {
-    try {
-      const footprint = cupboardFootprint(level, c);
-      const profile = cupboardTopProfile(level, c);
-      cupboardFootprints.set(c.id, footprint);
-      cupboardProfiles.set(c.id, profile);
-    } catch {
-      // wall or node missing (broken file): the cupboard cannot be placed
-    }
+    const wall = Object.hasOwn(level.walls, c.wallId) ? level.walls[c.wallId]! : null;
+    // wall or node missing (broken file): the cupboard cannot be placed, it is left out
+    if (!wall || !Object.hasOwn(level.nodes, wall.startNodeId) || !Object.hasOwn(level.nodes, wall.endNodeId)) continue;
+    cupboardFootprints.set(c.id, cupboardFootprint(level, c));
+    cupboardProfiles.set(c.id, cupboardTopProfile(level, c));
   }
   return { slopeBands, beamFootprints, cupboardFootprints, cupboardProfiles };
 }
