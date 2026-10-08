@@ -19,6 +19,12 @@ const dot3 = (a: V3, b: V3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 /** Triangles with less than this doubled area (m2) are dropped (1e-12 m2 = 1e-8 cm2). */
 const MIN_DOUBLE_AREA = 1e-12;
+/**
+ * Needles are dropped too: a triangle thinner than this (m, its height over its longest edge:
+ * 1e-5 cm) is invisible, and its normal is rounding noise (two vertices a few 1e-7 cm apart, as
+ * boolean operations leave them).
+ */
+const MIN_THICKNESS = 1e-7;
 
 /** Unit vector of n, or null when n has no length or is not finite. */
 export function unit(n: V3): V3 | null {
@@ -45,7 +51,10 @@ export class MeshBuilder {
   tri(a: V3, b: V3, c: V3, n: V3): void {
     if (![...a, ...b, ...c, ...n].every(Number.isFinite)) return;
     const g = cross3(sub3(b, a), sub3(c, a));
-    if (!(Math.hypot(g[0], g[1], g[2]) > MIN_DOUBLE_AREA)) return;
+    const area2 = Math.hypot(g[0], g[1], g[2]);
+    if (!(area2 > MIN_DOUBLE_AREA)) return;
+    const longest = Math.max(Math.hypot(...sub3(b, a)), Math.hypot(...sub3(c, b)), Math.hypot(...sub3(a, c)));
+    if (area2 / longest < MIN_THICKNESS) return;
     const [q, r] = dot3(g, n) < 0 ? [c, b] : [b, c];
     const base = this.positions.length / 3;
     const flat = Math.abs(n[1]) >= Math.SQRT1_2;
@@ -118,4 +127,3 @@ export class MeshBuilder {
   }
 }
 
-export const emptyMesh = (): MeshData => ({ positions: [], normals: [], uvs: [], indices: [] });

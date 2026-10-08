@@ -3,7 +3,7 @@ import { BooleanOpError, intersection } from '../geometry/boolean';
 import { area, bbox, signedArea } from '../geometry/polygon';
 import { slopeFrame, slopeHeightAt } from '../geometry/slopes';
 import { add, cross, dot, len, normalize, perp, scale, sub } from '../geometry/vec';
-import { triangulate } from './triangulate';
+import { isSubstantialRing, triangulatePolygon } from './triangulate';
 
 /**
  * Exact meshes under slopes. The ceiling is the minimum of the level height and of the slope
@@ -105,6 +105,13 @@ const MIN_PIECE_AREA = 1e-6;
 
 const netArea = (p: PolygonWithHoles): number => area(p.outer) - p.holes.reduce((s, h) => s + area(h), 0);
 
+/**
+ * A piece worth meshing: its outer ring is neither tiny nor a hairline (2 x area / perimeter at
+ * least 1e-3 cm, see isSubstantialRing) and its net area is not negligible. Boolean operations
+ * leave such slivers along shared lines; meshed, they would add duplicate full-length faces.
+ */
+const substantial = (p: PolygonWithHoles): boolean => isSubstantialRing(p.outer) && netArea(p) > MIN_PIECE_AREA;
+
 /** The half-plane on the left of the line (or right), as a rectangle covering `box` and more. */
 function halfPlane(line: Line, box: { minX: number; minY: number; maxX: number; maxY: number }, left: boolean): Ring {
   const c = { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 };
@@ -117,11 +124,13 @@ function halfPlane(line: Line, box: { minX: number; minY: number; maxX: number; 
 
 /**
  * The polygons of `shape` cut by every line (each piece crossed by a line is split in two by
- * boolean intersections with both half-planes). A split that fails even after the retries of
- * boolean.ts keeps the piece whole (degraded: its heights are then only exact at its probe).
+ * boolean intersections with both half-planes). Slivers (see substantial) are dropped: meshing
+ * code treats their area as outside (see cellAt), so the faces around them stay closed. A split
+ * that fails even after the retries of boolean.ts keeps the piece whole (degraded: its heights
+ * are then only exact at its probe).
  */
 export function splitByLines(shape: Shape, lines: Line[]): { pieces: PolygonWithHoles[]; degraded: boolean } {
-  let pieces = shape.filter((p) => p.outer.length >= 3 && netArea(p) > MIN_PIECE_AREA);
+  let pieces = shape.filter(substantial);
   let degraded = false;
   for (const line of lines) {
     const next: PolygonWithHoles[] = [];
@@ -140,7 +149,7 @@ export function splitByLines(shape: Shape, lines: Line[]): { pieces: PolygonWith
       const box = bbox(piece.outer)!;
       try {
         const parts = [...intersection([piece], halfPlane(line, box, true)), ...intersection([piece], halfPlane(line, box, false))];
-        next.push(...parts.filter((p) => p.outer.length >= 3 && netArea(p) > MIN_PIECE_AREA));
+        next.push(...parts.filter(substantial));
       } catch (e) {
         if (!(e instanceof BooleanOpError)) throw e;
         degraded = true;
@@ -154,18 +163,19 @@ export function splitByLines(shape: Shape, lines: Line[]): { pieces: PolygonWith
 
 /**
  * A piece ready to be meshed: rings oriented (outer counter-clockwise, holes clockwise, so the
- * outside of the material is on the right of every edge), its triangulation and an interior
- * point (centroid of its largest triangle).
+ * outside of the material is on the right of every edge), its triangulation (pts may hold
+ * vertices added by triangulatePolygon after the ring vertices) and an interior point (centroid
+ * of its largest triangle).
  */
 export interface Cell { rings: Ring[]; pts: Vec2[]; tris: number[]; probe: Vec2 }
 
 const oriented = (r: Ring, positive: boolean): Ring => (signedArea(r) > 0 === positive ? r : [...r].reverse());
 
 export function toCell(poly: PolygonWithHoles): Cell | null {
+  if (!substantial(poly)) return null;
   const outer = oriented(poly.outer, true);
-  const holes = poly.holes.filter((h) => h.length >= 3).map((h) => oriented(h, false));
-  const tris = triangulate(outer, holes);
-  const pts = [outer, ...holes].flat();
+  const holes = poly.holes.filter(isSubstantialRing).map((h) => oriented(h, false));
+  const { points: pts, indices: tris } = triangulatePolygon(outer, holes);
   let best = 0;
   let probe: Vec2 | null = null;
   for (let t = 0; t + 2 < tris.length; t += 3) {
@@ -225,14 +235,31 @@ export function cellEdges(cell: Cell, junctions: Vec2[] = []): Array<{ a: Vec2; 
   return out;
 }
 
-/** The vertices of the cells and of the shapes, where their edges can meet another edge. */
-export const junctionsOf = (cells: Cell[], shapes: Shape[] = []): Vec2[] => [
-  ...cells.flatMap((c) => c.pts),
-  ...shapes.flatMap((s) => s.flatMap((p) => [p.outer, ...p.holes].flat())),
-];
+/** The ring vertices of the cells, where their edges can meet another edge. */
+export const junctionsOf = (cells: Cell[]): Vec2[] => cells.flatMap((c) => c.rings.flat());
 
-/** Distance (cm) from an edge midpoint to the point probing what lies beyond the edge. */
-export const PROBE = 1e-3;
+/**
+ * Distance (cm) from an edge midpoint to the point probing what lies beyond the edge: well above
+ * the rounding of the boolean operations, well below the thinnest cell kept (1e-3 cm), so the
+ * probe lands in the cell sharing the edge, or in a dropped sliver.
+ */
+export const PROBE = 1e-6;
+
+/** The cell containing p, or null (outside, or in a dropped sliver). */
+export function cellAt(cells: Cell[], p: Vec2): Cell | null {
+  for (const c of cells) {
+    let inside = false;
+    for (const r of c.rings) {
+      for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const a = r[i]!;
+        const b = r[j]!;
+        if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+      }
+    }
+    if (inside) return c;
+  }
+  return null;
+}
 
 /** The point just beyond the middle of the edge a -> b, on the side `out`. */
 export const beyond = (a: Vec2, b: Vec2, out: Vec2): Vec2 => ({ x: (a.x + b.x) / 2 + out.x * PROBE, y: (a.y + b.y) / 2 + out.y * PROBE });

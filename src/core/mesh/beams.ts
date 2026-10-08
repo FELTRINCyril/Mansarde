@@ -2,8 +2,8 @@ import type { Beam, Level } from '../model/types';
 import { beamFootprint } from '../geometry/beams';
 import { isUsableRing } from '../geometry/boolean';
 import { MeshBuilder } from './builder';
-import { cellsOf, ceilingField, slopeEnds } from './cells';
-import { emitSolid, inShape } from './solid';
+import { ceilingField, slopeEnds } from './cells';
+import { emitColumns } from './solid';
 import type { MeshData } from './types';
 
 /**
@@ -19,19 +19,16 @@ export function buildBeam(level: Level, beam: Beam): MeshData {
   const shape = [{ outer: ring, holes: [] }];
   const fixed = beam.mode === 'fixed';
   const constants = [level.height, ...slopeEnds(level), ...(fixed ? [beam.bottom, beam.bottom + beam.drop] : [])];
-  emitSolid(b, cellsOf(level, shape, constants), {
-    inside: inShape(shape),
-    bottom: (m) => {
-      if (fixed) return () => beam.bottom;
-      const c = ceilingField(level, m);
-      return (p) => c(p) - beam.drop;
+  emitColumns(b, level, [
+    {
+      region: shape,
+      constants,
+      intervals: (m) => {
+        const c = ceilingField(level, m);
+        if (!fixed) return [{ bottom: (p) => c(p) - beam.drop, top: c }];
+        return [{ bottom: () => beam.bottom, top: (p) => Math.max(beam.bottom, Math.min(beam.bottom + beam.drop, c(p))) }];
+      },
     },
-    top: (m) => {
-      const c = ceilingField(level, m);
-      if (!fixed) return c;
-      return (p) => Math.max(beam.bottom, Math.min(beam.bottom + beam.drop, c(p)));
-    },
-    bottomFace: true,
-  });
+  ]);
   return b.build();
 }

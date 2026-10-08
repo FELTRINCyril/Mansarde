@@ -1,9 +1,10 @@
 import type { Cupboard, Level, Vec2 } from '../model/types';
+import { ceilingUnder } from '../geometry/ceiling';
 import { cupboardDoors, cupboardFrame, cupboardTopProfile, type CupboardFrame, type ProfilePoint } from '../geometry/cupboards';
 import { signedArea } from '../geometry/polygon';
 import { add, dist, scale } from '../geometry/vec';
 import { MeshBuilder, at3, type V3 } from './builder';
-import { triangulate } from './triangulate';
+import { triangulatePolygon } from './triangulate';
 import type { CupboardParts, MeshData } from './types';
 
 /** Joint around each door (cm): 1 cm between two doors, half of it at the ends and under the top. */
@@ -69,16 +70,17 @@ function prism(b: MeshBuilder, f: CupboardFrame, sec: SY[], d0: number, d1: numb
   const ccw = signedArea(ring) > 0 ? sec : [...sec].reverse();
   const plan = (s: number, d: number): Vec2 => add(add(f.back[0], scale(f.dir, s)), scale(f.outward, d));
   const P = (p: SY, d: number): V3 => at3(plan(p.s, d), p.y);
-  const tris = triangulate(
+  const { points, indices } = triangulatePolygon(
     ccw.map((p) => ({ x: p.s, y: p.y })),
     [],
   );
+  const pt = (i: number): SY => ({ s: points[i]!.x, y: points[i]!.y });
   const front: V3 = [f.outward.x, 0, f.outward.y];
   const back: V3 = [-f.outward.x, 0, -f.outward.y];
-  for (let t = 0; t + 2 < tris.length; t += 3) {
-    const [i, j, k] = [tris[t]!, tris[t + 1]!, tris[t + 2]!];
-    b.tri(P(ccw[i]!, d1), P(ccw[j]!, d1), P(ccw[k]!, d1), front);
-    b.tri(P(ccw[i]!, d0), P(ccw[j]!, d0), P(ccw[k]!, d0), back);
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const [i, j, k] = [pt(indices[t]!), pt(indices[t + 1]!), pt(indices[t + 2]!)];
+    b.tri(P(i, d1), P(j, d1), P(k, d1), front);
+    b.tri(P(i, d0), P(j, d0), P(k, d0), back);
   }
   for (let i = 0; i < ccw.length; i++) {
     const u = ccw[i]!;
@@ -112,10 +114,39 @@ function handleBox(b: MeshBuilder, f: CupboardFrame, s: number, y: number, h: nu
 }
 
 /**
+ * Abscissa of the handle of a door spanning [s0, s1]: near its free edge (opposite hingeAt) for a
+ * hinged door; for a sliding door, near its inner edge (the one nearer the middle of the
+ * cupboard, the start edge for a door centred on it).
+ */
+function handleAt(door: { from: Vec2; to: Vec2; hingeAt: Vec2 }, s0: number, s1: number, width: number, sliding: boolean): number {
+  const atEnd = sliding
+    ? Math.abs(s1 - width / 2) < Math.abs(s0 - width / 2) - EPS
+    : dist(door.hingeAt, door.from) <= dist(door.hingeAt, door.to);
+  return atEnd ? s1 - HANDLE.inset : s0 + HANDLE.inset;
+}
+
+/**
+ * Highest point the handle at sh, on the door front at depth `front`, may reach: the door top
+ * over the whole handle width (a profile step may lie under it) and, in 'ceiling' mode, the
+ * lowest ceiling over the handle footprint minus the gap (the handle stands in front of the
+ * cupboard, where a slope or a beam may come lower than over the cupboard itself).
+ */
+function handleRoom(level: Level, c: Cupboard, f: CupboardFrame, profile: ProfilePoint[], sh: number, front: number): number {
+  const hw = HANDLE.width / 2;
+  let top = Math.min(...clipProfile(profile, sh - hw, sh + hw, JOINT / 2).map((p) => p.y));
+  if (c.heightMode === 'ceiling') {
+    const plan = (s: number, d: number): Vec2 => add(add(f.back[0], scale(f.dir, s)), scale(f.outward, d));
+    const rect = [plan(sh - hw, front), plan(sh + hw, front), plan(sh + hw, front + HANDLE.depth), plan(sh - hw, front + HANDLE.depth)];
+    top = Math.min(top, ceilingUnder(level, rect).height - c.gap);
+  }
+  return top;
+}
+
+/**
  * A cupboard (spec 8.1): the body (plinth set back from the front, carcass up to the top
  * profile, which may contain vertical steps), one front per door (cupboardDoors) with 1 cm
- * joints, and a small handle near the free edge of each door (the edge opposite its hinge).
- * Sliding doors alternate between two rails. Throws if the wall of the cupboard is missing.
+ * joints, and a small handle on each door (see handleAt). Sliding doors alternate between two
+ * rails. Throws if the wall of the cupboard is missing.
  */
 export function buildCupboard(level: Level, c: Cupboard): CupboardParts {
   const f = cupboardFrame(level, c);
@@ -151,9 +182,8 @@ export function buildCupboard(level: Level, c: Cupboard): CupboardParts {
     const back = sliding && i % 2 === 1 ? c.depth - 2 * rail : c.depth - rail;
     if (sec) {
       prism(mb, f, sec, back, back + rail);
-      const hingeAtStart = dist(door.hingeAt, door.from) <= dist(door.hingeAt, door.to);
-      const sh = s1 - s0 > 2 * HANDLE.inset ? (hingeAtStart ? s1 - HANDLE.inset : s0 + HANDLE.inset) : (s0 + s1) / 2;
-      const top = Math.min(profileValue(profile, sh, 'left'), profileValue(profile, sh, 'right')) - JOINT / 2;
+      const sh = s1 - s0 > 2 * HANDLE.inset ? handleAt(door, s0, s1, f.width, sliding) : (s0 + s1) / 2;
+      const top = handleRoom(level, c, f, profile, sh, back + rail);
       const free = top - bottom;
       const h = Math.min(HANDLE.height, free / 2);
       if (h > EPS) {

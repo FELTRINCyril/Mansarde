@@ -11,7 +11,8 @@ export interface MeshData { positions: number[]; normals: number[]; uvs: number[
 export interface CupboardParts { body: MeshData; doors: MeshData[]; handles: MeshData }
 
 export interface LevelMeshes {
-  walls: MeshData;
+  /** One mesh per wall (ruling V2-R14), so that the view can hide a single wall. */
+  walls: Array<{ wallId: Id; mesh: MeshData }>;
   floors: Array<{ roomKey: string; mesh: MeshData }>;
   ceilings: Array<{ roomKey: string; mesh: MeshData }>;
   beams: Array<{ id: Id; mesh: MeshData }>;

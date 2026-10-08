@@ -4,9 +4,10 @@ import { unionRings } from '@/core/geometry/boolean';
 import { ceilingWithoutBeams } from '@/core/geometry/ceiling';
 import { cupboardFrame, cupboardTopProfile } from '@/core/geometry/cupboards';
 import { deriveLevel } from '@/core/geometry/derived';
-import { area, pointInPolygon, rectRing, signedArea } from '@/core/geometry/polygon';
+import { area, pointInPolygon, pointInRing, rectRing, signedArea } from '@/core/geometry/polygon';
 import { buildLevelMeshes } from '@/core/mesh';
-import { triangulate } from '@/core/mesh/triangulate';
+import { triangulate, triangulatePolygon } from '@/core/mesh/triangulate';
+import { splitByLines, toCell } from '@/core/mesh/cells';
 import type { LevelMeshes, MeshData } from '@/core/mesh/types';
 import { createBeam, createCupboard, createOpening, createSlope } from '@/core/model/factory';
 import type { Level, Ring, Vec2 } from '@/core/model/types';
@@ -64,9 +65,54 @@ function vertices(m: MeshData): V3[] {
   return out;
 }
 
+/** All the wall meshes as one (for checks over every wall). */
+function wallsMesh(lm: LevelMeshes): MeshData {
+  const out: MeshData = { positions: [], normals: [], uvs: [], indices: [] };
+  for (const { mesh } of lm.walls) {
+    const base = out.positions.length / 3;
+    out.positions.push(...mesh.positions);
+    out.normals.push(...mesh.normals);
+    out.uvs.push(...mesh.uvs);
+    out.indices.push(...mesh.indices.map((i) => i + base));
+  }
+  return out;
+}
+
+/** Volumes by the fluxes of x e_x, y e_y and z e_z: equal for a closed surface (and for one open only on y = 0). */
+function fluxVolumes(m: MeshData): V3 {
+  const v: V3 = [0, 0, 0];
+  for (const { p } of triangles(m)) {
+    const g = geoNormal(p);
+    v[0] += ((g[0] / 2) * (p[0][0] + p[1][0] + p[2][0])) / 3;
+    v[1] += ((g[1] / 2) * (p[0][1] + p[1][1] + p[2][1])) / 3;
+    v[2] += ((g[2] / 2) * (p[0][2] + p[1][2] + p[2][2])) / 3;
+  }
+  return v;
+}
+
+/**
+ * Every wall mesh is a closed solid but for its underside on the floor: its area vector is its
+ * outline area, upwards, and the three flux volumes agree (and are positive).
+ */
+function expectWallsClosed(level: Level, lm: LevelMeshes): void {
+  const d = deriveLevel(level);
+  expect(lm.walls.map((w) => w.wallId).sort()).toEqual([...d.outlines.keys()].sort());
+  for (const { wallId, mesh } of lm.walls) {
+    expectWellFormed(mesh);
+    const a = areaVector(mesh);
+    expect(a[0]).toBeCloseTo(0, 9);
+    expect(a[2]).toBeCloseTo(0, 9);
+    expect(a[1]).toBeCloseTo(area(d.outlines.get(wallId)!) / 1e4, 9);
+    const v = fluxVolumes(mesh);
+    expect(v[1]).toBeGreaterThan(0);
+    expect(v[0]).toBeCloseTo(v[1], 9);
+    expect(v[2]).toBeCloseTo(v[1], 9);
+  }
+}
+
 function allMeshes(lm: LevelMeshes): MeshData[] {
   return [
-    lm.walls,
+    ...lm.walls.map((w) => w.mesh),
     ...lm.floors.map((f) => f.mesh),
     ...lm.ceilings.map((c) => c.mesh),
     ...lm.beams.map((b) => b.mesh),
@@ -220,23 +266,115 @@ describe('triangulate', () => {
   });
 });
 
+describe('triangulatePolygon: touching rings and slivers (review C1)', () => {
+  /** Triangles cover exactly the polygon: positive, total = net area, centroids inside. */
+  function expectExactCover(outer: Ring, holes: Ring[], net: number): void {
+    const { points, indices } = triangulatePolygon(outer, holes);
+    expect(points.slice(0, outer.length + holes.flat().length)).toEqual([...outer, ...holes.flat()]);
+    let sum = 0;
+    for (let t = 0; t < indices.length; t += 3) {
+      const tri = [points[indices[t]!]!, points[indices[t + 1]!]!, points[indices[t + 2]!]!];
+      const a = signedArea(tri);
+      expect(a).toBeGreaterThan(0);
+      sum += a;
+      const g = { x: (tri[0]!.x + tri[1]!.x + tri[2]!.x) / 3, y: (tri[0]!.y + tri[1]!.y + tri[2]!.y) / 3 };
+      expect(pointInPolygon(g, { outer, holes: holes.filter((h) => area(h) > 1e-3) })).toBe(true);
+    }
+    expect(sum).toBeCloseTo(net, 6);
+  }
+  const square = rect(0, 0, 100, 100);
+
+  it('two holes touching at a vertex', () => {
+    const h1 = [{ x: 10, y: 10 }, { x: 10, y: 45 }, { x: 45, y: 45 }, { x: 50, y: 50 }, { x: 55, y: 45 }, { x: 90, y: 45 }, { x: 90, y: 10 }];
+    const h2 = [{ x: 10, y: 55 }, { x: 10, y: 90 }, { x: 90, y: 90 }, { x: 90, y: 55 }, { x: 55, y: 55 }, { x: 50, y: 50 }, { x: 45, y: 55 }];
+    expectExactCover(square, [h1, h2], 10000 - area(h1) - area(h2));
+  });
+
+  it('a hole touching the outer ring at a vertex', () => {
+    const h = [{ x: 0, y: 50 }, { x: 40, y: 30 }, { x: 40, y: 70 }];
+    expectExactCover(square, [h], 10000 - area(h));
+    const corner = [{ x: 0, y: 0 }, { x: 30, y: 10 }, { x: 10, y: 30 }];
+    expectExactCover(square, [corner], 10000 - area(corner));
+  });
+
+  it('sliver holes are filled, even touching the outer ring', () => {
+    expectExactCover(square, [[{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 1e-7 }]], 10000);
+    expectExactCover(square, [[{ x: 20, y: 20 }, { x: 80, y: 20 }, { x: 80, y: 20 + 1e-6 }, { x: 20, y: 20 + 1e-6 }]], 10000);
+  });
+
+  it('the public triangulate never returns a wrong cover', () => {
+    const h1 = [{ x: 10, y: 10 }, { x: 10, y: 45 }, { x: 45, y: 45 }, { x: 50, y: 50 }, { x: 55, y: 45 }, { x: 90, y: 45 }, { x: 90, y: 10 }];
+    const h2 = [{ x: 10, y: 55 }, { x: 10, y: 90 }, { x: 90, y: 90 }, { x: 90, y: 55 }, { x: 55, y: 55 }, { x: 50, y: 50 }, { x: 45, y: 55 }];
+    const idx = triangulate(square, [h1, h2]);
+    const pts = [...square, ...h1, ...h2];
+    const sum = idx.length === 0 ? null : (() => {
+      let t2 = 0;
+      for (let t = 0; t < idx.length; t += 3) t2 += signedArea([pts[idx[t]!]!, pts[idx[t + 1]!]!, pts[idx[t + 2]!]!]);
+      return t2;
+    })();
+    // either the exact cover with the input vertices, or nothing (triangulatePolygon is then needed)
+    if (sum !== null) expect(sum).toBeCloseTo(10000 - area(h1) - area(h2), 6);
+  });
+
+  it('review repro4: two rooms drawn at about 101 degrees: no lid over the rooms', () => {
+    const level = levelFromWalls([
+      [0, 0, -53.69132227315278, 264.60771325220367, 25],
+      [-375.35094139108895, -76.162134928213, -429.0422636642417, 188.44557832399067, 25],
+      [-751.6819113497786, -152.52312660558584, -805.3732336229314, 112.08458664661782, 25],
+      [0, 0, -375.35094139108895, -76.162134928213, 25],
+      [-375.35094139108895, -76.162134928213, -751.6819113497786, -152.52312660558584, 25],
+      [-53.69132227315278, 264.60771325220367, -429.0422636642417, 188.44557832399067, 25],
+      [-429.0422636642417, 188.44557832399067, -805.3732336229314, 112.08458664661782, 25],
+    ]);
+    level.height = 272;
+    for (const w of Object.values(level.walls)) w.height = 272;
+    const d = deriveLevel(level);
+    expect(d.rooms).toHaveLength(2);
+    const lm = meshesOf(level);
+    expectWallsClosed(level, lm);
+    for (const { wallId, mesh } of lm.walls) {
+      const outline = d.outlines.get(wallId)!;
+      for (const t of triangles(mesh)) {
+        if (t.n[1] < 0.5) continue;
+        const g = { x: ((t.p[0][0] + t.p[1][0] + t.p[2][0]) / 3) * 100, y: ((t.p[0][2] + t.p[1][2] + t.p[2][2]) / 3) * 100 };
+        expect(pointInRing(g, outline)).toBe(true);
+      }
+    }
+    // the wall shape itself (with its two sliver holes) is covered exactly
+    for (const poly of d.shapeWithOpenings) {
+      const cell = toCell(poly)!;
+      let sum = 0;
+      for (let t = 0; t < cell.tris.length; t += 3) sum += signedArea([cell.pts[cell.tris[t]!]!, cell.pts[cell.tris[t + 1]!]!, cell.pts[cell.tris[t + 2]!]!]);
+      expect(sum).toBeCloseTo(area(poly.outer) - poly.holes.reduce((a, h) => a + area(h), 0), 3);
+    }
+    // the up-facing area is the wall footprint, not 16 m2
+    const up = triangles(wallsMesh(lm)).filter((t) => t.n[1] > 0.5).reduce((s, t) => s + triArea(t.p), 0);
+    expect(up).toBeCloseTo([...d.outlines.values()].reduce((s, r) => s + area(r), 0) / 1e4, 9);
+  });
+
+  it('cut pieces thinner than 1e-3 cm are dropped (review I1)', () => {
+    const { pieces } = splitByLines([{ outer: rect(0, 0, 100, 100), holes: [] }], [{ q: { x: 1e-5, y: 0 }, e: { x: 0, y: 1 } }]);
+    expect(pieces).toHaveLength(1);
+    expect(area(pieces[0]!.outer)).toBeCloseTo(10000 - 1e-3, 6);
+  });
+});
+
 describe('walls', () => {
   it('400 x 300 room: walls from 0 to 2.50 m, well formed', () => {
-    const lm = meshesOf(room400x300());
-    expectWellFormed(lm.walls);
-    const ys = vertices(lm.walls).map((p) => p[1]);
+    const level = room400x300();
+    const lm = meshesOf(level);
+    expect(lm.walls).toHaveLength(4);
+    const ys = vertices(wallsMesh(lm)).map((p) => p[1]);
     expect(Math.max(...ys)).toBeCloseTo(2.5, 9);
     expect(Math.min(...ys)).toBeCloseTo(0, 9);
-    // closed except for the bottom: the area vector is the footprint (4.40 x 3.40 - 4.00 x 3.00) upwards
-    const s = areaVector(lm.walls);
-    expect(s[0]).toBeCloseTo(0, 9);
-    expect(s[2]).toBeCloseTo(0, 9);
-    expect(s[1]).toBeCloseTo(4.4 * 3.4 - 4 * 3, 9);
+    // one closed solid per wall; mitered outlines tile the footprint 4.40 x 3.40 - 4.00 x 3.00
+    expectWallsClosed(level, lm);
+    expect(areaVector(wallsMesh(lm))[1]).toBeCloseTo(4.4 * 3.4 - 4 * 3, 9);
   });
 
   it('meters, y up: plan x -> x, plan y -> z', () => {
     const lm = meshesOf(room400x300());
-    const vs = vertices(lm.walls);
+    const vs = vertices(wallsMesh(lm));
     expect(Math.min(...vs.map((p) => p[0]))).toBeCloseTo(-0.2, 9);
     expect(Math.max(...vs.map((p) => p[0]))).toBeCloseTo(4.2, 9);
     expect(Math.min(...vs.map((p) => p[2]))).toBeCloseTo(-0.2, 9);
@@ -246,8 +384,8 @@ describe('walls', () => {
   it('under a slope (plan-chambre): no wall vertex above ceilingWithoutBeams, the low wall at 1.50 m', () => {
     const level = chambre();
     const lm = meshesOf(level);
-    expectWellFormed(lm.walls);
-    const vs = vertices(lm.walls);
+    expectWallsClosed(level, lm);
+    const vs = vertices(wallsMesh(lm));
     for (const [x, y, z] of vs) {
       expect(y).toBeLessThanOrEqual(ceilingWithoutBeams(level, { x: x * 100, y: z * 100 }) / 100 + 1e-6);
     }
@@ -261,11 +399,6 @@ describe('walls', () => {
     // a vertex in the middle of the slope follows it exactly
     const mid = vs.filter((p) => Math.abs(p[0] - 3) < 1e-9 && p[1] > 0);
     for (const p of mid) expect(p[1]).toBeCloseTo((240 - (103 * 90) / 203) / 100, 9);
-    // still closed except for the bottom
-    const s = areaVector(lm.walls);
-    expect(s[0]).toBeCloseTo(0, 9);
-    expect(s[2]).toBeCloseTo(0, 9);
-    expect(s[1]).toBeCloseTo(4.4 * 4.4 - 4 * 4, 9);
   });
 
   it('window: a sill block of 0.90 m and a lintel from 2.25 m, closed solids', () => {
@@ -274,20 +407,19 @@ describe('walls', () => {
     const win = createOpening(wallId, 'window', 220); // center x = -10 + 220 = 210: x 150 .. 270, sill 90, height 135
     level.openings[win.id] = win;
     const lm = meshesOf(level);
-    expectWellFormed(lm.walls);
+    expectWallsClosed(level, lm);
     const inWindow = (p: V3): boolean => p[0] > 1.5 - 1e-9 && p[0] < 2.7 + 1e-9 && p[2] < 0 + 1e-9;
-    const tris = triangles(lm.walls);
+    // the blocks belong to the mesh of their wall
+    const tris = triangles(lm.walls.find((w) => w.wallId === wallId)!.mesh);
     const sillTop = tris.filter((t) => t.n[1] > 0.999 && t.p.every((p) => inWindow(p) && Math.abs(p[1] - 0.9) < 1e-9));
     expect(sillTop.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(1.2 * 0.2, 9);
     const lintelBottom = tris.filter((t) => t.n[1] < -0.999 && t.p.every((p) => inWindow(p) && Math.abs(p[1] - 2.25) < 1e-9));
     expect(lintelBottom.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(1.2 * 0.2, 9);
     // nothing of the wall between the sill and the lintel inside the window
     expect(tris.some((t) => t.p.every((p) => inWindow(p) && p[0] > 1.5 + 1e-6 && p[0] < 2.7 - 1e-6) && t.p.some((p) => p[1] > 0.9 + 1e-6 && p[1] < 2.25 - 1e-6))).toBe(false);
-    // bottom-less closed solids: the area vector is the footprint of the wall, window included
-    const s = areaVector(lm.walls);
-    expect(s[0]).toBeCloseTo(0, 9);
-    expect(s[2]).toBeCloseTo(0, 9);
-    expect(s[1]).toBeCloseTo(4.4 * 3.4 - 4 * 3, 9);
+    // the jambs are only exposed between the sill and the lintel: 2 x 0.20 x 1.35 m
+    const jambs = tris.filter((t) => Math.abs(Math.abs(t.n[0]) - 1) < 1e-9 && t.p.every((p) => Math.abs(p[0] - 1.5) < 1e-9 || Math.abs(p[0] - 2.7) < 1e-9));
+    expect(jambs.reduce((sum, t) => sum + triArea(t.p), 0)).toBeCloseTo(2 * 0.2 * 1.35, 9);
   });
 
   it('door: hollowed from the floor, a lintel above 2.04 m and a threshold at 0', () => {
@@ -296,35 +428,26 @@ describe('walls', () => {
     const door = createOpening(wallId, 'door', 100); // z 2.10 - 0.415 .. + 0.415
     level.openings[door.id] = door;
     const lm = meshesOf(level);
-    expectWellFormed(lm.walls);
-    const tris = triangles(lm.walls);
+    expectWallsClosed(level, lm);
+    const tris = triangles(lm.walls.find((w) => w.wallId === wallId)!.mesh);
     const inDoor = (p: V3): boolean => p[0] < 0 + 1e-9 && p[2] > 2.1 - 0.415 - 1e-9 && p[2] < 2.1 + 0.415 + 1e-9;
     const lintelBottom = tris.filter((t) => t.n[1] < -0.999 && t.p.every((p) => inDoor(p) && Math.abs(p[1] - 2.04) < 1e-9));
     expect(lintelBottom.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(0.83 * 0.2, 9);
     const threshold = tris.filter((t) => t.n[1] > 0.999 && t.p.every((p) => inDoor(p) && Math.abs(p[1]) < 1e-9));
     expect(threshold.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(0.83 * 0.2, 9);
-    const s = areaVector(lm.walls);
-    expect(s[1]).toBeCloseTo(4.4 * 3.4 - 4 * 3, 9);
   });
 
-  it('walls of different heights: each keeps its own top, with a step face', () => {
+  it('walls of different heights: each wall mesh keeps its own top', () => {
     const level = levelFromWalls([...rectRoom(-10, -10, 410, 310), [200, -10, 200, 310, 10]]);
     const partition = findWall(level, 200, -10, 200, 310);
     level.walls[partition]!.height = 100;
     const lm = meshesOf(level);
-    expectWellFormed(lm.walls);
-    const vs = vertices(lm.walls);
-    const inX = (p: V3): boolean => p[0] > 1.95 - 1e-9 && p[0] < 2.05 + 1e-9 && p[2] > -1e-9 && p[2] < 3 + 1e-9;
-    const partitionTops = triangles(lm.walls).filter((t) => t.n[1] > 0.999 && t.p.every(inX));
-    expect(partitionTops.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(0.1 * 3, 9);
-    for (const t of partitionTops) for (const p of t.p) expect(p[1]).toBeCloseTo(1, 9);
-    expect(Math.max(...vs.map((p) => p[1]))).toBeCloseTo(2.5, 9);
-    // the step between the partition top and the tall walls: 2 x 0.10 x 1.50 m, facing the partition
-    const steps = triangles(lm.walls).filter((t) => Math.abs(t.n[1]) < 1e-9 && t.p.every((p) => inX(p) && p[1] > 1 - 1e-9));
-    expect(steps.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(2 * 0.1 * 1.5, 9);
-    const s = areaVector(lm.walls);
-    expect(s[0]).toBeCloseTo(0, 9);
-    expect(s[2]).toBeCloseTo(0, 9);
+    expectWallsClosed(level, lm);
+    for (const { wallId, mesh } of lm.walls) {
+      expect(Math.max(...vertices(mesh).map((p) => p[1]))).toBeCloseTo(wallId === partition ? 1 : 2.5, 9);
+    }
+    const tops = triangles(lm.walls.find((w) => w.wallId === partition)!.mesh).filter((t) => t.n[1] > 0.999);
+    expect(tops.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(area(deriveLevel(level).outlines.get(partition)!) / 1e4, 9);
   });
 
   it('a slope ending inside the room laterally: the wall top steps, the surface stays closed', () => {
@@ -335,22 +458,16 @@ describe('walls', () => {
     // a wall crossing the lateral lines: x = 300 partition
     const l2 = levelFromWalls([...rectRoom(-10, -10, 410, 310), [300, -10, 300, 310, 10]]);
     l2.slopes[s.id] = s;
-    for (const lvl of [level, l2]) {
-      const lm = meshesOf(lvl);
-      expectWellFormed(lm.walls);
-      const a = areaVector(lm.walls);
-      expect(a[0]).toBeCloseTo(0, 9);
-      expect(a[2]).toBeCloseTo(0, 9);
-    }
+    for (const lvl of [level, l2]) expectWallsClosed(lvl, meshesOf(lvl));
     // steps on the lateral line z = 1.00, facing the slope (+z), from the slope up to 2.50 m:
     // right wall x 4.00..4.20 from 1.50; partition x 2.95..3.05 from 1.85 / 1.8167
     const stepArea = (lvl: Level): number =>
-      triangles(meshesOf(lvl).walls)
+      triangles(wallsMesh(meshesOf(lvl)))
         .filter((t) => t.n[2] > 0.999 && t.p.every((p) => Math.abs(p[2] - 1) < 1e-9))
         .reduce((sum, t) => sum + triArea(t.p), 0);
     expect(stepArea(level)).toBeCloseTo(0.2 * 1, 9);
     expect(stepArea(l2)).toBeCloseTo(0.2 * 1 + (0.1 * (2.5 - 1.85 + 2.5 - (250 - 205 / 3) / 100)) / 2, 9);
-    const vs = vertices(meshesOf(l2).walls).filter((p) => Math.abs(p[0] - 2.95) < 1e-9);
+    const vs = vertices(wallsMesh(meshesOf(l2))).filter((p) => Math.abs(p[0] - 2.95) < 1e-9);
     const h = (250 - (195 * 100) / 300) / 100;
     expect(vs.some((p) => Math.abs(p[1] - h) < 1e-9)).toBe(true);
     expect(vs.some((p) => Math.abs(p[1] - 2.5) < 1e-9)).toBe(true);
@@ -364,27 +481,28 @@ describe('walls', () => {
     level.slopes[s1.id] = s1;
     level.slopes[s2.id] = s2;
     const lm = meshesOf(level);
-    expectWellFormed(lm.walls);
-    for (const [x, y, z] of vertices(lm.walls)) {
+    expectWallsClosed(level, lm);
+    for (const [x, y, z] of vertices(wallsMesh(lm))) {
       expect(y).toBeLessThanOrEqual(ceilingWithoutBeams(level, { x: x * 100, y: z * 100 }) / 100 + 1e-6);
     }
     // the ridge (both slopes equal) is at x = 200 where the height is 300 - 250 * 200 / 500 = 200
-    const top = vertices(lm.walls).filter((p) => Math.abs(p[0] - 2) < 1e-9);
+    const top = vertices(wallsMesh(lm)).filter((p) => Math.abs(p[0] - 2) < 1e-9);
     expect(Math.max(...top.map((p) => p[1]))).toBeCloseTo(2, 9);
   });
 
   it('empty level and open walls: no error, well formed', () => {
     const empty = levelFromWalls([]);
     const lm = meshesOf(empty);
-    expect(lm.walls.indices).toEqual([]);
+    expect(lm.walls).toEqual([]);
     expect(lm.floors).toEqual([]);
     const open = levelFromWalls([
       [0, 0, 300, 0],
       [300, 0, 300, 200],
     ]);
     const lo = meshesOf(open);
-    expectWellFormed(lo.walls);
-    expect(lo.walls.indices.length).toBeGreaterThan(0);
+    expectWallsClosed(open, lo);
+    expect(lo.walls).toHaveLength(2);
+    expect(lo.walls.every((w) => w.mesh.indices.length > 0)).toBe(true);
     expect(lo.floors).toEqual([]);
   });
 });
@@ -600,6 +718,21 @@ describe('cupboards', () => {
     for (const t of tops) for (const p of t.p) expect(p[1]).toBeCloseTo(1.98, 9);
   });
 
+  it('handles: hinged near the free edge, sliding near the inner edge (review M5)', () => {
+    const handleXs = (doorType: 'hinged' | 'sliding'): number[] => {
+      const level = room400x300();
+      withCupboard(level, { doorType, doorCount: 3 }); // x 150 .. 270, doors of 40 cm
+      // each handle is a box of 12 triangles (36 vertices): the mean x of its vertices is its center
+      const vs = vertices(meshesOf(level).cupboards[0]!.parts.handles);
+      const centers: number[] = [];
+      for (let i = 0; i < vs.length; i += 36) centers.push(Math.round((vs.slice(i, i + 36).reduce((sum, p) => sum + p[0], 0) / 36) * 1000) / 10);
+      return centers.sort((p, q) => p - q);
+    };
+    // doors s 0.5..39.5, 40.5..79.5, 80.5..119.5; handles 4 cm inside the chosen edge
+    expect(handleXs('hinged')).toEqual([150 + 35.5, 150 + 44.5, 150 + 115.5]);
+    expect(handleXs('sliding')).toEqual([150 + 35.5, 150 + 44.5, 150 + 84.5]);
+  });
+
   it('a cupboard on a missing wall is left out', () => {
     const level = room400x300();
     const c = withCupboard(level);
@@ -647,6 +780,27 @@ describe('buildLevelMeshes', () => {
     const nb = buildLevelMeshes(noBeams, deriveLevel(noBeams));
     expect(nb).not.toBe(a);
     expect(nb.beams).toEqual([]);
+  });
+
+  it('each part is memoized on its own inputs: adding a cupboard rebuilds neither walls nor beams nor other cupboards (review M4)', () => {
+    const level = fullLevel();
+    const a = buildLevelMeshes(level, deriveLevel(level));
+    const c = createCupboard(findWall(level, -10, -10, 410, -10), 300, 'left');
+    const more = { ...level, cupboards: { ...level.cupboards, [c.id]: c } };
+    const b = buildLevelMeshes(more, deriveLevel(more));
+    expect(b).not.toBe(a);
+    expect(b.walls).toBe(a.walls);
+    expect(b.floors).toBe(a.floors);
+    expect(b.ceilings).toBe(a.ceilings);
+    expect(b.beams[0]!.mesh).toBe(a.beams[0]!.mesh);
+    expect(b.cupboards[0]!.parts).toBe(a.cupboards[0]!.parts);
+    expect(b.cupboards).toHaveLength(2);
+    // a slope change rebuilds the walls and the ceiling cupboard
+    const s = createSlope({ x: 0, y: 200 }, { x: 400, y: 200 }, 'left', 100, 240, 200);
+    const sloped = { ...more, slopes: { ...more.slopes, [s.id]: s } };
+    const e = buildLevelMeshes(sloped, deriveLevel(sloped));
+    expect(e.walls).not.toBe(a.walls);
+    expect(e.cupboards[0]!.parts).not.toBe(a.cupboards[0]!.parts);
   });
 
   it('never throws on a broken level (wall with a missing node, opening on a missing wall)', () => {
