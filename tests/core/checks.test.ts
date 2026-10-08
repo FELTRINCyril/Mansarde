@@ -3,10 +3,11 @@ import { getCatalogEntry } from '@/catalog/catalog';
 import { checkSeverityByTarget, computeChecks } from '@/core/checks/computeChecks';
 import { displayNames } from '@/core/checks/names';
 import type { Check, CheckKind } from '@/core/checks/types';
-import { isConvex, overlapArea, ringsOverlapArea, shapeArea } from '@/core/checks/overlap';
+import { overlapArea, ringsOverlapArea, shapeArea } from '@/core/checks/overlap';
 import { intersection } from '@/core/geometry/boolean';
 import { deriveLevel } from '@/core/geometry/derived';
 import { objectFootprint } from '@/core/geometry/objects';
+import { convexParts, isConvexRing } from '@/core/geometry/polygon';
 import { createBeam, createCupboard, createObjectFromSize, createOpening, createSlope } from '@/core/model/factory';
 import type { Cupboard, CustomObjectDef, Id, Level, Opening, PlacedObject } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from './fixtures';
@@ -76,6 +77,14 @@ describe('height under the ceiling', () => {
         targets: [{ kind: 'object', id: w.id }],
       },
     ]);
+  });
+
+  it('stairs (catalog Structure) cross the ceiling: no alert; a wardrobe as high does (ruling V2-R16)', () => {
+    const level = room(); // ceiling 250
+    put(level, 'stairs-straight', 200, 200); // 90 x 300, 270 high
+    expect(checks(level)).toEqual([]);
+    put(level, 'wardrobe', 80, 200, { height: 270 });
+    expect(checks(level).map((c) => c.message)).toEqual(['Armoire : monte à 2,70 m, plafond à 2,50 m à cet endroit.']);
   });
 
   it('the same wardrobe upslope: nothing', () => {
@@ -399,7 +408,7 @@ describe('floating objects', () => {
     const level = room();
     const tv = put(level, 'tv', 200, 200, { elevation: 70 });
     expect(summary(checks(level))).toEqual([
-      { kind: 'floating', severity: 'warning', message: 'TV : n\'est posée sur rien.', targets: [{ kind: 'object', id: tv.id }] },
+      { kind: 'floating', severity: 'warning', message: 'TV : aucun support en dessous.', targets: [{ kind: 'object', id: tv.id }] },
     ]);
   });
 
@@ -424,7 +433,7 @@ describe('floating objects', () => {
     // a cupboard following the ceiling (top 248 here) has no level top: it carries nothing
     top.cupboards[c.id] = { ...c, heightMode: 'ceiling' };
     top.objects[lamp.id] = { ...lamp, elevation: 248 };
-    expect(ofKind(top, 'floating').map((x) => x.message)).toEqual(["Lampe de chevet : n'est posée sur rien."]);
+    expect(ofKind(top, 'floating').map((x) => x.message)).toEqual(['Lampe de chevet : aucun support en dessous.']);
   });
 });
 
@@ -568,7 +577,7 @@ describe('overlap areas', () => {
     };
   }
 
-  it('the convex fast path gives the boolean.ts area (rects, circles, L shapes, wall shape)', () => {
+  it('clipping (clipConvex, convexParts for L shapes) gives the boolean.ts area (rects, circles, L shapes, wall shape)', () => {
     const rand = rng(42);
     const shapes = ['rect', 'circle', 'lshape'] as const;
     const random = (): PlacedObject =>
@@ -583,22 +592,24 @@ describe('overlap areas', () => {
       const a = objectFootprint(random(), shapes[i % 3]);
       const b = objectFootprint(random(), shapes[Math.floor(i / 3) % 3]);
       const exact = shapeArea(intersection([{ outer: a, holes: [] }], b));
-      const fast = ringsOverlapArea(a, isConvex(a), b, isConvex(b));
+      const fast = ringsOverlapArea(a, isConvexRing(a), b, isConvexRing(b));
       expect(Math.abs(fast - exact)).toBeLessThan(1e-6 * Math.max(1, exact));
       compared++;
       if (exact > 1) overlapping++;
     }
     expect(compared).toBe(300);
     expect(overlapping).toBeGreaterThan(50);
-    expect(isConvex(objectFootprint(random(), 'lshape'))).toBe(false);
+    const l = objectFootprint(random(), 'lshape');
+    expect(isConvexRing(l)).toBe(false);
+    expect(convexParts(l)).not.toBeNull(); // L shapes take the convexParts path, not the boolean fallback
 
-    // the concave wall shape (with its room holes) against convex footprints
+    // the concave wall shape (with its room holes) against footprints, L shapes (convexParts) included
     const level = room();
     const walls = deriveLevel(level).shapeNoOpenings;
     for (let i = 0; i < 100; i++) {
-      const f = objectFootprint({ ...random(), x: -40 + rand() * 480, y: -40 + rand() * 480 }, shapes[i % 2]);
+      const f = objectFootprint({ ...random(), x: -40 + rand() * 480, y: -40 + rand() * 480 }, shapes[i % 3]);
       const exact = shapeArea(intersection(walls, f));
-      expect(Math.abs(overlapArea(walls, f, true) - exact)).toBeLessThan(1e-6 * Math.max(1, exact));
+      expect(Math.abs(overlapArea(walls, f, isConvexRing(f)) - exact)).toBeLessThan(1e-6 * Math.max(1, exact));
     }
   });
 });

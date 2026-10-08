@@ -72,7 +72,9 @@ function nearest(shape: Shape, front: Vec2, outward: Vec2): number {
  * Cupboard clearance (spec 5.4): the free distance in front of the cupboard, over its width (less
  * 1 cm on each side), up to the first obstacle: an object other than a rug with its underside
  * under 200 cm, another cupboard, or a wall. Under 60 cm: a warning; under 30 cm: an error. The
- * targets are the cupboard and the object or cupboard in the way (none for a wall).
+ * targets are the cupboard and the object or cupboard in the way (none for a wall). The walls are
+ * those of shapeNoOpenings: a door bay or a passage facing the cupboard counts as wall (the
+ * passage ends there anyway, and a door leaf is no place to stand).
  */
 export function cupboardClearanceChecks(ctx: CheckContext): Check[] {
   const out: Check[] = [];

@@ -210,6 +210,9 @@ export function convexParts(r: Ring): Ring[] | null {
 /**
  * Sutherland-Hodgman: the part of the CONVEX ring `subject` inside the convex ring `clip` (either
  * orientation); exact for two convex rings. Fewer than 3 points when they do not overlap.
+ * A concave (simple) subject is accepted when only the AREA matters: the result may then contain
+ * zero-width bridges along the edges of `clip` (it is not a simple ring), but its area is exactly
+ * the area of subject inside clip (used by the checks, src/core/checks/overlap.ts).
  */
 export function clipConvex(subject: Ring, clip: Ring): Ring {
   const orient = Math.sign(signedArea(clip));

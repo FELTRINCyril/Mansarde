@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CATALOG } from '@/catalog/catalog';
 import { computeChecks } from '@/core/checks/computeChecks';
-import { deriveLevel } from '@/core/geometry/derived';
+import { deriveLevel, deriveVolumes } from '@/core/geometry/derived';
 import { createBeam, createCupboard, createObjectFromSize, createOpening, createSlope } from '@/core/model/factory';
 import type { Level } from '@/core/model/types';
 import { findWall, levelFromWalls, type WallSegment } from './fixtures';
@@ -65,6 +65,9 @@ function house(seed: number): Level {
     const c = createCupboard(w, 120, i % 2 ? 'left' : 'right', { heightMode: i % 2 ? 'ceiling' : 'fixed', doorType: i < 3 ? 'hinged' : 'sliding' });
     level.cupboards[c.id] = c;
   });
+  // a window behind the third cupboard (wall interval 60..180): cupboardOpening
+  const behind = createOpening(cupboardWalls[2]!, 'window', 120);
+  level.openings[behind.id] = behind;
 
   const rand = rng(seed);
   for (let i = 0; i < 300; i++) {
@@ -83,30 +86,58 @@ function house(seed: number): Level {
   return level;
 }
 
+/**
+ * Mean time of computeChecks over 5 calls after a warm-up, each on a new Level built by `next(i)`
+ * (new identity: the memo cannot answer); deriveLevel is computed outside the measure, as the
+ * editor has it already.
+ */
+function measure(label: string, next: (i: number) => Level): { mean: number; kinds: Set<string>; count: number } {
+  const custom = {};
+  const first = next(0);
+  const warm = computeChecks(first, deriveLevel(first), custom);
+  const times: number[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const fresh = next(i);
+    const d = deriveLevel(fresh);
+    const t0 = performance.now();
+    const out = computeChecks(fresh, d, custom);
+    times.push(performance.now() - t0);
+    expect(out).not.toBe(warm);
+  }
+  const mean = times.reduce((s, t) => s + t, 0) / times.length;
+  console.info(`computeChecks (${label}): ${warm.length} checks, mean ${mean.toFixed(1)} ms over 5 runs (${times.map((t) => t.toFixed(1)).join(', ')})`);
+  return { mean, kinds: new Set(warm.map((c) => c.kind)), count: warm.length };
+}
+
 describe('checks performance budget', () => {
   it('300 objects in 6 rooms: computeChecks under 50 ms on average', () => {
     const level = house(20261008);
     expect(Object.keys(level.objects)).toHaveLength(300);
-    const custom = {};
-    const d = deriveLevel(level);
-    expect(d.rooms).toHaveLength(6);
+    expect(deriveLevel(level).rooms).toHaveLength(6);
 
-    const warm = computeChecks({ ...level }, d, custom); // warm-up
-    const kinds = new Set(warm.map((c) => c.kind));
-    // the random level exercises every rule that its content can trigger
-    for (const k of ['height', 'collision', 'wallOverlap', 'doorSwing', 'cupboardClearance'] as const) expect(kinds.has(k)).toBe(true);
-
-    const times: number[] = [];
-    for (let i = 0; i < 5; i++) {
-      const fresh = { ...level }; // new identity: the memo cannot answer
-      const t0 = performance.now();
-      const out = computeChecks(fresh, d, custom);
-      times.push(performance.now() - t0);
-      expect(out).not.toBe(warm);
-      expect(out.length).toBe(warm.length);
+    // objects moving (volumes and wall shape reused through the caches)
+    const still = measure('objects moving', () => ({ ...level }));
+    // the random level exercises every rule
+    for (const k of ['height', 'collision', 'wallOverlap', 'doorSwing', 'cupboardOpening', 'floating', 'cupboardClearance'] as const) {
+      expect(still.kinds.has(k)).toBe(true);
     }
-    const mean = times.reduce((s, t) => s + t, 0) / times.length;
-    console.info(`computeChecks: ${warm.length} checks, mean ${mean.toFixed(1)} ms over 5 runs (${times.map((t) => t.toFixed(1)).join(', ')})`);
-    expect(mean).toBeLessThan(50);
+    expect(still.mean).toBeLessThan(50);
+
+    // a slope and the beam moving: the volumes (slope bands, cupboard profiles) are recomputed
+    const [slopeId] = Object.keys(level.slopes);
+    const [beamId] = Object.keys(level.beams);
+    const slope = level.slopes[slopeId!]!;
+    const beam = level.beams[beamId!]!;
+    const movedLevel = (i: number): Level => ({
+      ...level,
+      slopes: { ...level.slopes, [slope.id]: { ...slope, a: { ...slope.a, x: slope.a.x + i }, b: { ...slope.b, x: slope.b.x + i } } },
+      beams: { [beam.id]: { ...beam, a: { ...beam.a, y: beam.a.y + i }, b: { ...beam.b, y: beam.b.y + i } } },
+    });
+    // witness: two such levels do not share their volumes (they are recomputed)
+    expect(deriveVolumes(movedLevel(1))).not.toBe(deriveVolumes(movedLevel(2)));
+    expect(deriveVolumes({ ...level })).toBe(deriveVolumes({ ...level }));
+    const moving = measure('slope and beam moving', movedLevel);
+    expect(moving.count).toBeGreaterThan(0);
+    expect(moving.mean).toBeLessThan(50);
   });
 });

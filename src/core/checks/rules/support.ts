@@ -18,14 +18,14 @@ export function carries(support: Item, item: Item): boolean {
 
 /**
  * Floating objects (spec 5.4): an 'onTop' object above the floor (underside more than 1 cm up)
- * that nothing carries at its height.
+ * that nothing carries at its height. Message gender-neutral (ruling V2-R17).
  */
 export function floatingChecks(ctx: CheckContext): Check[] {
   const out: Check[] = [];
   for (const item of ctx.objects) {
     if (item.pose !== 'onTop' || item.bottom <= HEIGHT_TOLERANCE) continue;
     if (ctx.items.some((s) => carries(s, item))) continue;
-    out.push(makeCheck('floating', 'warning', `${nameOf(ctx, item)} : n'est posée sur rien.`, [targetOf(item)]));
+    out.push(makeCheck('floating', 'warning', `${nameOf(ctx, item)} : aucun support en dessous.`, [targetOf(item)]));
   }
   return out;
 }
