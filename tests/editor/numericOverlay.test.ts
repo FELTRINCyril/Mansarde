@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { applyNumericInput, cancelNumericInput } from '@/editor/numericDispatch';
 import {
-  applyNumericInput, cancelNumericInput, closeNumericInput, NUMERIC_FIELD_SIZE, openNumericInput,
-  numericSession, placeNumericField, submitNumeric,
+  closeNumericInput, NUMERIC_FIELD_SIZE, openNumericInput, numericSession, placeNumericField, submitNumeric,
 } from '@/editor/numericOverlay';
 import { createEditorStore, createOverlay } from '@/editor/store';
-import { TOOLS, type Tool, type ToolContext } from '@/editor/tools/types';
+import { TOOLS } from '@/editor/tools/registry';
+import type { Tool, ToolContext } from '@/editor/tools/types';
 
 const ctx = (store: ReturnType<typeof createEditorStore>): ToolContext => ({
   store, toWorld: (s) => s, pxPerCm: () => 1, fitView: () => {},
@@ -34,6 +35,13 @@ describe('numeric overlay store state', () => {
     });
     closeNumericInput(store);
     expect(store.getState().overlay.numericInput).toBeNull();
+  });
+  it('openNumericInput can open the field already marked invalid (a refused value to correct)', () => {
+    const store = createEditorStore();
+    openNumericInput(store, { initial: '900', screen: { x: 0, y: 0 }, kind: 'nonNegative', invalid: true });
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '900', invalid: true });
+    openNumericInput(store, { initial: '', screen: { x: 0, y: 0 }, kind: 'nonNegative' });
+    expect(store.getState().overlay.numericInput!.invalid).toBeFalsy();
   });
   it('setTool clears the field', () => {
     const store = createEditorStore();

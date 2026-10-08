@@ -21,6 +21,7 @@ import type { SelectionItem } from '../selection';
 import { activeLevel, type EditorState, type EditorStore } from '../store';
 import { worldToScreen } from '../view';
 import { ERR_NO_ROOM, measureObject, measureOpening, measureTarget, nextSide, typedPlacement, type MeasureTarget } from './clearanceDims';
+import { undoKeyOf } from './drawing';
 import { hoveredWall } from './hover';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
 
@@ -460,10 +461,10 @@ export function createSelectTool(): Tool {
     return m.sides;
   }
 
-  /** Opens the typed-distance field at `screen` (canvas px), remembered for reopenings. */
-  function openField(text: string, c: ToolContext, screen: Vec2): void {
+  /** Opens the typed-distance field at `screen` (canvas px), remembered for reopenings; `invalid`: in red. */
+  function openField(text: string, c: ToolContext, screen: Vec2, invalid = false): void {
     fieldScreen = screen;
-    openNumericInput(c.store, { initial: text, screen, kind: 'nonNegative', label: TYPED_LABEL });
+    openNumericInput(c.store, { initial: text, screen, kind: 'nonNegative', label: TYPED_LABEL, invalid });
   }
 
   return {
@@ -577,7 +578,10 @@ export function createSelectTool(): Tool {
     onKeyDown(e, c) {
       const typed = typedKey(e, c);
       if (typed !== null) return typed;
-      if (e.key !== 'Escape' || !session) return false;
+      if (!session) return false;
+      // Escape abandons the press; so do Mod+Z / Mod+Y (a selection rectangle has no gesture that
+      // keyboard.ts could cancel: the undo would act on the previous entry)
+      if (e.key !== 'Escape' && (session.typing || !undoKeyOf(e))) return false;
       cancelSession(c.store);
       return true;
     },
@@ -586,8 +590,8 @@ export function createSelectTool(): Tool {
       const t = typing();
       if (!t) return;
       if (!applyTyped(t, value, c)) {
-        // the field was closed by the submit: open it again with the value, to correct it
-        return openField(formatNumber(value), c, fieldScreen);
+        // the field was closed by the submit: open it again with the value in red, to correct it
+        return openField(formatNumber(value), c, fieldScreen, true);
       }
       const side = t.holder.activeSide;
       session = null;
@@ -601,7 +605,8 @@ export function createSelectTool(): Tool {
       // one (the previous one with Shift+Tab)
       const t = typing();
       if (!t) return;
-      if (value !== null && !applyTyped(t, value, c)) return; // refused: the field stays as typed
+      // refused: the same field again, with the value in red
+      if (value !== null && !applyTyped(t, value, c)) return openField(formatNumber(value), c, fieldScreen, true);
       const sides = refreshTyped(t, c);
       t.holder.activeSide = nextSide(sides, t.holder.activeSide, backward === true);
       refreshTyped(t, c);

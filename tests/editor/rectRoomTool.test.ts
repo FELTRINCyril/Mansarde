@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Level, Vec2 } from '@/core/model/types';
-import { applyNumericInput, openNumericInput, tabNumericInput } from '@/editor/numericOverlay';
+import { applyNumericInput, tabNumericInput } from '@/editor/numericDispatch';
+import { openNumericInput } from '@/editor/numericOverlay';
 import { createEditorStore, type EditorStore } from '@/editor/store';
 import { RECT_IDLE, reduceRectTool, rectToolOverlay, type RectToolEvent, type RectToolState } from '@/editor/tools/rectRoomMachine';
 import { createRectRoomTool } from '@/editor/tools/rectRoomTool';
-import { TOOLS, type PointerInfo, type ToolContext } from '@/editor/tools/types';
+import { TOOLS } from '@/editor/tools/registry';
+import type { PointerInfo, ToolContext } from '@/editor/tools/types';
 import type { Mods, WallToolEnv } from '@/editor/tools/wallMachine';
 import { emptyProject } from '../core/helpers';
 

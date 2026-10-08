@@ -1,13 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-async function createProject(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByTestId('new-project').click();
-  const dialog = page.getByTestId('prompt-dialog');
-  await dialog.getByRole('textbox').fill(name);
-  await dialog.getByRole('button', { name: 'Créer' }).click();
-  await expect(page.getByTestId('editor')).toBeVisible();
-}
+import { createProject } from './helpers';
 
 async function openField(page: Page, x: number, y: number, initial = '3') {
   await page.evaluate(
@@ -104,7 +96,7 @@ test('numeric overlay: valid Enter calls the active tool and returns the focus t
   await createProject(page, 'Saisie tool');
   // test page only: hook a temporary callback on the select tool entry of TOOLS
   await page.evaluate(async () => {
-    const url = '/src/editor/tools/types.ts';
+    const url = '/src/editor/tools/registry.ts';
     const { TOOLS } = await import(/* @vite-ignore */ url);
     const w = window as unknown as { __submitted: number[]; __cancelled: number };
     w.__submitted = [];

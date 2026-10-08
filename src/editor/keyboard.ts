@@ -8,7 +8,8 @@ import type { Id, PlacedObject, Vec2 } from '@/core/model/types';
 import { deletableCount, deleteSelectionRecipe } from './deleteSelection';
 import type { SelectionItem } from './selection';
 import { activeLevel, type EditorStore, type ToolId } from './store';
-import { TOOLS, type ToolContext } from './tools/types';
+import { TOOLS } from './tools/registry';
+import type { ToolContext } from './tools/types';
 
 /** Offset of pasted and duplicated objects (cm). */
 export const PASTE_OFFSET: Vec2 = { x: 20, y: 20 };

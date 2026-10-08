@@ -97,13 +97,14 @@ export function BackgroundPanel({ level }: { level: Level }): JSX.Element | null
   }
 
   const usable = bg.visible;
-  const modeButton = (id: 'calibrate' | 'moveBackground', label: string, testId: string, disabled: boolean, title: string) => (
+  /** `title` explains why the button is disabled, or warns about an enabled one (`warning`). */
+  const modeButton = (id: 'calibrate' | 'moveBackground', label: string, testId: string, disabled: boolean, title: string, warning?: string) => (
     <button
       type="button"
       className="btn btn-block"
       data-testid={testId}
       disabled={disabled}
-      title={disabled ? title : undefined}
+      title={disabled ? title : warning}
       // keep the focus where it is, like the tool bar
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => setTool(id)}
@@ -160,7 +161,14 @@ export function BackgroundPanel({ level }: { level: Level }): JSX.Element | null
             Annuler
           </button>
         ) : (
-          modeButton('calibrate', "Mettre à l'échelle", 'background-calibrate', !usable, "Affichez l'image pour la mettre à l'échelle")
+          modeButton(
+            'calibrate',
+            "Mettre à l'échelle",
+            'background-calibrate',
+            !usable,
+            "Affichez l'image pour la mettre à l'échelle",
+            bg.locked ? "L'image est verrouillée : la mise à l'échelle la déplacera quand même." : undefined,
+          )
         )}
         {tool === 'moveBackground' ? (
           <button type="button" className="btn btn-block btn-primary" data-testid="background-move-done" onClick={() => setTool('select')}>

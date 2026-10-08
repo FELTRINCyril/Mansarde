@@ -545,7 +545,11 @@ describe('select tool: Tab and typed distances (spec 7.4, ruling R27)', () => {
     tool.onNumericSubmit!(300, ctx); // 300 > 128.5 + 168.5 = 297
     expect(store.getState().toast?.message).toBe('Pas assez de place sur ce mur');
     expect(store.getState().gesture).not.toBeNull();
-    expect(store.getState().overlay.numericInput).toMatchObject({ value: '300' });
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '300', invalid: true });
+    expect(level(store).openings[door.id]!.offset).toBe(180);
+    // Tab with the refused value: refused the same way, the field shows it in red
+    tool.onNumericTab!(300, ctx);
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '300', invalid: true });
     expect(level(store).openings[door.id]!.offset).toBe(180);
     // the largest value that fits puts the door against the right inner face
     tool.onNumericSubmit!(297, ctx);

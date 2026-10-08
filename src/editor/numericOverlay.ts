@@ -1,7 +1,11 @@
 import type { Vec2 } from '@/core/model/types';
 import { commitNumericAs, type NumericKind, type NumericResult } from '@/ui/numeric';
 import type { EditorStore } from './store';
-import { TOOLS, type ToolContext } from './tools/types';
+
+/*
+ * The shared numeric field: opening, closing, parsing and placement. Handing a typed value to the
+ * active tool is numericDispatch.ts (it needs the tool registry, which the tools must not import).
+ */
 
 /** Size of the field box (px) used to keep it inside the canvas, and its offset from the cursor. */
 export const NUMERIC_FIELD_SIZE: Vec2 = { x: 150, y: 34 };
@@ -12,13 +16,16 @@ let session = 0;
 /** Counter bumped by every openNumericInput: the UI keys its field on it, so each opening starts fresh. */
 export const numericSession = (): number => session;
 
-/** Opens (or replaces) the shared numeric field. `initial` is the text already typed (the first digit). */
+/**
+ * Opens (or replaces) the shared numeric field. `initial` is the text already typed (the first digit);
+ * `invalid` opens it with the red invalid border (a refused value given back to the user to correct).
+ */
 export function openNumericInput(
   store: EditorStore,
-  opts: { initial: string; screen: Vec2; kind: NumericKind; label?: string },
+  opts: { initial: string; screen: Vec2; kind: NumericKind; label?: string; invalid?: boolean },
 ): void {
   session++;
-  const numericInput = { value: opts.initial, screen: opts.screen, kind: opts.kind, label: opts.label };
+  const numericInput = { value: opts.initial, screen: opts.screen, kind: opts.kind, label: opts.label, ...(opts.invalid ? { invalid: true } : {}) };
   store.getState().setOverlay({ numericInput });
 }
 
@@ -29,52 +36,6 @@ export function closeNumericInput(store: EditorStore): void {
 /** Pure parsing of the typed text with the rules of its kind (same as the properties panel fields). */
 export function submitNumeric(text: string, kind: NumericKind): NumericResult {
   return commitNumericAs(text, kind);
-}
-
-/**
- * Enter: parses the typed text; invalid -> false and the field stays open; valid -> closes the field,
- * then hands the value to the active tool's onNumericSubmit and returns true.
- */
-export function applyNumericInput(store: EditorStore, ctx: ToolContext, text: string): boolean {
-  const ni = store.getState().overlay.numericInput;
-  if (!ni) return false;
-  const r = submitNumeric(text, ni.kind);
-  if (!r.ok) return false;
-  closeNumericInput(store);
-  TOOLS[store.getState().tool]?.onNumericSubmit?.(r.value, ctx);
-  return true;
-}
-
-/**
- * Tab (Shift+Tab: backward = true): offered to the active tool's onNumericTab with the parsed value
- * (null for an empty field).
- * 'unhandled' when the tool has no such handler (Tab keeps its browser default), 'invalid' when the
- * text does not parse (the field stays open), else 'ok'.
- */
-export function tabNumericInput(
-  store: EditorStore,
-  ctx: ToolContext,
-  text: string,
-  backward = false,
-): 'unhandled' | 'invalid' | 'ok' {
-  const ni = store.getState().overlay.numericInput;
-  const tool = TOOLS[store.getState().tool];
-  if (!ni || !tool?.onNumericTab) return 'unhandled';
-  if (text.trim() === '') {
-    tool.onNumericTab(null, ctx, backward);
-    return 'ok';
-  }
-  const r = submitNumeric(text, ni.kind);
-  if (!r.ok) return 'invalid';
-  tool.onNumericTab(r.value, ctx, backward);
-  return 'ok';
-}
-
-/** Escape or blur: closes the field and tells the active tool. Does nothing when the field is already closed. */
-export function cancelNumericInput(store: EditorStore, ctx: ToolContext): void {
-  if (!store.getState().overlay.numericInput) return;
-  closeNumericInput(store);
-  TOOLS[store.getState().tool]?.onNumericCancel?.(ctx);
 }
 
 /** Top-left of the field box (px): next to the cursor, kept inside a canvas of the given size. */

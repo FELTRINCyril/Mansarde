@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { setBackground } from '@/core/commands/project';
+import { setBackground, updateBackground } from '@/core/commands/project';
 import type { Background, Level, Vec2 } from '@/core/model/types';
+import { watchBackgroundMode } from '@/editor/background';
 import { createEditorStore } from '@/editor/store';
 import { createCalibrateTool } from '@/editor/tools/calibrateTool';
 import { createMoveBackgroundTool } from '@/editor/tools/moveBackgroundTool';
@@ -123,5 +124,63 @@ describe('move background tool', () => {
     expect(store.getState().tool).toBe('moveBackground');
     tool.onKeyDown!(key('Escape'), ctx);
     expect(store.getState().tool).toBe('select');
+  });
+
+  it('onCancel (pointercancel, window blur) abandons the drag: the image no longer follows the pointer', () => {
+    const { store, ctx, level } = setup();
+    store.getState().setTool('moveBackground');
+    const tool = createMoveBackgroundTool();
+    const before = store.getState().history.past.length;
+    tool.onPointerDown!(at({ x: 0, y: 0 }), ctx);
+    tool.onPointerMove!(at({ x: 30, y: 30 }), ctx);
+    tool.onCancel!(ctx);
+    expect(store.getState().gesture).toBeNull();
+    expect(level().background).toMatchObject({ x: 0, y: 0 });
+    tool.onPointerMove!(at({ x: 80, y: 80 }), ctx);
+    tool.onPointerUp!(at({ x: 80, y: 80 }), ctx);
+    expect(level().background).toMatchObject({ x: 0, y: 0 });
+    expect(store.getState().history.past.length).toBe(before);
+    expect(store.getState().tool).toBe('moveBackground');
+    tool.onCancel!(ctx); // nothing in progress: harmless
+    expect(store.getState().tool).toBe('moveBackground');
+  });
+});
+
+describe('watchBackgroundMode', () => {
+  it('leaves the move mode as soon as the image is locked or hidden, and only then', () => {
+    for (const patch of [{ locked: true }, { visible: false }]) {
+      const { store, level } = setup();
+      const stop = watchBackgroundMode(store);
+      store.getState().setTool('moveBackground');
+      store.getState().execute('opacity', updateBackground(level().id, { opacity: 0.3 }));
+      expect(store.getState().tool).toBe('moveBackground');
+      store.getState().execute('patch', updateBackground(level().id, patch));
+      expect(store.getState().tool).toBe('select');
+      // undo makes the image usable again: the mode is not re-entered by itself, but can be
+      store.getState().undo();
+      store.getState().setTool('moveBackground');
+      expect(store.getState().tool).toBe('moveBackground');
+      // an undo that locks / hides it again leaves the mode too
+      store.getState().redo();
+      expect(store.getState().tool).toBe('select');
+      stop();
+    }
+  });
+
+  it('leaves the move mode when the image is removed, never touches the other tools', () => {
+    const { store, level } = setup();
+    const stop = watchBackgroundMode(store);
+    store.getState().setTool('calibrate');
+    store.getState().execute('lock', updateBackground(level().id, { locked: true }));
+    expect(store.getState().tool).toBe('calibrate'); // calibrating a locked image stays possible
+    store.getState().execute('unlock', updateBackground(level().id, { locked: false }));
+    store.getState().setTool('moveBackground');
+    store.getState().execute('remove', setBackground(level().id, null));
+    expect(store.getState().tool).toBe('select');
+    stop();
+    store.getState().undo();
+    store.getState().setTool('moveBackground');
+    store.getState().execute('lock', updateBackground(level().id, { locked: true }));
+    expect(store.getState().tool).toBe('moveBackground'); // unsubscribed
   });
 });

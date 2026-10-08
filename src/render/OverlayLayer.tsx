@@ -1,8 +1,7 @@
 import type { JSX } from 'react';
 import { HANDLE_PX, type ObjectHandle } from '@/editor/handles';
 import type { Overlay } from '@/editor/store';
-import { isSegmentGhost } from '@/editor/tools/calibrateTool';
-import { isOutlineGhost } from '@/editor/tools/types';
+import { isOutlineGhost, isSegmentGhost } from '@/editor/tools/types';
 import { CalibrationSegment } from './CalibrationSegment';
 import { isDrawGhost } from '@/editor/tools/drawing';
 import { DimLineView } from './DimLineView';

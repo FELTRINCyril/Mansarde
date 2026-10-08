@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import type { Id, Project } from '@/core/model/types';
+import { watchBackgroundMode } from '@/editor/background';
 import { placeObjectAt } from '@/editor/placeObject';
 import { useEditor } from '@/editor/store';
 import { screenToWorld } from '@/editor/view';
@@ -132,6 +133,8 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
   const onResize = useCallback((s: Size) => {
     size.current = s;
   }, []);
+  // the move mode of the tracing image ends by itself when the image gets locked, hidden or removed
+  useEffect(() => watchBackgroundMode(useEditor), []);
 
   const placeAtCenter = useCallback((ref: string) => {
     const s = size.current;

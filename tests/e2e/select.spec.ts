@@ -1,15 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-interface Vec { x: number; y: number }
-
-async function createProject(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByTestId('new-project').click();
-  const dialog = page.getByTestId('prompt-dialog');
-  await dialog.getByRole('textbox').fill(name);
-  await dialog.getByRole('button', { name: 'Créer' }).click();
-  await expect(page.getByTestId('editor')).toBeVisible();
-}
+import { createProject, onPage, type Vec } from './helpers';
 
 /** A 400 x 300 room (wall axes) through the dev handle, then the view fitted on it with key 0. */
 async function addRoom(page: Page) {
@@ -21,13 +11,6 @@ async function addRoom(page: Page) {
   });
   await page.getByTestId('plan-canvas').click({ position: { x: 3, y: 3 } });
   await page.keyboard.press('0');
-}
-
-/** Page coordinates of a world point (cm). */
-async function onPage(page: Page, w: Vec): Promise<Vec> {
-  const box = (await page.getByTestId('plan-canvas').boundingBox())!;
-  const v = await page.evaluate(() => window.__planMaison!.store.getState().view);
-  return { x: box.x + w.x * v.pxPerCm + v.tx, y: box.y + w.y * v.pxPerCm + v.ty };
 }
 
 async function objects(page: Page): Promise<Array<{ id: string; x: number; y: number }>> {

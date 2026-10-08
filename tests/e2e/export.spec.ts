@@ -1,18 +1,10 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { createProject } from './helpers';
 
 // The export dialog, end to end: the scene is built through the dev handle (store.execute with core
 // commands), the files are downloaded from the dialog into the test output folder.
-
-async function createProject(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByTestId('new-project').click();
-  const dialog = page.getByTestId('prompt-dialog');
-  await dialog.getByRole('textbox').fill(name);
-  await dialog.getByRole('button', { name: 'Créer' }).click();
-  await expect(page.getByTestId('editor')).toBeVisible();
-}
 
 /** A room of w x h cm with a door and a bed "Lit bébé", through the store like the tools do. */
 async function addScene(page: Page, w: number, h: number) {

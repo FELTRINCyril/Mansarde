@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type JSX, type MouseEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type JSX, type MouseEvent, type PointerEvent } from 'react';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
 import { handleTarget, objectHandles } from '@/editor/handles';
 import { handleGlobalKey, isIgnoredKey } from '@/editor/keyboard';
 import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
 import { activeLevel, useEditor } from '@/editor/store';
-import { TOOLS, type PointerInfo, type ToolContext } from '@/editor/tools/types';
+import { TOOLS } from '@/editor/tools/registry';
+import type { PointerInfo, ToolContext } from '@/editor/tools/types';
 import { fitView, screenToWorld, zoomAt, type View } from '@/editor/view';
 import { levelBounds } from '@/export/pageLayout';
 import { OverlayLayer } from '@/render/OverlayLayer';
@@ -48,7 +49,7 @@ function PlanOverlay(): JSX.Element | null {
  * interaction overlay (OverlayLayer) and the in-place room name field on top. Zoom and pan live
  * here (wheel = zoom around the cursor, space + drag or middle button = pan); every other pointer
  * event goes to the active tool (TOOLS) and catalog items can be dropped. A press interrupted
-without a pointerup (pointercancel, capture lost, window blur) calls the tool's onCancel. The single window key
+ * without a pointerup (pointercancel, capture lost, window blur) calls the tool's onCancel. The single window key
  * handler of the editor is here too: guard (isIgnoredKey: typing in a field, key already handled,
  * dialog open), space for panning, then handleGlobalKey (tool keys, shortcuts, 0 = fit).
  */
@@ -138,8 +139,10 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     setPanning(false);
   }, []);
 
-  // the editor's single key handler: nothing while typing in a field or behind a dialog
-  useEffect(() => {
+  // the editor's single key handler: nothing while typing in a field or behind a dialog. A layout
+  // effect: it is attached in the commit that shows the plan, so a key pressed as soon as the
+  // editor is visible is not lost (a passive effect runs later, input events can come first)
+  useLayoutEffect(() => {
     const setSpace = (v: boolean) => {
       spaceRef.current = v;
       setSpaceDown(v);

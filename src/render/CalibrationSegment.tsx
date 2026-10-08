@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import type { SegmentGhost } from '@/editor/tools/calibrateTool';
+import type { SegmentGhost } from '@/editor/tools/types';
 import { num, STYLE } from './style';
 
 /** The segment being measured on the tracing image: a line and a dot on each fixed end point. */

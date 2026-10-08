@@ -1,22 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-interface Vec { x: number; y: number }
-
-async function createProject(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByTestId('new-project').click();
-  const dialog = page.getByTestId('prompt-dialog');
-  await dialog.getByRole('textbox').fill(name);
-  await dialog.getByRole('button', { name: 'Créer' }).click();
-  await expect(page.getByTestId('editor')).toBeVisible();
-}
-
-/** Page coordinates of a world point (cm). */
-async function onPage(page: Page, w: Vec): Promise<Vec> {
-  const box = (await page.getByTestId('plan-canvas').boundingBox())!;
-  const v = await page.evaluate(() => window.__planMaison!.store.getState().view);
-  return { x: box.x + w.x * v.pxPerCm + v.tx, y: box.y + w.y * v.pxPerCm + v.ty };
-}
+import { createProject, onPage, type Vec } from './helpers';
 
 /** A grid point (cm) shown at the given fraction of the canvas. */
 async function gridPointAt(page: Page, fx: number, fy: number): Promise<Vec> {
@@ -127,6 +110,7 @@ test('rectangle tool: a drag creates 4 walls, undo removes the whole room at onc
 test('rectangle tool: typed width, Tab, typed height, Enter', async ({ page }) => {
   await createProject(page, 'Pièce saisie');
   await page.keyboard.press('r');
+  await expect(page.getByTestId('tool-rect')).toHaveAttribute('aria-pressed', 'true');
   const a = await gridPointAt(page, 0.2, 0.2);
   const pa = await onPage(page, a);
   const pb = await onPage(page, { x: a.x + 120, y: a.y + 90 });
@@ -159,6 +143,7 @@ test('rectangle tool: typed width, Tab, typed height, Enter', async ({ page }) =
 test('wall tool: Mod+Z removes the last point of the chain, never the previous history entry', async ({ page }) => {
   await createProject(page, 'Murs annuler');
   await page.keyboard.press('r');
+  await expect(page.getByTestId('tool-rect')).toHaveAttribute('aria-pressed', 'true');
   const a = await gridPointAt(page, 0.2, 0.2);
   const pa = await onPage(page, a);
   const pb = await onPage(page, { x: a.x + 300, y: a.y + 200 });
@@ -184,6 +169,7 @@ test('wall tool: Mod+Z removes the last point of the chain, never the previous h
 test('numeric field: its label is shown whole above the input and the field leaves the tool label visible', async ({ page }) => {
   await createProject(page, 'Libellé');
   await page.keyboard.press('m');
+  await expect(page.getByTestId('tool-wall')).toHaveAttribute('aria-pressed', 'true');
   const s = await gridPointAt(page, 0.3, 0.3);
   await moveTo(page, s);
   const p = await onPage(page, s);
@@ -201,4 +187,23 @@ test('numeric field: its label is shown whole above the input and the field leav
   const top = Math.min(field.y, lb.y);
   const overlaps = tool.x < field.x + field.width && field.x < tool.x + tool.width && tool.y < field.y + field.height && top < tool.y + tool.height;
   expect(overlaps).toBe(false);
+});
+
+test('a tool key pressed as soon as the editor shows is not lost, even on a slow machine', async ({ page }) => {
+  // Regression: the plan key handler used to be attached by a passive effect, after the editor was
+  // painted; a key pressed in between was lost (input events run before React's deferred effects).
+  // The CPU is slowed down while the editor opens to widen that window (lost ~1 time in 3 before).
+  const cdp = await page.context().newCDPSession(page);
+  for (let i = 0; i < 5; i++) {
+    await page.goto('/');
+    await page.getByTestId('new-project').click();
+    const dialog = page.getByTestId('prompt-dialog');
+    await dialog.getByRole('textbox').fill(`Rapide ${i}`);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 20 });
+    await dialog.getByRole('button', { name: 'Créer' }).click();
+    await expect(page.getByTestId('editor')).toBeVisible();
+    await page.keyboard.press('m');
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await expect(page.getByTestId('tool-wall')).toHaveAttribute('aria-pressed', 'true');
+  }
 });

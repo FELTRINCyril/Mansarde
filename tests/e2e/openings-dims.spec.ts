@@ -1,15 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-interface Vec { x: number; y: number }
-
-async function createProject(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByTestId('new-project').click();
-  const dialog = page.getByTestId('prompt-dialog');
-  await dialog.getByRole('textbox').fill(name);
-  await dialog.getByRole('button', { name: 'Créer' }).click();
-  await expect(page.getByTestId('editor')).toBeVisible();
-}
+import { createProject, onPage, type Vec } from './helpers';
 
 /** A 400 x 300 room (wall axes, 20 cm walls) through the dev handle, then the view fitted on it with key 0. */
 async function addRoom(page: Page) {
@@ -21,13 +11,6 @@ async function addRoom(page: Page) {
   });
   await page.getByTestId('plan-canvas').click({ position: { x: 3, y: 3 } });
   await page.keyboard.press('0');
-}
-
-/** Page coordinates of a world point (cm). */
-async function onPage(page: Page, w: Vec): Promise<Vec> {
-  const box = (await page.getByTestId('plan-canvas').boundingBox())!;
-  const v = await page.evaluate(() => window.__planMaison!.store.getState().view);
-  return { x: box.x + w.x * v.pxPerCm + v.tx, y: box.y + w.y * v.pxPerCm + v.ty };
 }
 
 async function hover(page: Page, w: Vec) {
@@ -136,6 +119,12 @@ test('door and window tools, dimension tool, typed clearance while moving a bed'
   await expect(page.getByTestId('toast')).toContainText('Pas assez de place sur ce mur');
   await expect(field).toHaveValue('900');
   await expect(field).toBeFocused();
+  // the refused value comes back in red, until it is edited
+  await expect(field).toHaveAttribute('aria-invalid', 'true');
+  await expect(field).toHaveClass(/input-invalid/);
+  await page.keyboard.press('Backspace');
+  await expect(field).toHaveAttribute('aria-invalid', 'false');
+  await page.keyboard.type('0');
   await page.keyboard.press('Shift+Tab');
   await expect(field).toBeFocused(); // still typing, on the other clearance
   await page.keyboard.press('Escape');

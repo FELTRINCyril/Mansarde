@@ -7,8 +7,9 @@ interface Drag { levelId: Id; start: Vec2; x: number; y: number }
 
 /**
  * Move mode of the tracing image: dragging anywhere on the plan moves the image (one history
- * entry per drag). A locked image does not move. Escape cancels the drag in progress, then leaves
- * the mode (the "Terminer" button of the background panel leaves it too).
+ * entry per drag). A locked image does not move. Escape cancels the drag in progress (so does an
+ * interrupted press, onCancel), then leaves the mode (the "Terminer" button of the background panel
+ * leaves it too).
  */
 export function createMoveBackgroundTool(): Tool {
   let drag: Drag | null = null;
@@ -42,6 +43,12 @@ export function createMoveBackgroundTool(): Tool {
         s.cancelGesture();
       } else s.setTool('select');
       return true;
+    },
+    // pointercancel, capture lost, window blur: the drag is abandoned, the image goes back
+    onCancel(c) {
+      if (!drag) return;
+      drag = null;
+      c.store.getState().cancelGesture();
     },
     onDeactivate() {
       drag = null;

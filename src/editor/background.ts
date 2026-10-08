@@ -1,5 +1,6 @@
 import type { Background, Vec2 } from '@/core/model/types';
 import { dist } from '@/core/geometry/vec';
+import { activeLevel, type EditorState, type EditorStore } from './store';
 
 /**
  * Rescales the background so that the world distance p1-p2 becomes realCm. World point p1 stays on
@@ -19,4 +20,19 @@ export function calibrateBackground(bg: Background, p1: Vec2, p2: Vec2, realCm: 
     x: p1.x - k * (p1.x - bg.x),
     y: p1.y - k * (p1.y - bg.y),
   };
+}
+
+/**
+ * Leaves the move mode of the tracing image (back to the selection tool) whenever the image of the
+ * active level can no longer be moved: locked, hidden or removed, whatever the cause (panel, undo,
+ * level change). Returns the unsubscribe function.
+ */
+export function watchBackgroundMode(store: EditorStore): () => void {
+  const check = (s: EditorState) => {
+    if (s.tool !== 'moveBackground') return;
+    const bg = activeLevel(s)?.background;
+    if (!bg || bg.locked || !bg.visible) s.setTool('select');
+  };
+  check(store.getState());
+  return store.subscribe(check);
 }

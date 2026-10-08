@@ -16,9 +16,10 @@ export interface RoomRename { levelId: Id; label: RoomLabel | null; labelPoint: 
 
 /**
  * Shared numeric field shown near the cursor while a tool is active (see numericOverlay.ts). `screen` is
- * canvas px; `value` is the text being typed, `kind` selects the parsing rules, `label` an optional caption.
+ * canvas px; `value` is the text being typed, `kind` selects the parsing rules, `label` an optional caption;
+ * `invalid`: the field opens with the red invalid border (a refused value given back to correct).
  */
-export interface NumericInput { value: string; screen: Vec2; kind: NumericKind; label?: string }
+export interface NumericInput { value: string; screen: Vec2; kind: NumericKind; label?: string; invalid?: boolean }
 
 /**
  * Transient interaction state drawn by OverlayLayer (world cm unless stated): snap guides, dynamic

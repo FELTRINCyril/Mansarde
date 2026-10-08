@@ -1,12 +1,5 @@
 import type { Ring, Vec2 } from '@/core/model/types';
 import type { createEditorStore, ToolId } from '../store';
-import { calibrateTool } from './calibrateTool';
-import { moveBackgroundTool } from './moveBackgroundTool';
-import { rectRoomTool } from './rectRoomTool';
-import { dimensionTool } from './dimensionTool';
-import { doorTool, windowTool } from './openingTool';
-import { selectTool } from './selectTool';
-import { wallTool } from './wallTool';
 
 /**
  * What a tool gets from the plan canvas (PlanCanvas builds it once). Tools never touch the DOM:
@@ -70,6 +63,11 @@ export interface Tool {
   onDeactivate?(c: ToolContext): void;
 }
 
+/*
+ * Only types and ghost type guards here: the tool registry (TOOLS) lives in registry.ts, so that the
+ * tools can import these types without a module cycle.
+ */
+
 /**
  * Generic ghost payload for `overlay.ghost`: outlines and points drawn by OverlayLayer, red when
  * `overlay.previewInvalid` is set, else in the selection color. Tools may use it for any preview
@@ -81,14 +79,9 @@ export function isOutlineGhost(g: unknown): g is OutlineGhost {
   return typeof g === 'object' && g !== null && (g as { kind?: unknown }).kind === 'outline';
 }
 
-/** Tool implementations by id; filled by later tasks (wall, rect, door/window, dimension, calibrate). */
-export const TOOLS: Partial<Record<ToolId, Tool>> = {
-  select: selectTool,
-  door: doorTool,
-  window: windowTool,
-  dimension: dimensionTool,
-  calibrate: calibrateTool,
-  moveBackground: moveBackgroundTool,
-  wall: wallTool,
-  rect: rectRoomTool,
-};
+/** `overlay.ghost` payload of the calibration: the segment drawn so far and its fixed end points (world cm). */
+export interface SegmentGhost { kind: 'segment'; a: Vec2; b: Vec2; points: Vec2[] }
+
+export function isSegmentGhost(g: unknown): g is SegmentGhost {
+  return typeof g === 'object' && g !== null && (g as { kind?: unknown }).kind === 'segment';
+}

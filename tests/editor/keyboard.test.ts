@@ -5,7 +5,8 @@ import { createObjectFromSize } from '@/core/model/factory';
 import type { Id, PlacedObject } from '@/core/model/types';
 import { deleteSelection, handleGlobalKey, isTypingTarget } from '@/editor/keyboard';
 import { createEditorStore, type EditorStore } from '@/editor/store';
-import type { ToolContext } from '@/editor/tools/types';
+import { selectTool } from '@/editor/tools/selectTool';
+import type { PointerInfo, ToolContext } from '@/editor/tools/types';
 import { emptyProject } from '../core/helpers';
 
 const box = (x = 100, y = 100): PlacedObject =>
@@ -221,6 +222,30 @@ describe('handleGlobalKey', () => {
       expect(store.getState().gesture).toBeNull();
       expect(objectAt(store, id).x).toBe(100); // gesture abandoned, the object still exists
       expect(store.getState().history.past.length).toBe(entries);
+    }
+  });
+
+  it('Mod+Z, Mod+Shift+Z and Mod+Y during a selection rectangle only cancel the rectangle', () => {
+    const at = (x: number, y: number): PointerInfo => ({ world: { x, y }, screen: { x, y }, button: 0, shift: false, alt: false, meta: false, detail: 1 });
+    for (const e of [mod('z'), mod('z', { shiftKey: true }), mod('y')]) {
+      const { store, ctx, id } = setup();
+      store.getState().setSelection([]);
+      const entries = store.getState().history.past.length;
+      // the selection tool is the active one (TOOLS.select): a press in the void, then a drag
+      selectTool.onPointerDown!(at(10, 10), ctx);
+      selectTool.onPointerMove!(at(200, 200), ctx);
+      expect(store.getState().overlay.marquee).not.toBeNull();
+      expect(handleGlobalKey(e, store, ctx)).toBe(true);
+      expect(store.getState().overlay.marquee).toBeNull();
+      expect(objectAt(store, id).x).toBe(100); // not undone
+      expect(store.getState().history.past.length).toBe(entries);
+      expect(store.getState().history.future).toHaveLength(0);
+      // the release that follows selects nothing
+      selectTool.onPointerMove!(at(220, 220), ctx);
+      selectTool.onPointerUp!(at(220, 220), ctx);
+      expect(store.getState().selection).toEqual([]);
+      expect(store.getState().overlay.marquee).toBeNull();
+      selectTool.onDeactivate!(ctx);
     }
   });
 

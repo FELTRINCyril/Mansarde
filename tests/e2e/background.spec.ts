@@ -1,19 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createProject, type Vec } from './helpers';
 
-interface Vec { x: number; y: number }
 const FIXTURE = 'tests/e2e/fixtures/plan.png';
 // the 400 px line of plan.png, in image pixels
 const LINE_A: Vec = { x: 200, y: 300 };
 const LINE_B: Vec = { x: 600, y: 300 };
-
-async function createProject(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByTestId('new-project').click();
-  const dialog = page.getByTestId('prompt-dialog');
-  await dialog.getByRole('textbox').fill(name);
-  await dialog.getByRole('button', { name: 'Créer' }).click();
-  await expect(page.getByTestId('editor')).toBeVisible();
-}
 
 const bgOf = (page: Page) =>
   page.evaluate(() => {
@@ -189,10 +180,16 @@ test('panel settings: opacity, rotation, hide, lock, move mode', async ({ page }
   await page.getByTestId('background-hidden').uncheck();
   await expect(page.locator('image[data-kind=background]')).toHaveCount(1);
 
-  // lock disables the move button
+  // lock disables the move button; scaling stays possible, with a warning in its tooltip
   await page.getByTestId('background-locked').check();
   await expect(page.getByTestId('background-move')).toBeDisabled();
+  await expect(page.getByTestId('background-calibrate')).toBeEnabled();
+  await expect(page.getByTestId('background-calibrate')).toHaveAttribute(
+    'title',
+    "L'image est verrouillée : la mise à l'échelle la déplacera quand même.",
+  );
   await page.getByTestId('background-locked').uncheck();
+  await expect(page.getByTestId('background-calibrate')).not.toHaveAttribute('title');
   await expect(page.getByTestId('background-move')).toBeEnabled();
 
   // move mode: a drag moves the image by the pointer delta, once in the history
@@ -215,6 +212,16 @@ test('panel settings: opacity, rotation, hide, lock, move mode', async ({ page }
   await page.getByTestId('background-move').click();
   await page.getByTestId('background-move-done').click();
   expect(await page.evaluate(() => window.__planMaison!.store.getState().tool)).toBe('select');
+
+  // locking or hiding the image leaves the move mode by itself
+  for (const box of ['background-locked', 'background-hidden']) {
+    await page.getByTestId('background-move').click();
+    await expect(page.getByTestId('background-move-done')).toBeVisible();
+    await page.getByTestId(box).check();
+    await expect(page.getByTestId('background-move-done')).toHaveCount(0);
+    await expect(page.getByTestId('tool-select')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByTestId(box).uncheck();
+  }
 });
 
 test('delete the image after a confirmation, undo brings it back', async ({ page }) => {

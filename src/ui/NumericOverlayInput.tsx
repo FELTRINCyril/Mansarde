@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
-import { applyNumericInput, cancelNumericInput, numericSession, placeNumericField, tabNumericInput } from '@/editor/numericOverlay';
+import { applyNumericInput, cancelNumericInput, tabNumericInput } from '@/editor/numericDispatch';
+import { numericSession, placeNumericField } from '@/editor/numericOverlay';
 import { useEditor } from '@/editor/store';
 import type { ToolContext } from '@/editor/tools/types';
 
@@ -13,7 +14,8 @@ const stop = (e: { stopPropagation(): void }) => e.stopPropagation();
  * onNumericCancel. As an input it is covered by the keyboard typing guard, and Escape is
  * preventDefault-ed so the global handler leaves it alone. Pointer events never reach the plan.
  * The field is keyed on the opening (numericSession), so a reopening, even a synchronous one from
- * onNumericSubmit, starts with a fresh state (no stale red border).
+ * onNumericSubmit, starts with a fresh state: no stale red border, unless the tool reopens it with
+ * `invalid` (a refused value given back to correct).
  */
 export function NumericOverlayInput(p: {
   ctx: ToolContext;
@@ -39,7 +41,7 @@ function NumericField(p: {
   const ni = useEditor((s) => s.overlay.numericInput);
   const ref = useRef<HTMLInputElement>(null);
   const leaving = useRef(false);
-  const [invalid, setInvalid] = useState(false);
+  const [invalid, setInvalid] = useState(ni?.invalid === true); // read once: the field is remounted per opening
 
   useEffect(() => {
     const el = ref.current;

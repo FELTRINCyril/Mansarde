@@ -4,7 +4,7 @@ import type { Background, Vec2 } from '@/core/model/types';
 import { calibrateBackground } from '../background';
 import { openNumericInput } from '../numericOverlay';
 import { activeLevel } from '../store';
-import type { PointerInfo, Tool, ToolContext } from './types';
+import type { PointerInfo, SegmentGhost, Tool, ToolContext } from './types';
 
 /** Two clicks closer than this on screen (px) do not define a segment. */
 export const MIN_SEGMENT_PX = 4;
@@ -22,13 +22,6 @@ export function calibrateClick(s: CalibrateState, world: Vec2, minDist: number):
   if (s.phase === 'first') return { phase: 'second', p1: world };
   if (s.phase === 'second') return dist(s.p1, world) < minDist ? s : { phase: 'length', p1: s.p1, p2: world };
   return s;
-}
-
-/** `overlay.ghost` payload of the calibration: the segment drawn so far and its fixed end points (world cm). */
-export interface SegmentGhost { kind: 'segment'; a: Vec2; b: Vec2; points: Vec2[] }
-
-export function isSegmentGhost(g: unknown): g is SegmentGhost {
-  return typeof g === 'object' && g !== null && (g as { kind?: unknown }).kind === 'segment';
 }
 
 /** Segment preview: first point to the cursor, then first to second point. */
