@@ -1,5 +1,8 @@
 import type { Id, Level, Ring, Shape } from '../model/types';
+import { beamFootprint } from './beams';
+import { cupboardFootprint, cupboardTopProfile, type ProfilePoint } from './cupboards';
 import { computeRooms, type Room } from './rooms';
+import { slopeBand } from './slopes';
 import { computeWallOutlines, subtractOpeningsResult, wallShapeResult } from './walls';
 
 /** Everything the editor and the renderer compute from a level. */
@@ -87,4 +90,57 @@ export function deriveLevel(level: Level): DerivedLevel {
   byInputs.set(nodes, { inputs: { nodes, walls, openings, roomLabels }, derived });
   cache.set(level, derived);
   return derived;
+}
+
+/** Plan geometry of the volumes of a level (slopes, beams, cupboards), for the checks and the renderer. */
+export interface DerivedVolumes {
+  slopeBands: Map<Id, Ring>;
+  beamFootprints: Map<Id, Ring>;
+  /** Cupboards whose wall exists; a cupboard on a missing wall (broken file) is left out. */
+  cupboardFootprints: Map<Id, Ring>;
+  cupboardProfiles: Map<Id, ProfilePoint[]>;
+}
+
+/** Inputs the volumes depend on (the ceiling height and the walls carrying the cupboards included). */
+type VolumeInputs = Pick<Level, 'height' | 'nodes' | 'walls' | 'slopes' | 'beams' | 'cupboards'>;
+const volumesCache = new WeakMap<Level, DerivedVolumes>();
+const volumesByInputs = new WeakMap<Level['slopes'], { inputs: VolumeInputs; volumes: DerivedVolumes }>();
+
+const sameVolumeInputs = (a: VolumeInputs, b: VolumeInputs): boolean =>
+  a.height === b.height && a.nodes === b.nodes && a.walls === b.walls && a.slopes === b.slopes && a.beams === b.beams && a.cupboards === b.cupboards;
+
+function computeVolumes(level: Level): DerivedVolumes {
+  const slopeBands = new Map<Id, Ring>();
+  for (const s of Object.values(level.slopes)) slopeBands.set(s.id, slopeBand(s));
+  const beamFootprints = new Map<Id, Ring>();
+  for (const b of Object.values(level.beams)) beamFootprints.set(b.id, beamFootprint(b));
+  const cupboardFootprints = new Map<Id, Ring>();
+  const cupboardProfiles = new Map<Id, ProfilePoint[]>();
+  for (const c of Object.values(level.cupboards)) {
+    try {
+      const footprint = cupboardFootprint(level, c);
+      const profile = cupboardTopProfile(level, c);
+      cupboardFootprints.set(c.id, footprint);
+      cupboardProfiles.set(c.id, profile);
+    } catch {
+      // wall or node missing (broken file): the cupboard cannot be placed
+    }
+  }
+  return { slopeBands, beamFootprints, cupboardFootprints, cupboardProfiles };
+}
+
+/**
+ * Volumes of a level, memoized like deriveLevel: by level identity, and reused by a new Level
+ * whose height, nodes, walls, slopes, beams and cupboards are the very same objects (e.g. while
+ * dragging furniture). Never throws on a cupboard whose wall is missing (it is left out).
+ */
+export function deriveVolumes(level: Level): DerivedVolumes {
+  const hit = volumesCache.get(level);
+  if (hit) return hit;
+  const prev = volumesByInputs.get(level.slopes);
+  const volumes = prev && sameVolumeInputs(prev.inputs, level) ? prev.volumes : computeVolumes(level);
+  const { height, nodes, walls, slopes, beams, cupboards } = level;
+  volumesByInputs.set(slopes, { inputs: { height, nodes, walls, slopes, beams, cupboards }, volumes });
+  volumesCache.set(level, volumes);
+  return volumes;
 }

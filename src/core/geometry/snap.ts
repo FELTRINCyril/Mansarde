@@ -225,7 +225,11 @@ function rotationFacing(n: Vec2): number {
  * The closest face wins; the snapped center is the foot point on the face + normal * depth / 2.
  */
 export function snapObjectToWalls(o: PlacedObject, level: Level, pxPerCm: number): ObjectSnap {
-  const tol = SNAP_PX / pxPerCm;
+  return snapObjectToWallFaces(o, level, SNAP_PX / pxPerCm) ?? { x: o.x, y: o.y, rotation: o.rotation, wallId: null };
+}
+
+/** snapObjectToWalls with a tolerance in cm (back edge to face); null when no face is close enough. */
+export function snapObjectToWallFaces(o: PlacedObject, level: Level, tol: number): ObjectSnap | null {
   const center = { x: o.x, y: o.y };
   let best: ObjectSnap | null = null;
   let bestGap = Infinity;
@@ -249,5 +253,5 @@ export function snapObjectToWalls(o: PlacedObject, level: Level, pxPerCm: number
       bestGap = Math.abs(gap);
     }
   }
-  return best ?? { x: o.x, y: o.y, rotation: o.rotation, wallId: null };
+  return best;
 }
