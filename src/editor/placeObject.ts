@@ -25,6 +25,8 @@ export function objectFromRef(project: Project, ref: string, at: Vec2): PlacedOb
     return createObjectFromSize({ kind: 'catalog', catalogId: e.id }, at.x, at.y, size, e.name, e.color, {
       lshape: e.lshape ? { ...e.lshape } : null,
       pose: e.pose,
+      // wall-mounted entries (TV, shelf) default to their hanging height
+      ...(e.elevation !== undefined ? { elevation: e.elevation } : {}),
     });
   }
   if (kind === 'custom') {

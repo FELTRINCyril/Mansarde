@@ -85,10 +85,15 @@ describe('V2 factories and defaults', () => {
 });
 
 describe('catalog pose fields', () => {
-  it('chair is tuckable, tables and desk accept objects under them, the rest stands on the floor', () => {
+  it('chair and pouf are tuckable, tables and desk accept objects under them, V2 entries have their pose, the rest stands on the floor', () => {
     const under = ['desk', 'table-rect', 'table-round', 'coffee-table'];
+    // full pose table: tests/core/catalog.test.tsx
+    const v2: Record<string, string> = {
+      chair: 'tuckable', pouf: 'tuckable', tv: 'onTop', 'bedside-lamp': 'onTop', microwave: 'onTop',
+      'tv-wall': 'wall', 'shelf-wall': 'wall', 'rug-round': 'covering', 'rug-rect': 'covering',
+    };
     for (const e of CATALOG) {
-      expect(e.pose, e.id).toBe(e.id === 'chair' ? 'tuckable' : 'floor');
+      expect(e.pose, e.id).toBe(v2[e.id] ?? 'floor');
       expect(e.acceptsUnder === true, e.id).toBe(under.includes(e.id));
     }
     expect(getCatalogEntry('chair')!.pose).toBe('tuckable');
