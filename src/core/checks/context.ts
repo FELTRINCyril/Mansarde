@@ -1,8 +1,8 @@
 import { CATALOG } from '../../catalog/catalog';
 import type { DerivedLevel, DerivedVolumes } from '../geometry/derived';
 import { objectFootprint, objectShape } from '../geometry/objects';
+import { bbox, isConvexRing } from '../geometry/polygon';
 import type { Cupboard, CustomObjectDef, Id, Level, ObjectPose, PlacedObject, Ring, Shape, Vec2 } from '../model/types';
-import { isConvex } from './overlap';
 import { displayNames } from './names';
 import type { Check, CheckKind, CheckSeverity, CheckTarget } from './types';
 
@@ -22,7 +22,7 @@ export interface Item {
   /** Level order: objects first, then cupboards; orders the names in pair messages. */
   index: number;
   footprint: Ring;
-  /** The footprint is convex (anything but an L shape): exact fast overlap (see overlap.ts). */
+  /** The footprint is convex (anything but an L shape): it can be the clip ring of clipConvex. */
   convex: boolean;
   box: Box;
   /** Vertical slice [bottom, top] (cm); a cupboard stands from the floor to its highest top. */
@@ -32,6 +32,8 @@ export interface Item {
   pose: ObjectPose;
   /** Catalog tables and desks: 'tuckable' objects may stand under them. */
   acceptsUnder: boolean;
+  /** Catalog 'Structure' entries (stairs): they go through the ceiling to the next level (ruling V2-R16). */
+  structure: boolean;
   /** The top is level everywhere (objects, fixed cupboards), so the item can carry an 'onTop' object. */
   flatTop: boolean;
   center: Vec2;
@@ -51,20 +53,10 @@ export interface CheckContext {
 }
 
 const ACCEPTS_UNDER = new Set(CATALOG.filter((e) => e.acceptsUnder).map((e) => e.id));
+const STRUCTURE = new Set(CATALOG.filter((e) => e.category === 'Structure').map((e) => e.id));
 
-export function boxOf(r: Ring): Box {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const p of r) {
-    if (p.x < minX) minX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y > maxY) maxY = p.y;
-  }
-  return { minX, minY, maxX, maxY };
-}
+/** Bounding box of a ring (an empty ring gives an empty box that overlaps nothing). */
+export const boxOf = (r: Ring): Box => bbox(r) ?? { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
 
 /** The boxes share an area (touching boxes do not overlap). */
 export const boxesOverlap = (a: Box, b: Box): boolean =>
@@ -88,12 +80,13 @@ function objectItem(o: PlacedObject, index: number, customObjects: Record<Id, Cu
     id: o.id,
     index,
     footprint,
-    convex: isConvex(footprint),
+    convex: isConvexRing(footprint),
     box: boxOf(footprint),
     bottom: o.elevation,
     top: o.elevation + o.height,
     pose: o.pose,
     acceptsUnder: o.source.kind === 'catalog' && ACCEPTS_UNDER.has(o.source.catalogId),
+    structure: o.source.kind === 'catalog' && STRUCTURE.has(o.source.catalogId),
     flatTop: true,
     center: { x: o.x, y: o.y },
     cupboard: null,
@@ -107,12 +100,13 @@ function cupboardItem(c: Cupboard, index: number, footprint: Ring, tops: number[
     id: c.id,
     index,
     footprint,
-    convex: isConvex(footprint),
+    convex: isConvexRing(footprint),
     box: boxOf(footprint),
     bottom: 0,
     top: tops.length > 0 ? Math.max(...tops) : c.height,
     pose: 'floor',
     acceptsUnder: false,
+    structure: false,
     flatTop: c.heightMode === 'fixed',
     center,
     cupboard: c,

@@ -28,12 +28,10 @@ export function leafSector(hinge: Vec2, closed: Vec2, open: Vec2, radius: number
  */
 function doorSectors(level: Level, o: Opening): Ring[] {
   if (o.kind !== 'door' || (o.variant !== 'single' && o.variant !== 'double')) return [];
-  let f;
-  try {
-    f = openingFrame(level, o);
-  } catch {
-    return []; // wall missing (broken file)
-  }
+  const wall = level.walls[o.wallId];
+  // broken file (ruling R37): no wall, or a wall node missing, to place the door on
+  if (!wall || !Object.hasOwn(level.nodes, wall.startNodeId) || !Object.hasOwn(level.nodes, wall.endNodeId)) return [];
+  const f = openingFrame(level, o);
   const open = o.swing === 'left' ? f.normal : scale(f.normal, -1);
   const face = scale(open, f.thickness / 2);
   const back = scale(f.dir, -1);

@@ -20,13 +20,14 @@ function lowestCeiling(level: Level): number {
 /**
  * Height under the ceiling (spec 5.4): an object whose top (elevation + height) is more than 1 cm
  * above the lowest ceiling over its footprint, and the same for a cupboard of fixed height (a
- * cupboard in 'ceiling' mode follows the ceiling).
+ * cupboard in 'ceiling' mode follows the ceiling). Stairs and other catalog 'Structure' entries
+ * cross the ceiling on purpose and are not checked (ruling V2-R16).
  */
 export function heightChecks(ctx: CheckContext): Check[] {
   const out: Check[] = [];
   const floor = lowestCeiling(ctx.level) + HEIGHT_TOLERANCE;
   for (const item of ctx.items) {
-    if (item.cupboard && item.cupboard.heightMode !== 'fixed') continue;
+    if (item.structure || (item.cupboard && item.cupboard.heightMode !== 'fixed')) continue;
     if (!(item.top > floor)) continue;
     const under = ceilingUnder(ctx.level, item.footprint);
     if (!(item.top > under.height + HEIGHT_TOLERANCE)) continue;
