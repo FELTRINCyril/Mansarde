@@ -33,6 +33,12 @@ describe('objectFromRef', () => {
       x: 100, y: 50, rotation: 0, width: 90, depth: 190, name: 'Lit 90', lshape: null,
     });
   });
+  it('applies the default elevation of a catalog entry and keeps 0 otherwise', () => {
+    expect(objectFromRef(emptyProject(), 'catalog:tv-wall', { x: 0, y: 0 })).toMatchObject({ pose: 'wall', elevation: 110 });
+    expect(objectFromRef(emptyProject(), 'catalog:shelf-wall', { x: 0, y: 0 })).toMatchObject({ pose: 'wall', elevation: 150 });
+    expect(objectFromRef(emptyProject(), 'catalog:bed-90', { x: 0, y: 0 })?.elevation).toBe(0);
+  });
+
   it('takes the default pose of the catalog entry or of the custom definition', () => {
     expect(objectFromRef(emptyProject(), 'catalog:chair', { x: 0, y: 0 })?.pose).toBe('tuckable');
     expect(objectFromRef(emptyProject(), 'catalog:bed-90', { x: 0, y: 0 })?.pose).toBe('floor');

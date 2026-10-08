@@ -47,8 +47,8 @@ describe('catalog data', () => {
     }
   });
 
-  it('contains the 35 expected entries with exact values', () => {
-    expect(CATALOG).toHaveLength(35);
+  it('contains the 44 expected entries with exact values', () => {
+    expect(CATALOG).toHaveLength(44);
     const e = (id: string) => getCatalogEntry(id);
     expect(e('bed-140')).toMatchObject({ name: 'Lit 140', category: 'Chambre', width: 140, depth: 190, height: 50 });
     expect(e('crib')).toMatchObject({ name: 'Berceau', width: 60, depth: 120, height: 90 });
@@ -69,6 +69,36 @@ describe('catalog data', () => {
     expect(e('generic-circle')?.shape).toBe('circle');
     expect(e('generic-rect')?.shape).toBe('rect');
     expect(e('nope')).toBeUndefined();
+  });
+
+  it('has the V2 entries with exact values, pose and default elevation', () => {
+    const e = (id: string) => getCatalogEntry(id);
+    expect(e('tv')).toMatchObject({ name: 'TV', category: 'Séjour', width: 100, depth: 20, height: 60, pose: 'onTop' });
+    expect(e('tv-wall')).toMatchObject({ name: 'TV murale', category: 'Séjour', width: 110, depth: 8, height: 65, pose: 'wall', elevation: 110 });
+    expect(e('shelf-wall')).toMatchObject({ name: 'Étagère murale', category: 'Séjour', width: 80, depth: 25, height: 3, pose: 'wall', elevation: 150 });
+    expect(e('rug-round')).toMatchObject({ name: 'Tapis rond', category: 'Séjour', width: 120, depth: 120, height: 1, pose: 'covering' });
+    expect(e('rug-rect')).toMatchObject({ name: 'Tapis', category: 'Séjour', width: 170, depth: 120, height: 1, pose: 'covering' });
+    expect(e('plant')).toMatchObject({ name: 'Plante', category: 'Séjour', width: 40, depth: 40, height: 90, pose: 'floor' });
+    expect(e('bedside-lamp')).toMatchObject({ name: 'Lampe de chevet', category: 'Chambre', width: 25, depth: 25, height: 45, pose: 'onTop' });
+    expect(e('microwave')).toMatchObject({ name: 'Micro-ondes', category: 'Cuisine', width: 50, depth: 40, height: 30, pose: 'onTop' });
+    expect(e('pouf')).toMatchObject({ name: 'Pouf', category: 'Séjour', width: 50, depth: 50, height: 40, pose: 'tuckable' });
+  });
+
+  it('only wall-mounted entries carry a default elevation', () => {
+    for (const e of CATALOG) {
+      if (e.id === 'tv-wall' || e.id === 'shelf-wall') expect(e.elevation, e.id).toBeGreaterThan(0);
+      else expect(e.elevation, e.id).toBeUndefined();
+    }
+  });
+
+  it('lists the pose of every entry, old ones included', () => {
+    const expected: Record<string, string> = {
+      tv: 'onTop', 'tv-wall': 'wall', 'shelf-wall': 'wall', 'rug-round': 'covering', 'rug-rect': 'covering',
+      plant: 'floor', 'bedside-lamp': 'onTop', microwave: 'onTop', pouf: 'tuckable', chair: 'tuckable',
+    };
+    for (const e of CATALOG) expect(e.pose, e.id).toBe(expected[e.id] ?? 'floor');
+    expect(getCatalogEntry('desk')?.acceptsUnder).toBe(true);
+    expect(getCatalogEntry('chair')?.acceptsUnder).toBeUndefined();
   });
 
   it('uses the shape "symbol" for every non-generic entry and only those', () => {
@@ -172,6 +202,64 @@ describe('symbols', () => {
     expect(lines('counter', 120, 60)).toBe(2); // back line + one module joint
     expect(lines('tv-unit', 160, 45)).toBe(1);
     expect(render('tv-unit', 160, 45)).toContain('<rect');
+  });
+});
+
+describe('V2 symbols', () => {
+  const V2 = ['tv', 'tv-wall', 'shelf-wall', 'rug-round', 'rug-rect', 'plant', 'bedside-lamp', 'microwave', 'pouf'];
+  const sizes: Array<[number, number]> = [[5, 5], [300, 20], [20, 300]];
+
+  it('renders every V2 symbol without NaN at default, tiny, elongated and large sizes', () => {
+    for (const id of V2) {
+      const e = getCatalogEntry(id)!;
+      for (const [w, d] of [[e.width, e.depth], ...sizes] as Array<[number, number]>) {
+        for (const lu of [0.5, 1, 4]) {
+          const m = render(id, w, d, lu);
+          expect(m.length, `${id} ${w}x${d}`).toBeGreaterThan(20);
+          assertClean(m);
+          expect(m, id).not.toMatch(/scale\(/);
+        }
+      }
+    }
+  });
+
+  it('draws the round rug as concentric ellipses computed from w and d', () => {
+    const m = render('rug-round', 120, 80);
+    expect((m.match(/<ellipse/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(m).toContain('rx="60"');
+    expect(m).toContain('ry="40"');
+  });
+
+  it('draws fringes on the short sides of the rectangular rug', () => {
+    const fringe = (w: number, d: number) => render('rug-rect', w, d).split('data-fringe')[1] ?? '';
+    const ticks = (m: string) => [...m.matchAll(/<line[^>]*>/g)].map((t) => t[0]);
+    // 170 x 120: n = 12 per short end, vertical ends at x = -85 and x = 85 (ticks have x1 = +-85)
+    expect(ticks(fringe(170, 120))).toHaveLength(24);
+    expect(ticks(fringe(170, 120)).every((t) => /x1="-?85"/.test(t))).toBe(true);
+    // portrait rug: the short ends are the back and front sides (ticks have y1 = +-85)
+    expect(ticks(fringe(120, 170)).every((t) => /y1="-?85"/.test(t))).toBe(true);
+  });
+
+  it('draws the wall TV as a thick back line with dashes', () => {
+    const m = render('tv-wall', 110, 8);
+    expect(m).toContain('stroke-dasharray');
+    expect(m).toContain('data-thick');
+  });
+
+  it('draws a stand under the TV screen on the back side only', () => {
+    const m = render('tv', 100, 20);
+    expect(m).toContain('data-stand');
+    expect(m).toContain('data-screen');
+  });
+
+  it('draws a window and a handle line on the microwave and a cross on the lamp', () => {
+    expect(render('microwave', 50, 40)).toContain('data-window');
+    expect(render('bedside-lamp', 25, 25)).toContain('data-cross');
+  });
+
+  it('draws leaves for the plant and a seam for the pouf', () => {
+    expect((render('plant', 40, 40).match(/data-leaf/g) ?? []).length).toBeGreaterThanOrEqual(5);
+    expect(render('pouf', 50, 50)).toContain('data-seam');
   });
 });
 

@@ -527,6 +527,162 @@ const StairsQuarter: SymbolComponent = (p) => {
 };
 
 // ---------------------------------------------------------------------------
+// V2 symbols (TV, wall-mounted items, rugs, plant, lamp, microwave, pouf)
+// ---------------------------------------------------------------------------
+
+/** Free-standing TV: thin screen strip along the back, small foot behind the middle of the body. */
+const Tv: SymbolComponent = (p) => {
+  const { w, d } = p;
+  const e = Math.min(d * 0.1, 2);
+  const sh = Math.min(d * 0.2, 3);
+  const fw = w * 0.3;
+  const fd = d * 0.35;
+  return (
+    <Sym p={p}>
+      <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
+      <g data-screen="1">
+        <Box x={-w / 2 + e} y={-d / 2 + e} w={w - 2 * e} h={sh} fill={p.stroke} />
+      </g>
+      <g data-stand="1">
+        <Box x={-fw / 2} y={-d / 2 + e + sh + d * 0.1} w={fw} h={fd} />
+      </g>
+    </Sym>
+  );
+};
+
+/** Wall-mounted TV: thin body, thick line along the back (the screen), dashes at the front edge. */
+const TvWall: SymbolComponent = (p) => {
+  const { w, d, lineUnit } = p;
+  return (
+    <Sym p={p}>
+      <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
+      <g data-thick="1" strokeWidth={3 * lineUnit} strokeLinecap="butt">
+        <Line x1={-w / 2} y1={-d / 2 + (1.5 * lineUnit) / 2} x2={w / 2} y2={-d / 2 + (1.5 * lineUnit) / 2} />
+      </g>
+      <Line x1={-w / 2} y1={d / 2} x2={w / 2} y2={d / 2} dashed={dash(lineUnit)} />
+    </Sym>
+  );
+};
+
+/** Wall shelf: thin rectangle with a bracket tick near each end. */
+const ShelfWall: SymbolComponent = (p) => {
+  const { w, d } = p;
+  const bx = w * 0.18;
+  return (
+    <Sym p={p}>
+      <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
+      <Line x1={-w / 2 + bx} y1={-d / 2} x2={-w / 2 + bx} y2={d / 2} />
+      <Line x1={w / 2 - bx} y1={-d / 2} x2={w / 2 - bx} y2={d / 2} />
+    </Sym>
+  );
+};
+
+/** Round rug: ellipse (from w and d) with two concentric rings. */
+const RugRound: SymbolComponent = (p) => (
+  <Sym p={p}>
+    <ellipse cx={0} cy={0} rx={p.w / 2} ry={p.d / 2} fill={p.fill} />
+    <ellipse cx={0} cy={0} rx={(p.w / 2) * 0.82} ry={(p.d / 2) * 0.82} />
+    <ellipse cx={0} cy={0} rx={(p.w / 2) * 0.55} ry={(p.d / 2) * 0.55} />
+  </Sym>
+);
+
+/** Rectangular rug: inner border and fringe ticks along the two short ends. */
+const RugRect: SymbolComponent = (p) => {
+  const { w, d } = p;
+  const hw = w / 2;
+  const hd = d / 2;
+  const f = Math.min(w, d) * 0.06;
+  const alongX = w >= d; // short ends are the left and right sides, else the back and front sides
+  const n = clamp(Math.round(Math.min(w, d) / 10), 2, 40);
+  const ticks: JSX.Element[] = [];
+  for (let i = 0; i < n; i++) {
+    if (alongX) {
+      const y = -hd + ((i + 0.5) * d) / n;
+      ticks.push(<Line key={`a${i}`} x1={-hw} y1={y} x2={-hw + f} y2={y} />);
+      ticks.push(<Line key={`b${i}`} x1={hw} y1={y} x2={hw - f} y2={y} />);
+    } else {
+      const x = -hw + ((i + 0.5) * w) / n;
+      ticks.push(<Line key={`a${i}`} x1={x} y1={-hd} x2={x} y2={-hd + f} />);
+      ticks.push(<Line key={`b${i}`} x1={x} y1={hd} x2={x} y2={hd - f} />);
+    }
+  }
+  return (
+    <Sym p={p}>
+      <Box x={-hw} y={-hd} w={w} h={d} fill={p.fill} />
+      <Box x={-hw + f} y={-hd + f} w={w - 2 * f} h={d - 2 * f} />
+      <g data-fringe="1">{ticks}</g>
+    </Sym>
+  );
+};
+
+/** Plant: pot disc with six leaves (rotated ellipses, sized from the smaller side). */
+const Plant: SymbolComponent = (p) => {
+  const r = Math.min(p.w, p.d) / 2;
+  const leaves: JSX.Element[] = [];
+  for (let i = 0; i < 6; i++) {
+    leaves.push(
+      <ellipse key={i} data-leaf="1" cx={0} cy={-r * 0.5} rx={r * 0.24} ry={r * 0.5} transform={`rotate(${i * 60})`} />,
+    );
+  }
+  return (
+    <Sym p={p}>
+      <ellipse cx={0} cy={0} rx={p.w / 2} ry={p.d / 2} fill={p.fill} />
+      {leaves}
+      <ellipse cx={0} cy={0} rx={r * 0.12} ry={r * 0.12} fill={p.stroke} />
+    </Sym>
+  );
+};
+
+/** Bedside lamp: disc with a cross (shade seen from above). */
+const BedsideLamp: SymbolComponent = (p) => {
+  const rx = p.w / 2;
+  const ry = p.d / 2;
+  return (
+    <Sym p={p}>
+      <ellipse cx={0} cy={0} rx={rx} ry={ry} fill={p.fill} />
+      <g data-cross="1">
+        <Line x1={-rx * 0.6} y1={0} x2={rx * 0.6} y2={0} />
+        <Line x1={0} y1={-ry * 0.6} x2={0} y2={ry * 0.6} />
+      </g>
+    </Sym>
+  );
+};
+
+/** Microwave: body, inner frame, door window on the left and a handle line on the right. */
+const Microwave: SymbolComponent = (p) => {
+  const { w, d } = p;
+  const m = Math.min(w, d) * 0.1;
+  const iw = w - 2 * m;
+  const ih = d - 2 * m;
+  const ww = iw * 0.66;
+  return (
+    <Sym p={p}>
+      <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
+      <Box x={-w / 2 + m} y={-d / 2 + m} w={iw} h={ih} />
+      <g data-window="1">
+        <Box x={-w / 2 + m * 1.6} y={-d / 2 + m * 1.6} w={ww - m * 0.6} h={ih - m * 1.2} rx={m * 0.3} />
+      </g>
+      <g data-handle="1">
+        <Line x1={w / 2 - m * 1.6} y1={-d / 2 + m * 1.6} x2={w / 2 - m * 1.6} y2={d / 2 - m * 1.6} />
+      </g>
+    </Sym>
+  );
+};
+
+/** Pouf: disc with a dashed seam ring and a center button. */
+const Pouf: SymbolComponent = (p) => {
+  const rx = p.w / 2;
+  const ry = p.d / 2;
+  return (
+    <Sym p={p}>
+      <ellipse cx={0} cy={0} rx={rx} ry={ry} fill={p.fill} />
+      <ellipse data-seam="1" cx={0} cy={0} rx={rx * 0.78} ry={ry * 0.78} strokeDasharray={dash(p.lineUnit)} />
+      <ellipse cx={0} cy={0} rx={Math.min(rx, ry) * 0.1} ry={Math.min(rx, ry) * 0.1} fill={p.stroke} />
+    </Sym>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 
@@ -564,6 +720,15 @@ export const SYMBOLS: Record<string, SymbolComponent> = {
   'washing-machine': appliance('LL'),
   'stairs-straight': StairsStraight,
   'stairs-quarter': StairsQuarter,
+  tv: Tv,
+  'tv-wall': TvWall,
+  'shelf-wall': ShelfWall,
+  'rug-round': RugRound,
+  'rug-rect': RugRect,
+  plant: Plant,
+  'bedside-lamp': BedsideLamp,
+  microwave: Microwave,
+  pouf: Pouf,
 };
 
 /**

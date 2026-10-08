@@ -28,6 +28,8 @@ export interface CatalogEntry {
   pose: ObjectPose;
   /** Tables and desks: 'tuckable' objects may stand under them. */
   acceptsUnder?: boolean;
+  /** Default height of the underside (cm) of a new object; absent means 0. Wall-mounted entries only. */
+  elevation?: number;
 }
 
 const BEDROOM = '#d9c8b4';
@@ -46,9 +48,21 @@ function sym(
   depth: number,
   height: number,
   color: string,
-  extra: { pose?: ObjectPose; acceptsUnder?: boolean } = {},
+  extra: { pose?: ObjectPose; acceptsUnder?: boolean; elevation?: number } = {},
 ): CatalogEntry {
-  return { id, name, category, width, depth, height, color, shape: 'symbol', pose: extra.pose ?? 'floor', ...(extra.acceptsUnder ? { acceptsUnder: true } : {}) };
+  return {
+    id,
+    name,
+    category,
+    width,
+    depth,
+    height,
+    color,
+    shape: 'symbol',
+    pose: extra.pose ?? 'floor',
+    ...(extra.acceptsUnder ? { acceptsUnder: true } : {}),
+    ...(extra.elevation !== undefined ? { elevation: extra.elevation } : {}),
+  };
 }
 const UNDER = { acceptsUnder: true } as const;
 
@@ -62,6 +76,7 @@ export const CATALOG: CatalogEntry[] = [
   sym('wardrobe', 'Armoire', 'Chambre', 120, 60, 200, BEDROOM),
   sym('dresser', 'Commode', 'Chambre', 100, 50, 85, BEDROOM),
   sym('crib', 'Berceau', 'Chambre', 60, 120, 90, BEDROOM),
+  sym('bedside-lamp', 'Lampe de chevet', 'Chambre', 25, 25, 45, BEDROOM, { pose: 'onTop' }),
   // Sejour
   sym('sofa-2', 'Canapé 2 places', 'Séjour', 160, 90, 85, LIVING),
   sym('sofa-3', 'Canapé 3 places', 'Séjour', 210, 95, 85, LIVING),
@@ -71,6 +86,13 @@ export const CATALOG: CatalogEntry[] = [
   sym('tv-unit', 'Meuble TV', 'Séjour', 160, 45, 50, LIVING),
   sym('bookcase', 'Bibliothèque', 'Séjour', 100, 35, 200, LIVING),
   sym('display-cabinet', 'Vitrine', 'Séjour', 100, 45, 180, LIVING),
+  sym('tv', 'TV', 'Séjour', 100, 20, 60, LIVING, { pose: 'onTop' }),
+  sym('tv-wall', 'TV murale', 'Séjour', 110, 8, 65, LIVING, { pose: 'wall', elevation: 110 }),
+  sym('shelf-wall', 'Étagère murale', 'Séjour', 80, 25, 3, LIVING, { pose: 'wall', elevation: 150 }),
+  sym('rug-round', 'Tapis rond', 'Séjour', 120, 120, 1, LIVING, { pose: 'covering' }),
+  sym('rug-rect', 'Tapis', 'Séjour', 170, 120, 1, LIVING, { pose: 'covering' }),
+  sym('plant', 'Plante', 'Séjour', 40, 40, 90, LIVING),
+  sym('pouf', 'Pouf', 'Séjour', 50, 50, 40, LIVING, { pose: 'tuckable' }),
   // Bureau et repas
   sym('desk', 'Bureau', 'Bureau et repas', 140, 70, 75, DINING, UNDER),
   sym('chair', 'Chaise', 'Bureau et repas', 45, 50, 90, DINING, { pose: 'tuckable' }),
@@ -82,6 +104,7 @@ export const CATALOG: CatalogEntry[] = [
   sym('cooktop', 'Plaque de cuisson', 'Cuisine', 60, 60, 90, KITCHEN),
   sym('fridge', 'Réfrigérateur', 'Cuisine', 60, 65, 180, KITCHEN),
   sym('dishwasher', 'Lave-vaisselle', 'Cuisine', 60, 60, 85, KITCHEN),
+  sym('microwave', 'Micro-ondes', 'Cuisine', 50, 40, 30, KITCHEN, { pose: 'onTop' }),
   // Salle de bain
   sym('wc', 'WC', 'Salle de bain', 40, 65, 80, BATH),
   sym('washbasin', 'Lavabo', 'Salle de bain', 60, 45, 85, BATH),
