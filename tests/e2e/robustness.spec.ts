@@ -48,7 +48,7 @@ async function storeBrokenCopy(page: Page, source: string, name: string, door: b
   );
 }
 
-test('the reported plan is drawn, and broken plans neither blank the home screen nor the editor', async ({ page }) => {
+test('the reported plan is drawn, and broken plans neither blank the home screen nor the editor', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await createProject(page, 'Exact');
@@ -68,12 +68,14 @@ test('the reported plan is drawn, and broken plans neither blank the home screen
   await expect(projectItem(page, 'Cassé').getByTestId('project-thumb-error')).toHaveText('Aperçu indisponible');
   await expect(projectItem(page, 'Exact').locator('[data-testid="project-thumb"] svg')).toHaveCount(1);
   await expect(projectItem(page, 'Abîmé').locator('[data-testid="project-thumb"] svg')).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath('home-broken-thumbnail.png') });
 
   // a plan whose geometry is partly broken opens with the walls it can draw and the notice
   await projectItem(page, 'Abîmé').getByRole('button', { name: 'Ouvrir' }).click();
   await expect(page.getByTestId('editor')).toBeVisible();
   await expect(page.getByTestId('geometry-degraded')).toHaveText('Géométrie complexe : affichage simplifié.');
   await expect(page.locator('[data-kind="wall-shape"][data-degraded="true"] path')).not.toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('editor-degraded-notice.png') });
   await page.getByTestId('back-to-projects').click();
 
   // a plan that cannot be drawn at all: the editor stays usable and leads back to the projects
@@ -81,6 +83,7 @@ test('the reported plan is drawn, and broken plans neither blank the home screen
   const fallback = page.getByTestId('plan-error');
   await expect(fallback).toContainText('Le plan ne peut pas être affiché.');
   await expect(page.getByTestId('editor')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('editor-plan-error.png') });
   await fallback.getByRole('button', { name: 'Retour aux projets' }).click();
   await expect(page.getByTestId('home')).toBeVisible();
   await expect(page.getByTestId('project-item')).toHaveCount(3);
