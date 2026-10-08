@@ -1,5 +1,5 @@
 import type { PolygonWithHoles, Ring, Vec2 } from '../model/types';
-import { cross, deg2rad, dist, dot, len, projectOnSegment, rotate, sub } from './vec';
+import { cross, deg2rad, dist, dot, len, projectOnSegment, rotate, segmentIntersection, sub } from './vec';
 
 /** Shoelace formula; sign depends on ring orientation. */
 export function signedArea(r: Ring): number {
@@ -103,4 +103,31 @@ export function mergeCollinear(r: Ring, eps = 1e-6): Ring {
     }
   }
   return pts;
+}
+
+/**
+ * Vertices of the intersection of the rings, without building it: the vertices of each ring that
+ * lie in all the others, and the crossings of edges of two rings that lie in all the others
+ * (points within eps of a boundary count as inside). The minimum of a function that reaches its
+ * minimum over a polygon at a vertex is the minimum over these points. Duplicates are possible.
+ */
+export function intersectionVertices(rings: Ring[], eps = 1e-7): Vec2[] {
+  const inside = (p: Vec2, skip: (k: number) => boolean): boolean =>
+    rings.every((r, k) => skip(k) || pointInRing(p, r) || distanceToRing(p, r) <= eps);
+  const out: Vec2[] = [];
+  rings.forEach((r, i) => {
+    for (const p of r) if (inside(p, (k) => k === i)) out.push(p);
+  });
+  const edges = rings.map(ringEdges);
+  for (let i = 0; i < rings.length; i++) {
+    for (let j = i + 1; j < rings.length; j++) {
+      for (const [a, b] of edges[i] as [Vec2, Vec2][]) {
+        for (const [c, d] of edges[j] as [Vec2, Vec2][]) {
+          const x = segmentIntersection(a, b, c, d);
+          if (x && inside(x.point, (k) => k === i || k === j)) out.push(x.point);
+        }
+      }
+    }
+  }
+  return out;
 }
