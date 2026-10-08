@@ -56,3 +56,27 @@ export function reconcileOpenings(level: Draft<Level>): void {
     }
   }
 }
+
+export const CUPBOARDS_DO_NOT_FIT = 'Le mur est trop court pour ses placards';
+
+/**
+ * Makes every cupboard fit its wall again after the walls changed length (spec 4.4): its offset
+ * is clamped into [width / 2, wallLength - width / 2], so a cupboard that still fits never moves
+ * and one that went past the wall end is pulled back inside. Cupboards may overlap each other (a
+ * check reports it, not an invariant), so each one is handled on its own. Throws CommandError when
+ * a cupboard is wider than its wall. Every cupboard's wall must exist (removeWalls deletes the
+ * cupboards of the walls it removes).
+ */
+export function reconcileCupboards(level: Draft<Level>): void {
+  const lengths = new Map<Id, number>();
+  for (const c of Object.values(level.cupboards)) {
+    let len = lengths.get(c.wallId);
+    if (len === undefined) {
+      len = wallLength(level, c.wallId);
+      lengths.set(c.wallId, len);
+    }
+    if (c.width > len + EPS) throw new CommandError(CUPBOARDS_DO_NOT_FIT);
+    const off = Math.min(Math.max(c.offset, c.width / 2), len - c.width / 2);
+    if (Math.abs(off - c.offset) > CHANGE_EPS) c.offset = off;
+  }
+}

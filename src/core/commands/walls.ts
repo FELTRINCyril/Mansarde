@@ -1,12 +1,13 @@
 import type { Draft } from 'immer';
 import { MIN_WALL_LENGTH } from '../model/defaults';
 import { newId } from '../model/ids';
-import type { Id, Level, Vec2, Wall } from '../model/types';
-import { openingFitsWall } from '../geometry/openings';
-import { dist, lerp, projectOnSegment } from '../geometry/vec';
+import type { Cupboard, Id, Level, Opening, Vec2, Wall } from '../model/types';
+import { cupboardFitsWall } from '../geometry/cupboards';
+import { openingFitsWall, openingsOverlap } from '../geometry/openings';
+import { dist, dot, lerp, projectOnSegment, sub } from '../geometry/vec';
 import { wallFrame, wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
-import { reconcileOpenings } from './reconcile';
+import { reconcileCupboards, reconcileOpenings } from './reconcile';
 
 export type WallPoint =
   | { kind: 'node'; nodeId: Id }
@@ -16,6 +17,8 @@ export type WallPoint =
 /** A free point (or a split point) closer than this to an existing node reuses that node. */
 const NODE_REUSE_DISTANCE = 0.5; // cm
 const ON_SEGMENT_EPS = 1e-6;
+/** Smallest interior side of a room drawn by its interior (same minimum as setRoomInteriorSize). */
+const MIN_INTERIOR_SIDE = 10; // cm
 
 const ERR_WALL_NOT_FOUND = 'Mur introuvable';
 const ERR_NODE_NOT_FOUND = 'Nœud introuvable';
@@ -25,6 +28,7 @@ const ERR_THICKNESS = 'Épaisseur invalide';
 const ERR_HEIGHT = 'Hauteur invalide';
 const ERR_LENGTH = 'Longueur invalide';
 const ERR_STRADDLE = 'Une ouverture est à cheval sur la jonction';
+const ERR_CUPBOARD_STRADDLE = 'Un placard est à cheval sur la jonction';
 const ERR_MIN_POINTS = 'Il faut au moins deux points';
 const ERR_ROOM_TOO_SMALL = 'Pièce trop petite';
 const ERR_SELF_MERGE = 'Impossible de fusionner un nœud avec lui-même';
@@ -118,7 +122,7 @@ function removeOrphanNodes(level: DLevel, candidates: Iterable<Id>): void {
   }
 }
 
-/** Deletes walls and their openings, then the nodes left orphan (and dimensions anchored to them). */
+/** Deletes walls with their openings and cupboards, then the nodes left orphan (and dimensions anchored to them). */
 function removeWalls(level: DLevel, wallIds: Iterable<Id>): void {
   const ids = new Set(wallIds);
   const endpoints = new Set<Id>();
@@ -132,12 +136,16 @@ function removeWalls(level: DLevel, wallIds: Iterable<Id>): void {
   for (const o of Object.values(level.openings)) {
     if (ids.has(o.wallId)) delete level.openings[o.id];
   }
+  for (const c of Object.values(level.cupboards)) {
+    if (ids.has(c.wallId)) delete level.cupboards[c.id];
+  }
   removeOrphanNodes(level, endpoints);
 }
 
 /**
  * Splits a wall at t: the wall keeps its id and becomes the start piece, a new wall carries the
- * end piece. Openings go to the piece containing their center, offsets are recomputed.
+ * end piece. Openings and cupboards go to the piece containing their center, offsets are
+ * recomputed; one straddling the split point is refused.
  */
 /** `ids` fixes the ids of the split node and of the second piece (deterministic recipes); fresh ids otherwise. */
 function splitWallAt(level: DLevel, wallId: Id, t: number, ids?: { nodeId: Id; wallId: Id }): { nodeId: Id; newWallId: Id } {
@@ -162,22 +170,101 @@ function splitWallAt(level: DLevel, wallId: Id, t: number, ids?: { nodeId: Id; w
     }
     if (!openingFitsWall(o, o.wallId === wallId ? startLen : endLen)) throw new CommandError(ERR_STRADDLE);
   }
+  for (const c of Object.values(level.cupboards)) {
+    if (c.wallId !== wallId) continue;
+    if (c.offset > splitAt) {
+      c.wallId = newWallId;
+      c.offset -= splitAt;
+    }
+    if (!cupboardFitsWall(c, c.wallId === wallId ? startLen : endLen)) throw new CommandError(ERR_CUPBOARD_STRADDLE);
+  }
   return { nodeId, newWallId };
 }
 
-/** Moves nodes, checks the length of every affected wall, then reconciles openings. */
+/** Positions of the start and end nodes of the walls, before a change. */
+type WallEnds = Map<Id, { start: Vec2; end: Vec2 }>;
+
+function snapshotEnds(level: DLevel, wallIds: Iterable<Id>): WallEnds {
+  const out: WallEnds = new Map();
+  for (const id of wallIds) {
+    const f = wallFrame(level, id);
+    out.set(id, { start: f.start, end: f.end });
+  }
+  return out;
+}
+
+const samePoint = (a: Vec2, b: Vec2): boolean => a.x === b.x && a.y === b.y;
+
+/**
+ * Ruling V2-R12: offsets are measured from the start node, so when only the start node of a wall
+ * moved (a neighbour wall was moved, a node merged...), the openings and cupboards of that wall
+ * would slide with it. Their offset is compensated by the projection of the start displacement
+ * on the new wall direction, so that they keep their place along the wall. When the end node
+ * moved too (the wall itself is moved or reshaped), the offsets are kept: the items follow the
+ * wall. Reconciliation (clamp or refusal) comes after.
+ */
+function followStartMoves(level: DLevel, before: WallEnds): void {
+  for (const [wallId, old] of before) {
+    if (!Object.hasOwn(level.walls, wallId)) continue;
+    const f = wallFrame(level, wallId);
+    if (samePoint(f.start, old.start) || !samePoint(f.end, old.end)) continue;
+    const shift = dot(sub(f.start, old.start), f.dir);
+    if (shift === 0) continue;
+    for (const o of Object.values(level.openings)) if (o.wallId === wallId) o.offset -= shift;
+    for (const c of Object.values(level.cupboards)) if (c.wallId === wallId) c.offset -= shift;
+  }
+}
+
+/**
+ * Moves nodes, checks the length of every affected wall, keeps the items of walls whose start
+ * node moved in place (V2-R12), then reconciles openings and cupboards.
+ */
 function moveNodesIn(level: DLevel, moves: Array<{ nodeId: Id; to: Vec2 }>): void {
   for (const m of moves) {
     requireNode(level, m.nodeId);
     requireFinitePoint(m.to);
   }
+  const affected = wallsAt(level, new Set(moves.map((m) => m.nodeId)));
+  const before = snapshotEnds(level, affected);
   for (const m of moves) {
     const node = level.nodes[m.nodeId]!;
     node.x = m.to.x;
     node.y = m.to.y;
   }
-  requireMinLength(level, wallsAt(level, new Set(moves.map((m) => m.nodeId))));
+  requireMinLength(level, affected);
+  followStartMoves(level, before);
   reconcileOpenings(level);
+  reconcileCupboards(level);
+}
+
+/**
+ * Moves the openings and cupboards of a wall deleted as a duplicate onto the wall kept between the
+ * same nodes, when they fit there (offset, hinge, swing and face mirrored if the kept wall runs
+ * the other way); the others stay on the doomed wall and are deleted with it.
+ */
+function transferItems(level: DLevel, fromId: Id, toId: Id): void {
+  const from = level.walls[fromId]!;
+  const to = level.walls[toId]!;
+  const reversed = from.startNodeId !== to.startNodeId;
+  const len = wallLength(level, toId);
+  const flip = <T extends string>(v: T, a: T, b: T): T => (reversed ? (v === a ? b : a) : v);
+  for (const o of Object.values(level.openings)) {
+    if (o.wallId !== fromId) continue;
+    const moved: Opening = {
+      ...o,
+      wallId: toId,
+      offset: reversed ? len - o.offset : o.offset,
+      hinge: flip(o.hinge, 'start', 'end'),
+      swing: flip(o.swing, 'left', 'right'),
+    };
+    const blocked = Object.values(level.openings).some((other) => other.wallId === toId && openingsOverlap(moved, other));
+    if (openingFitsWall(moved, len) && !blocked) Object.assign(o, moved);
+  }
+  for (const c of Object.values(level.cupboards)) {
+    if (c.wallId !== fromId) continue;
+    const moved: Cupboard = { ...c, wallId: toId, offset: reversed ? len - c.offset : c.offset, side: flip(c.side, 'left', 'right') };
+    if (cupboardFitsWall(moved, len)) Object.assign(c, moved);
+  }
 }
 
 // ---------------------------------------------------------------- commands
@@ -272,6 +359,28 @@ export function addRectRoom(levelId: Id, a: Vec2, b: Vec2, thickness: number, he
   };
 }
 
+/**
+ * Rectangle room drawn by its interior (spec 6): a and b are opposite interior corners, the four
+ * walls stand outside, their axes thickness / 2 beyond each face. Same chain rules as addRectRoom
+ * (T junction when an axis corner lies on an existing wall).
+ */
+export function addRectRoomInterior(levelId: Id, a: Vec2, b: Vec2, thickness: number, height: number): Recipe {
+  return (draft) => {
+    getLevel(draft, levelId);
+    requireFinitePoint(a);
+    requireFinitePoint(b);
+    requirePositive(thickness, ERR_THICKNESS);
+    requirePositive(height, ERR_HEIGHT);
+    const x1 = Math.min(a.x, b.x);
+    const x2 = Math.max(a.x, b.x);
+    const y1 = Math.min(a.y, b.y);
+    const y2 = Math.max(a.y, b.y);
+    if (!(x2 - x1 >= MIN_INTERIOR_SIDE) || !(y2 - y1 >= MIN_INTERIOR_SIDE)) throw new CommandError(ERR_ROOM_TOO_SMALL);
+    const h = thickness / 2;
+    addRectRoom(levelId, { x: x1 - h, y: y1 - h }, { x: x2 + h, y: y2 + h }, thickness, height)(draft);
+  };
+}
+
 export function splitWall(levelId: Id, wallId: Id, t: number, out?: { nodeId: Id }): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
@@ -313,7 +422,9 @@ export function moveWalls(levelId: Id, wallIds: Id[], delta: Vec2): Recipe {
 
 /**
  * Rewires the walls of source to target and deletes source. Walls that become degenerate (both
- * ends on target) or duplicate an existing wall are deleted with their openings. Manual dimensions
+ * ends on target) are deleted with their openings and cupboards; a wall that duplicates an
+ * existing wall is deleted after handing its openings and cupboards that fit over to that wall.
+ * Items of walls whose start node was source keep their place (V2-R12). Manual dimensions
  * anchored to source follow it to target (those left with both anchors on target are deleted).
  */
 export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Recipe {
@@ -323,6 +434,7 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
     requireNode(level, targetNodeId);
     if (sourceNodeId === targetNodeId) throw new CommandError(ERR_SELF_MERGE);
 
+    const before = snapshotEnds(level, wallsAt(level, new Set([sourceNodeId])));
     const rewired: Id[] = [];
     for (const w of Object.values(level.walls)) {
       if (w.startNodeId === sourceNodeId) w.startNodeId = targetNodeId;
@@ -330,6 +442,7 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
       else continue;
       rewired.push(w.id);
     }
+    followStartMoves(level, before);
     const doomed = new Set<Id>();
     for (const id of rewired) {
       const w = level.walls[id]!;
@@ -339,7 +452,10 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
       if (doomed.has(id)) continue;
       const w = level.walls[id]!;
       const twin = wallBetween(level, w.startNodeId, w.endNodeId, id);
-      if (twin !== null && !doomed.has(twin)) doomed.add(id); // keep the wall that was already there
+      if (twin !== null && !doomed.has(twin)) {
+        doomed.add(id); // keep the wall that was already there
+        transferItems(level, id, twin);
+      }
     }
 
     delete level.nodes[sourceNodeId];
@@ -358,6 +474,7 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
       rewired.filter((id) => !doomed.has(id)),
     );
     reconcileOpenings(level);
+    reconcileCupboards(level);
     touch(draft);
   };
 }

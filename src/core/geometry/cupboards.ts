@@ -10,6 +10,13 @@ import { wallFrame } from './walls';
  */
 export interface CupboardFrame { wallId: Id; back: [Vec2, Vec2]; front: [Vec2, Vec2]; dir: Vec2; outward: Vec2; width: number; depth: number }
 
+const FIT_EPS = 1e-6; // same tolerance as openingFitsWall
+
+/** The cupboard lies within a wall of that length (spec 4.4), like openingFitsWall. */
+export function cupboardFitsWall(c: Pick<Cupboard, 'offset' | 'width'>, wallLen: number): boolean {
+  return c.offset - c.width / 2 >= -FIT_EPS && c.offset + c.width / 2 <= wallLen + FIT_EPS;
+}
+
 /** Throws if the wall of the cupboard (or one of its nodes) is missing. */
 export function cupboardFrame(level: Level, c: Cupboard): CupboardFrame {
   const f = wallFrame(level, c.wallId);
