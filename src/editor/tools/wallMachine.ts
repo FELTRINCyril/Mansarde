@@ -246,6 +246,19 @@ export function reduceWallTool(state: WallToolState, event: WallToolEvent, env: 
 }
 
 /**
+ * The addWallChain the tool would commit if the chain were finished on the previewed point (or
+ * as it is, without a preview segment): used to show a preview that would be refused in red.
+ * Null while idle or with fewer than 2 points.
+ */
+export function pendingChain(s: WallToolState, env: WallToolEnv): Extract<WallToolEffect, { type: 'commit' }> | null {
+  if (s.phase !== 'drawing') return null;
+  const points = s.hover && previewEnd(s) ? [...s.points, chainPointOf(s, s.hover).cp] : s.points;
+  if (points.length < 2) return null;
+  const thickness = s.partition || s.mods.meta ? env.partitionThickness : env.thickness;
+  return { type: 'commit', levelId: s.levelId, points: points.map((p) => p.wp), thickness, height: env.height };
+}
+
+/**
  * Overlay of the wall tool: the snapped cursor marker and its guides; while drawing, the chain and
  * the preview segment stroked with the wall thickness, the segment's length as a dynamic dimension
  * and a label with its angle and the thickness in use.

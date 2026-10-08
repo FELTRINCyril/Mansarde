@@ -120,7 +120,7 @@ export const ERR_GEOMETRY = 'Géométrie impossible à calculer pour cette modif
  * (a boolean operation failed even after its retries) while it was exact before. A level that was
  * already degraded (e.g. an imported file) stays editable, so that the user can repair it.
  */
-function degradesGeometry(before: Project, after: Project): boolean {
+export function degradesGeometry(before: Project, after: Project): boolean {
   return after.levels.some((level) => {
     if (before.levels.includes(level) || !deriveLevel(level).degraded) return false;
     const prev = before.levels.find((l) => l.id === level.id);
