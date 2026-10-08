@@ -144,8 +144,9 @@ describe('levelBounds', () => {
       expect(minY(withOpening({ swing: 'right', variant: 'double' }))).toBeCloseTo(-(10 + 41.5), 9);
     });
 
-    it('outward casement windows are included too', () => {
-      expect(minY(withOpening({ swing: 'right', variant: 'single', width: 120 }, 'window'))).toBeCloseTo(-(10 + 120), 9);
+    it('window leaves never grow the bounds, outward or not, single or double (R39)', () => {
+      expect(minY(withOpening({ swing: 'right', variant: 'single', width: 120 }, 'window'))).toBeCloseTo(-10, 9);
+      expect(minY(withOpening({ swing: 'right', variant: 'double', width: 120 }, 'window'))).toBeCloseTo(-10, 9);
     });
 
     it('inward doors, sliding and pocket doors, fixed windows and passages do not grow the bounds', () => {

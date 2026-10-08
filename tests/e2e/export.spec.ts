@@ -74,6 +74,32 @@ test('export dialog: scaled pdf and png of a project with accents', async ({ pag
   expect([...png.bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
 });
 
+test('export dialog: dimensions left out at the chosen scale are reported (R38)', async ({ page }, testInfo) => {
+  await createProject(page, 'Cotes');
+  await addScene(page, 400, 300);
+  const dialog = await openExport(page);
+  await page.getByTestId('export-format-A4').click();
+  await page.getByTestId('export-orientation-landscape').click();
+
+  // at 1/50 every automatic dimension is readable: no notice
+  await page.getByTestId('export-scale-50').click();
+  await expect(page.getByTestId('export-culled')).toHaveCount(0);
+  // at 1/200 some are left out (never the door width): the notice suggests 1/100
+  await page.getByTestId('export-scale-200').click();
+  const notice = page.getByTestId('export-culled');
+  await expect(notice).toHaveText(/^\d+ cotes? illisibles? à cette échelle (a|ont) été masquées?, essayez le 1\/100\.$/);
+  await dialog.screenshot({ path: testInfo.outputPath('dialog-pdf-culled.png') });
+  const pdf = await download(page, testInfo, () => page.getByTestId('export-run').click());
+  expect(pdf.bytes.subarray(0, 4).toString('latin1')).toBe('%PDF');
+
+  // without dimensions, nothing is left out
+  await openExport(page);
+  await page.getByTestId('export-scale-200').click();
+  await expect(page.getByTestId('export-culled')).toHaveCount(1);
+  await page.getByTestId('export-dims').uncheck();
+  await expect(page.getByTestId('export-culled')).toHaveCount(0);
+});
+
 test('export dialog: advice when the plan does not fit, with a one-click scale change', async ({ page }, testInfo) => {
   await createProject(page, "Maison d'été");
   await addScene(page, 1200, 900);

@@ -1,8 +1,11 @@
 import { useMemo, useState, type JSX } from 'react';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Level, Project } from '@/core/model/types';
+import { culledDimensions, culledDimsMessage } from '@/export/culledDims';
 import { exportFileName } from '@/export/fileName';
-import { ERR_EMPTY_LEVEL, SCALES, fits, levelBounds, suggestScale, type Orientation, type PageSpec, type PaperFormat } from '@/export/pageLayout';
+import {
+  ERR_EMPTY_LEVEL, PNG_LINE_UNIT, SCALES, fits, levelBounds, printLineUnit, suggestScale, type Orientation, type PageSpec, type PaperFormat,
+} from '@/export/pageLayout';
 import { exportPdf } from '@/export/pdf';
 import { exportPng } from '@/export/png';
 import { useEditor } from '@/editor/store';
@@ -84,13 +87,16 @@ export function ExportDialog(p: { projectStore: ProjectStore; onExportJson(proje
 
   const level = project?.levels.find((l) => l.id === levelId) ?? project?.levels[0];
   const bounds = useMemo(() => (level ? levelBounds(level, deriveLevel(level)) : null), [level]);
+  const dimMode = withDims ? displayDimMode : 'none';
+  const lineUnit = tab === 'pdf' ? printLineUnit(scale) : PNG_LINE_UNIT;
+  // automatic dimensions the export will leave out at this scale (ruling R38)
+  const culled = useMemo(() => (level && tab !== 'json' ? culledDimensions(level, dimMode, lineUnit) : 0), [level, dimMode, lineUnit, tab]);
   if (!project || !level) return null;
 
   const spec: PageSpec = { format, orientation, scale };
   const empty = bounds === null;
   const pdfFits = bounds !== null && fits(bounds, spec);
   const suggested = bounds !== null && !pdfFits ? suggestScale(bounds, format, orientation) : null;
-  const dimMode = withDims ? displayDimMode : 'none';
 
   const canExport = !busy && !empty && (tab === 'png' || pdfFits);
 
@@ -229,6 +235,11 @@ export function ExportDialog(p: { projectStore: ProjectStore; onExportJson(proje
                     Utiliser 1/{suggested}
                   </button>
                 )}
+              </div>
+            )}
+            {!empty && culled > 0 && (tab === 'png' || pdfFits) && (
+              <div className="export-message export-message-warn" role="status" data-testid="export-culled">
+                {culledDimsMessage(culled, tab === 'pdf' ? scale : null)}
               </div>
             )}
             {error && (

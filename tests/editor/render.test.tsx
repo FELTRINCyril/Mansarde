@@ -113,13 +113,16 @@ describe('PlanSvg', () => {
     expect(label).toMatch(/^<g[^>]*><rect data-kind="text-mask"[^>]*fill="#f4efe6"/);
   });
 
-  it('leaves out the automatic dimensions that would be unreadable when zoomed out, never the manual ones', () => {
+  it('leaves out the automatic dimensions that would be unreadable when zoomed out, never an opening width nor a manual one', () => {
     const near = render(sampleProject(), { lineUnit: 1 });
     expect(near).toContain('0,83 m');
-    // 5 cm per pixel: "0,83 m" (about 36 px) no longer fits on its 83 cm (17 px) line
+    expect(near).toMatch(/font-size="11"[^>]*>0,83 m</);
+    // 5 cm per pixel: "0,83 m" (about 36 px) no longer fits on its 83 cm (17 px) line; it is still
+    // drawn (R38), with the smallest text (11 px * 0.7 at 5 cm per px = 38.5)
     const far = render(sampleProject(), { lineUnit: 5, viewBox: { x: -500, y: -500, width: 1500, height: 1500 } });
-    expect(far).not.toContain('0,83 m');
+    expect(far).toMatch(/font-size="38.5"[^>]*>0,83 m</);
     expect(far).toContain('4,20 m'); // the facade still fits
+    expect(far).not.toContain('2,80 m'); // a room dimension is left out: its text would hit another text
     expect(far).toContain(`data-kind="dimension" data-id="${DIM_ID}"`);
     expect(far).not.toContain('NaN');
   });

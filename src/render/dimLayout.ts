@@ -16,17 +16,17 @@ export interface DimText { text: string; at: Vec2; angle: number; dy: number; fo
 
 /**
  * Text placement of a dimension (shared by DimLineView and the layout below): on the far side of
- * the line from the measured points, or between them and the line with `textInside`. Null for a
- * dimension of zero length.
+ * the line from the measured points, or between them and the line with `textInside`; `fontScale`
+ * shrinks the text (opening widths, see placeAutoDims). Null for a dimension of zero length.
  */
-export function dimText(dim: DimLine, lineUnit: number, textInside: boolean): DimText | null {
+export function dimText(dim: DimLine, lineUnit: number, textInside: boolean, fontScale = 1): DimText | null {
   if (!(dim.value > 1e-6)) return null;
   const [p, q] = dimLineEnds(dim);
   const u = normalize(sub(dim.b, dim.a));
   const n = normalize(perp(u));
   const side = Math.sign(dim.offset);
   const angle = readableAngle((angleOf(u) * 180) / Math.PI);
-  const fontSize = STYLE.dimText * lineUnit;
+  const fontSize = STYLE.dimText * lineUnit * fontScale;
   const textGap = STYLE.dimTextGap * lineUnit;
   // "up" of the turned text in world coordinates; the text goes above the line (negative dy) when
   // that is the wanted side, else it hangs below it (baseline one cap height further)
@@ -67,26 +67,84 @@ export function dimTextBox(t: DimText): Box {
 
 export const boxesOverlap = (a: Box, b: Box): boolean => a.minX < b.maxX && b.minX < a.maxX && a.minY < b.maxY && b.minY < a.maxY;
 
-const PRIORITY: Record<DimLine['kind'], number> = { manual: 0, dynamic: 0, facade: 1, room: 2, opening: 3 };
+/**
+ * Order in which automatic dimensions claim their place (ruling R38): opening widths first, they
+ * are never left out; then facades, then rooms (same kind: list order).
+ */
+const PRIORITY: Record<DimLine['kind'], number> = { manual: 0, dynamic: 0, opening: 1, facade: 2, room: 3 };
+
+/** Smallest text of an opening width, relative to the normal dimension text (about 2 mm at 1/100). */
+export const MIN_OPENING_FONT_SCALE = 0.7;
+const OPENING_FONT_SCALES = [1, 0.85, MIN_OPENING_FONT_SCALE];
+/** How far (in text lines) an opening width may be pushed away from its wall to find a free place. */
+const OPENING_OUTWARD_STEPS = [1, 2];
+
+/** How an automatic dimension is drawn: possibly moved away from its wall, possibly with a smaller text. */
+export interface DimPlacement { dim: DimLine; textInside: boolean; fontScale: number }
+
+/** The same dimension with its line `delta` further from the measured points. */
+const pushedOutward = (dim: DimLine, delta: number): DimLine => ({ ...dim, offset: dim.offset + Math.sign(dim.offset) * delta });
 
 /**
- * Which automatic dimensions are drawn: a dimension whose length is longer than its own line, or
- * whose text would overlap a text already placed (an obstacle such as a room label or a manual
- * dimension, or a dimension of higher priority: facades, then rooms, then openings; same kind:
- * list order), is left out. Zoomed in (or at a larger print scale) they come back.
+ * Where an opening width is drawn (ruling R38: never left out). In order: the largest text, down
+ * to MIN_OPENING_FONT_SCALE, that fits between the ticks without hitting a placed text; else the
+ * smallest text in place, wider than its line but clear of the others; else the smallest text
+ * pushed away from the wall by one or two text lines; else the smallest text in place anyway.
  */
-export function visibleAutoDims(dims: Array<{ dim: DimLine; textInside?: boolean }>, obstacles: Box[], lineUnit: number): boolean[] {
+function placeOpening(dim: DimLine, textInside: boolean, placed: Box[], lineUnit: number): { placement: DimPlacement; box: Box } | null {
+  const tryAt = (d: DimLine, fontScale: number, fitLine: boolean) => {
+    const t = dimText(d, lineUnit, textInside, fontScale);
+    if (!t || (fitLine && t.width > t.lineLength)) return null;
+    const box = dimTextBox(t);
+    return placed.some((b) => boxesOverlap(b, box)) ? null : { placement: { dim: d, textInside, fontScale }, box };
+  };
+  for (const scale of OPENING_FONT_SCALES) {
+    const r = tryAt(dim, scale, true);
+    if (r) return r;
+  }
+  const inPlace = tryAt(dim, MIN_OPENING_FONT_SCALE, false);
+  if (inPlace) return inPlace;
+  const t = dimText(dim, lineUnit, textInside, MIN_OPENING_FONT_SCALE);
+  if (!t) return null;
+  const line = CAP_HEIGHT * t.fontSize + STYLE.dimTextGap * lineUnit;
+  for (const k of OPENING_OUTWARD_STEPS) {
+    const r = tryAt(pushedOutward(dim, k * line), MIN_OPENING_FONT_SCALE, false);
+    if (r) return r;
+  }
+  return { placement: { dim, textInside, fontScale: MIN_OPENING_FONT_SCALE }, box: dimTextBox(t) };
+}
+
+/**
+ * Which automatic dimensions are drawn, and how (null = left out). Opening widths are always drawn
+ * (placeOpening). Any other dimension whose length is longer than its own line, or whose text would
+ * overlap a text already placed (an obstacle such as a room label or a manual dimension, or a
+ * dimension placed before it, see PRIORITY), is left out. Zoomed in (or at a larger print scale)
+ * they come back. A zero-length dimension is never drawn.
+ */
+export function placeAutoDims(
+  dims: Array<{ dim: DimLine; textInside?: boolean }>,
+  obstacles: Box[],
+  lineUnit: number,
+): Array<DimPlacement | null> {
   const placed = [...obstacles];
-  const visible = dims.map(() => false);
+  const out: Array<DimPlacement | null> = dims.map(() => null);
   const order = dims.map((_, i) => i).sort((i, j) => PRIORITY[dims[i]!.dim.kind] - PRIORITY[dims[j]!.dim.kind] || i - j);
   for (const i of order) {
     const { dim, textInside = false } = dims[i]!;
+    if (dim.kind === 'opening') {
+      const r = placeOpening(dim, textInside, placed, lineUnit);
+      if (r) {
+        placed.push(r.box);
+        out[i] = r.placement;
+      }
+      continue;
+    }
     const t = dimText(dim, lineUnit, textInside);
     if (!t || t.width > t.lineLength) continue;
     const box = dimTextBox(t);
     if (placed.some((b) => boxesOverlap(b, box))) continue;
     placed.push(box);
-    visible[i] = true;
+    out[i] = { dim, textInside, fontScale: 1 };
   }
-  return visible;
+  return out;
 }

@@ -3,15 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Level, Project } from '@/core/model/types';
 import { PlanSvg, type DimMode } from '@/render/PlanSvg';
-import { BLEED_PX, ERR_EMPTY_LEVEL, levelBounds } from './pageLayout';
+import { BLEED_PX, ERR_EMPTY_LEVEL, levelBounds, PNG_LINE_UNIT } from './pageLayout';
 
 /** Chromium canvas limits (side and area); beyond them toBlob silently yields nothing. */
 const MAX_SIDE_PX = 32767;
 const MAX_AREA_PX = 268_435_456;
 export const ERR_TOO_LARGE = 'Image trop grande : choisissez une résolution plus faible';
 
-/** At 1x one pixel is one centimeter; the plan is drawn like the screen at that zoom (lineUnit 1). */
-const LINE_UNIT = 1;
+const LINE_UNIT = PNG_LINE_UNIT;
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

@@ -69,13 +69,12 @@ export function suggestScale(b: BoundsCm, format: PaperFormat, o: Orientation): 
 }
 
 /**
- * Length of the swinging leaves of an opening (radius of their arcs), 0 when nothing swings out of
- * the wall: sliding and pocket doors, fixed and sliding windows, passages. Mirrors OpeningsLayer.
+ * Length of the swinging door leaves of an opening (radius of their arcs), 0 when nothing that
+ * counts for the print bounds swings out of the wall: sliding and pocket doors, passages, and every
+ * window (ruling R39: window arcs are drawn, thin and dashed, but may run into the margin).
  */
 function leafLength(o: Opening): number {
-  if (o.kind === 'door' && (o.variant === 'sliding' || o.variant === 'pocket')) return 0;
-  if (o.kind === 'window' && (o.variant === 'sliding' || o.variant === 'fixed')) return 0;
-  if (o.kind === 'passage') return 0;
+  if (o.kind !== 'door' || o.variant === 'sliding' || o.variant === 'pocket') return 0;
   return o.variant === 'double' ? o.width / 2 : o.width;
 }
 
@@ -89,7 +88,7 @@ function swingExtent(level: Level, o: Opening): Vec2[] {
 }
 
 /**
- * Bounds of what is printed: wall outlines, door and window swing arcs, object corners and manual
+ * Bounds of what is printed: wall outlines, door swing arcs (not window ones, R39), object corners and manual
  * dimensions (anchors and the drawn, offset line), grown by marginCm on every side. The background
  * image is excluded. Null for a level with nothing to print.
  */
@@ -115,6 +114,9 @@ export function levelBounds(level: Level, d: DerivedLevel, marginCm = 60): Bound
     maxY: b.maxY + marginCm,
   };
 }
+
+/** PNG export: at 1x one pixel is one centimeter; the plan is drawn like the screen at that zoom (lineUnit 1). */
+export const PNG_LINE_UNIT = 1;
 
 /** 0.25 mm on paper expressed in world cm at 1/scale: 0.025 * scale. */
 export function printLineUnit(scale: number): number {

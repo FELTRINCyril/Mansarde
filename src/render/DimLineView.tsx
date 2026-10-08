@@ -25,6 +25,7 @@ export function DimLineView({
   kind,
   id,
   textInside = false,
+  fontScale = 1,
   maskColor = STYLE.paper,
 }: {
   dim: DimLine;
@@ -33,9 +34,11 @@ export function DimLineView({
   kind: string;
   id: string;
   textInside?: boolean;
+  /** Text size relative to the normal dimension text (an opening width may be shrunk, R38). */
+  fontScale?: number;
   maskColor?: string;
 }): JSX.Element | null {
-  const t = dimText(dim, lineUnit, textInside);
+  const t = dimText(dim, lineUnit, textInside, fontScale);
   if (!t) return null;
   const [p, q] = dimLineEnds(dim);
   const u = normalize(sub(dim.b, dim.a));

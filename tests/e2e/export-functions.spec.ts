@@ -57,6 +57,35 @@ test('pdf: A4 landscape at 1/50, with accents in the names', async ({ page }, te
   expect((h! / 72) * 25.4).toBeCloseTo(210, 6);
 });
 
+test('pdf: at 1/100 the opening widths are kept, other unreadable dimensions left out (R38)', async ({ page }, testInfo) => {
+  const out = await page.evaluate(async (m) => {
+    const { exportPdf }: PdfModule = await import(m.pdf);
+    const { buildSampleProject }: SampleModule = await import(m.sample);
+    const layoutPath = '/src/render/dimensionsLayout.ts';
+    const derivedPath = '/src/core/geometry/derived.ts';
+    const { layoutDimensions } = await import(/* @vite-ignore */ layoutPath);
+    const { deriveLevel } = await import(/* @vite-ignore */ derivedPath);
+    const project = buildSampleProject();
+    const level = project.levels[0]!;
+    const blob = await exportPdf({
+      project,
+      level,
+      spec: { format: 'A4', orientation: 'portrait', scale: 100 },
+      imageDataUrls: {},
+      date: new Date(2026, 9, 7),
+      dimMode: 'all',
+    });
+    (window as SampleWindow).__samples = { 'sample-a4-portrait-1-100.pdf': blob };
+    const layout = layoutDimensions(level, deriveLevel(level), 'all', 0.025 * 100);
+    const openings = layout.auto.filter((p: { dim: { kind: string } } | null) => p?.dim.kind === 'opening').length;
+    return { head: (await blob.text()).slice(0, 5), openings, expected: Object.keys(level.openings).length, culled: layout.culled };
+  }, M);
+  await saveSample(page, testInfo, 'sample-a4-portrait-1-100.pdf');
+  expect(out.head).toBe('%PDF-');
+  expect(out.openings).toBe(out.expected);
+  expect(out.culled).toBeGreaterThan(0);
+});
+
 test('pdf: rejects a plan that does not fit the page at that scale', async ({ page }) => {
   const message = await page.evaluate(async (m) => {
     const { exportPdf }: PdfModule = await import(m.pdf);
