@@ -6,7 +6,7 @@ import { openingFitsWall } from '../geometry/openings';
 import { dist, lerp, projectOnSegment } from '../geometry/vec';
 import { wallFrame, wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
-import { reconcileOpenings } from './reconcile';
+import { reconcileCupboards, reconcileOpenings } from './reconcile';
 
 export type WallPoint =
   | { kind: 'node'; nodeId: Id }
@@ -16,6 +16,7 @@ export type WallPoint =
 /** A free point (or a split point) closer than this to an existing node reuses that node. */
 const NODE_REUSE_DISTANCE = 0.5; // cm
 const ON_SEGMENT_EPS = 1e-6;
+const FIT_EPS = 1e-6; // same tolerance as openingFitsWall
 
 const ERR_WALL_NOT_FOUND = 'Mur introuvable';
 const ERR_NODE_NOT_FOUND = 'Nœud introuvable';
@@ -25,6 +26,7 @@ const ERR_THICKNESS = 'Épaisseur invalide';
 const ERR_HEIGHT = 'Hauteur invalide';
 const ERR_LENGTH = 'Longueur invalide';
 const ERR_STRADDLE = 'Une ouverture est à cheval sur la jonction';
+const ERR_CUPBOARD_STRADDLE = 'Un placard est à cheval sur la jonction';
 const ERR_MIN_POINTS = 'Il faut au moins deux points';
 const ERR_ROOM_TOO_SMALL = 'Pièce trop petite';
 const ERR_SELF_MERGE = 'Impossible de fusionner un nœud avec lui-même';
@@ -118,7 +120,7 @@ function removeOrphanNodes(level: DLevel, candidates: Iterable<Id>): void {
   }
 }
 
-/** Deletes walls and their openings, then the nodes left orphan (and dimensions anchored to them). */
+/** Deletes walls with their openings and cupboards, then the nodes left orphan (and dimensions anchored to them). */
 function removeWalls(level: DLevel, wallIds: Iterable<Id>): void {
   const ids = new Set(wallIds);
   const endpoints = new Set<Id>();
@@ -132,12 +134,16 @@ function removeWalls(level: DLevel, wallIds: Iterable<Id>): void {
   for (const o of Object.values(level.openings)) {
     if (ids.has(o.wallId)) delete level.openings[o.id];
   }
+  for (const c of Object.values(level.cupboards)) {
+    if (ids.has(c.wallId)) delete level.cupboards[c.id];
+  }
   removeOrphanNodes(level, endpoints);
 }
 
 /**
  * Splits a wall at t: the wall keeps its id and becomes the start piece, a new wall carries the
- * end piece. Openings go to the piece containing their center, offsets are recomputed.
+ * end piece. Openings and cupboards go to the piece containing their center, offsets are
+ * recomputed; one straddling the split point is refused.
  */
 /** `ids` fixes the ids of the split node and of the second piece (deterministic recipes); fresh ids otherwise. */
 function splitWallAt(level: DLevel, wallId: Id, t: number, ids?: { nodeId: Id; wallId: Id }): { nodeId: Id; newWallId: Id } {
@@ -162,10 +168,19 @@ function splitWallAt(level: DLevel, wallId: Id, t: number, ids?: { nodeId: Id; w
     }
     if (!openingFitsWall(o, o.wallId === wallId ? startLen : endLen)) throw new CommandError(ERR_STRADDLE);
   }
+  for (const c of Object.values(level.cupboards)) {
+    if (c.wallId !== wallId) continue;
+    if (c.offset > splitAt) {
+      c.wallId = newWallId;
+      c.offset -= splitAt;
+    }
+    const len = c.wallId === wallId ? startLen : endLen;
+    if (c.offset - c.width / 2 < -FIT_EPS || c.offset + c.width / 2 > len + FIT_EPS) throw new CommandError(ERR_CUPBOARD_STRADDLE);
+  }
   return { nodeId, newWallId };
 }
 
-/** Moves nodes, checks the length of every affected wall, then reconciles openings. */
+/** Moves nodes, checks the length of every affected wall, then reconciles openings and cupboards. */
 function moveNodesIn(level: DLevel, moves: Array<{ nodeId: Id; to: Vec2 }>): void {
   for (const m of moves) {
     requireNode(level, m.nodeId);
@@ -178,6 +193,7 @@ function moveNodesIn(level: DLevel, moves: Array<{ nodeId: Id; to: Vec2 }>): voi
   }
   requireMinLength(level, wallsAt(level, new Set(moves.map((m) => m.nodeId))));
   reconcileOpenings(level);
+  reconcileCupboards(level);
 }
 
 // ---------------------------------------------------------------- commands
@@ -272,6 +288,28 @@ export function addRectRoom(levelId: Id, a: Vec2, b: Vec2, thickness: number, he
   };
 }
 
+/**
+ * Rectangle room drawn by its interior (spec 6): a and b are opposite interior corners, the four
+ * walls stand outside, their axes thickness / 2 beyond each face. Same chain rules as addRectRoom
+ * (T junction when an axis corner lies on an existing wall).
+ */
+export function addRectRoomInterior(levelId: Id, a: Vec2, b: Vec2, thickness: number, height: number): Recipe {
+  return (draft) => {
+    getLevel(draft, levelId);
+    requireFinitePoint(a);
+    requireFinitePoint(b);
+    requirePositive(thickness, ERR_THICKNESS);
+    requirePositive(height, ERR_HEIGHT);
+    const x1 = Math.min(a.x, b.x);
+    const x2 = Math.max(a.x, b.x);
+    const y1 = Math.min(a.y, b.y);
+    const y2 = Math.max(a.y, b.y);
+    if (!(x2 - x1 >= MIN_WALL_LENGTH) || !(y2 - y1 >= MIN_WALL_LENGTH)) throw new CommandError(ERR_ROOM_TOO_SMALL);
+    const h = thickness / 2;
+    addRectRoom(levelId, { x: x1 - h, y: y1 - h }, { x: x2 + h, y: y2 + h }, thickness, height)(draft);
+  };
+}
+
 export function splitWall(levelId: Id, wallId: Id, t: number, out?: { nodeId: Id }): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
@@ -358,6 +396,7 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
       rewired.filter((id) => !doomed.has(id)),
     );
     reconcileOpenings(level);
+    reconcileCupboards(level);
     touch(draft);
   };
 }

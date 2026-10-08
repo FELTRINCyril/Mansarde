@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CATALOG, getCatalogEntry } from '@/catalog/catalog';
 import { validateProject } from '@/core/commands/validate';
 import { cloneLevelWithNewIds, cloneProjectWithNewIds } from '@/core/model/clone';
-import { BEAM_DEFAULTS, CUPBOARD_DEFAULTS, DEFAULT_SETTINGS, SLOPE_DEFAULT_END, doorCountFor } from '@/core/model/defaults';
+import { BEAM_DEFAULTS, CUPBOARD_DEFAULTS, DEFAULT_SETTINGS, MAX_CUPBOARD_DOORS, SLOPE_DEFAULT_END, doorCountFor } from '@/core/model/defaults';
 import { createBeam, createCupboard, createLevel, createObjectFromSize, createProject, createSlope } from '@/core/model/factory';
 import type { Level, ObjectPose, Project } from '@/core/model/types';
 import { parseImport, serializeExport } from '@/core/persistence/exchange';
@@ -70,6 +70,12 @@ describe('V2 factories and defaults', () => {
     expect(doorCountFor(120)).toBe(2);
     expect(doorCountFor(150)).toBe(3); // 2.73
     expect(doorCountFor(220)).toBe(4);
+  });
+
+  it('doorCountFor never exceeds MAX_CUPBOARD_DOORS (ruling V2-R2)', () => {
+    expect(doorCountFor(55 * 20)).toBe(20);
+    expect(doorCountFor(55 * 21)).toBe(MAX_CUPBOARD_DOORS);
+    expect(doorCountFor(100000)).toBe(MAX_CUPBOARD_DOORS);
   });
 
   it('createCupboard uses the defaults and computes the door count from the width', () => {
