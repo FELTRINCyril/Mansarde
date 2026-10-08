@@ -102,20 +102,42 @@ describe('intersectionVertices', () => {
   });
 });
 
-describe('ceilingUnder without polygon-clipping intersection', () => {
-  it('stays exact through the vertex enumeration fallback', () => {
+describe('ceilingUnder and polygon-clipping', () => {
+  it('rectangle, L and circle footprints never call polygon-clipping (convex clipping, ruling V2-R6)', () => {
     const level = chambre();
-    const b = createBeam({ x: 290, y: 450 }, { x: 390, y: 450 }, { width: 40, drop: 15, mode: 'ceiling' });
+    level.beams.b = { ...createBeam({ x: 290, y: 450 }, { x: 390, y: 450 }, { width: 40, drop: 15, mode: 'ceiling' }), id: 'b' };
     ctl.fail = true;
-    const straddle = ceilingUnder(level, rect(180, 0, 260, 60));
+    expect(ceilingUnder(level, rect(180, 0, 260, 60)).height).toBeCloseTo(240 - (63 * 90) / 203, 9);
+    expect(ceilingUnder(level, triangle).height).toBeCloseTo(hx(340) - 15, 6);
+    const l: Ring = [
+      { x: 180, y: 0 },
+      { x: 300, y: 0 },
+      { x: 300, y: 20 },
+      { x: 220, y: 20 },
+      { x: 220, y: 60 },
+      { x: 180, y: 60 },
+    ];
+    expect(ceilingUnder(level, l).height).toBeCloseTo(hx(300), 9);
+    const circle = Array.from({ length: 32 }, (_, k) => ({ x: 250 + 30 * Math.cos((k * Math.PI) / 16), y: 200 + 30 * Math.sin((k * Math.PI) / 16) }));
+    expect(ceilingUnder(level, circle).height).toBeCloseTo(hx(280), 9);
+    expect(ctl.calls).toBe(0);
+  });
+
+  it('a self-intersecting footprint goes through polygon-clipping, then the vertex enumeration', () => {
+    const level = chambre();
+    // bow tie (180, 0) (260, 60) (260, 0) (180, 60): its right lobe reaches x = 260
+    const bowTie: Ring = [
+      { x: 180, y: 0 },
+      { x: 260, y: 60 },
+      { x: 260, y: 0 },
+      { x: 180, y: 60 },
+    ];
+    // unequal lobes so that the ring has a signed area
+    bowTie[3] = { x: 170, y: 70 };
+    const expected = 240 - (63 * 90) / 203;
+    expect(ceilingUnder(level, bowTie).height).toBeCloseTo(expected, 9);
     expect(ctl.calls).toBeGreaterThan(0);
-    expect(straddle.height).toBeCloseTo(240 - (63 * 90) / 203, 9);
-    expect(straddle.at.x).toBe(260);
-    const slant = ceilingUnder(level, triangle);
-    expect(slant.height).toBeCloseTo(hx(340), 6);
-    level.beams[b.id] = b;
-    const under = ceilingUnder(level, triangle);
-    expect(under.height).toBeCloseTo(hx(340) - 15, 6);
-    expect(under.at.x).toBeCloseTo(340, 6);
+    ctl.fail = true;
+    expect(ceilingUnder(level, bowTie).height).toBeCloseTo(expected, 9);
   });
 });
