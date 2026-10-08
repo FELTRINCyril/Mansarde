@@ -171,9 +171,11 @@ Tous les éléments ont un identifiant unique (chaîne). Coordonnées et longueu
   - nœud à un seul mur : extrémité coupée droite ;
   - deux murs presque alignés (écart inférieur à 1°) : pas d'onglet, jonction droite ;
   - angle très aigu (moins de 15°) : l'onglet est tronqué pour éviter une pointe démesurée.
-- Le contour de chaque mur est un polygone ; tous les polygones d'un niveau sont **unis** en
-  une seule forme (bibliothèque de booléens). Les ouvertures sont ensuite **soustraites** de
-  cette forme pour le rendu.
+- Le contour de chaque mur (avec ses onglets) est un polygone simple, utilisé pour la sélection.
+  La forme d'un niveau est l'**union** des rectangles bruts des murs et des remplissages
+  d'angle côté extérieur (onglet ou biseau) : cette construction reste exacte avec des murs
+  d'épaisseurs très différentes, là où l'union des contours à onglets laissait des trous. Les
+  ouvertures sont ensuite **soustraites** de cette forme pour le rendu.
 
 ### 6.2 Détection des pièces
 - Les pièces sont les **trous** de l'union des contours de murs, calculée **sans** les

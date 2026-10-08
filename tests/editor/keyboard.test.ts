@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addObject } from '@/core/commands/objects';
 import { addRectRoom } from '@/core/commands/walls';
 import { createObjectFromSize } from '@/core/model/factory';
@@ -37,11 +37,55 @@ interface FakeKey {
 }
 const key = (k: FakeKey): KeyboardEvent =>
   ({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, repeat: false, defaultPrevented: false, target: null, ...k }) as unknown as KeyboardEvent;
-/** Mod key of the platform the tests run on (Cmd on macOS, Ctrl elsewhere): both are set. */
-const mod = (k: string, extra: Partial<FakeKey> = {}): KeyboardEvent => key({ key: k, metaKey: true, ctrlKey: true, ...extra });
+/** Cmd+key: the tests run as macOS (navigator stubbed below) unless a test says otherwise. */
+const mod = (k: string, extra: Partial<FakeKey> = {}): KeyboardEvent => key({ key: k, metaKey: true, ...extra });
+const ctrl = (k: string, extra: Partial<FakeKey> = {}): KeyboardEvent => key({ key: k, ctrlKey: true, ...extra });
+
+beforeEach(() => vi.stubGlobal('navigator', { platform: 'MacIntel' }));
+afterEach(() => vi.unstubAllGlobals());
 
 const objects = (store: EditorStore): PlacedObject[] => Object.values(store.getState().project!.levels[0]!.objects);
 const objectAt = (store: EditorStore, id: Id): PlacedObject => store.getState().project!.levels[0]!.objects[id]!;
+
+describe('isTypingTarget: only text-like inputs', () => {
+  const input = (type?: string) => ({ tagName: 'INPUT', type }) as unknown as EventTarget;
+
+  it('text-like input types are typing targets', () => {
+    for (const type of [undefined, '', 'text', 'search', 'number', 'email', 'url', 'tel', 'password', 'TEXT']) {
+      expect(isTypingTarget(input(type))).toBe(true);
+    }
+  });
+
+  it('checkbox, radio, buttons, range, color and file inputs are not', () => {
+    for (const type of ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file']) {
+      expect(isTypingTarget(input(type))).toBe(false);
+    }
+  });
+
+  it('shortcuts act while a checkbox or a color input has the focus', () => {
+    for (const type of ['checkbox', 'color']) {
+      const { store, ctx, id } = setup();
+      const target = { tagName: 'INPUT', type };
+      expect(handleGlobalKey(mod('z', { target }), store, ctx)).toBe(true);
+      expect(objects(store)).toHaveLength(0);
+      expect(handleGlobalKey(mod('z', { target, shiftKey: true }), store, ctx)).toBe(true);
+      expect(objects(store)).toHaveLength(1);
+      store.getState().setSelection([{ kind: 'object', id: objects(store)[0]!.id }]); // undo pruned it
+      expect(handleGlobalKey(key({ key: 'ArrowRight', target }), store, ctx)).toBe(true);
+      expect(objectAt(store, id).x).toBe(101);
+      expect(handleGlobalKey(key({ key: 'Delete', target }), store, ctx)).toBe(true);
+      expect(objects(store)).toHaveLength(0);
+    }
+  });
+
+  it('a focused slider or radio keeps its arrow keys', () => {
+    const { store, ctx, id } = setup();
+    for (const type of ['range', 'radio']) {
+      expect(handleGlobalKey(key({ key: 'ArrowRight', target: { tagName: 'INPUT', type } }), store, ctx)).toBe(false);
+    }
+    expect(objectAt(store, id).x).toBe(100);
+  });
+});
 
 describe('isTypingTarget', () => {
   it('recognizes fields and editable elements, not the rest', () => {
@@ -142,6 +186,41 @@ describe('handleGlobalKey', () => {
     for (const [k, tool] of expected) {
       expect(handleGlobalKey(key({ key: k }), store, ctx)).toBe(true);
       expect(store.getState().tool).toBe(tool);
+    }
+  });
+
+  it('maps Mod to Cmd on macOS: Ctrl+Z does nothing there', () => {
+    const { store, ctx } = setup();
+    expect(handleGlobalKey(ctrl('z'), store, ctx)).toBe(false);
+    expect(handleGlobalKey(ctrl('d'), store, ctx)).toBe(false);
+    expect(objects(store)).toHaveLength(1);
+    expect(handleGlobalKey(mod('z'), store, ctx)).toBe(true);
+    expect(objects(store)).toHaveLength(0);
+  });
+
+  it('maps Mod to Ctrl elsewhere: Cmd (Meta) + Z does nothing there', () => {
+    vi.stubGlobal('navigator', { platform: 'Win32' });
+    const { store, ctx } = setup();
+    expect(handleGlobalKey(mod('z'), store, ctx)).toBe(false);
+    expect(objects(store)).toHaveLength(1);
+    expect(handleGlobalKey(ctrl('z'), store, ctx)).toBe(true);
+    expect(objects(store)).toHaveLength(0);
+    expect(handleGlobalKey(ctrl('y'), store, ctx)).toBe(true);
+    expect(objects(store)).toHaveLength(1);
+  });
+
+  it('Mod+Z, Mod+Shift+Z and Mod+Y during a gesture only cancel it', () => {
+    for (const e of [mod('z'), mod('z', { shiftKey: true }), mod('y')]) {
+      const { store, ctx, levelId, id } = setup();
+      const entries = store.getState().history.past.length;
+      store.getState().beginGesture('Move');
+      store.getState().updateGesture((d) => {
+        d.levels.find((l) => l.id === levelId)!.objects[id]!.x = 300;
+      });
+      expect(handleGlobalKey(e, store, ctx)).toBe(true);
+      expect(store.getState().gesture).toBeNull();
+      expect(objectAt(store, id).x).toBe(100); // gesture abandoned, the object still exists
+      expect(store.getState().history.past.length).toBe(entries);
     }
   });
 

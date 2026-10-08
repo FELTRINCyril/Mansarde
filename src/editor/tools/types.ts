@@ -1,8 +1,12 @@
 import type { Ring, Vec2 } from '@/core/model/types';
 import type { createEditorStore, ToolId } from '../store';
+import { calibrateTool } from './calibrateTool';
+import { moveBackgroundTool } from './moveBackgroundTool';
+import { rectRoomTool } from './rectRoomTool';
 import { dimensionTool } from './dimensionTool';
 import { doorTool, windowTool } from './openingTool';
 import { selectTool } from './selectTool';
+import { wallTool } from './wallTool';
 
 /**
  * What a tool gets from the plan canvas (PlanCanvas builds it once). Tools never touch the DOM:
@@ -36,14 +40,31 @@ export interface Tool {
   onPointerMove?(e: PointerInfo, c: ToolContext): void;
   onPointerUp?(e: PointerInfo, c: ToolContext): void;
   onDoubleClick?(e: PointerInfo, c: ToolContext): void;
-  onKeyDown?(e: KeyboardEvent, c: ToolContext): boolean; // true = handled
+  /**
+   * true = handled. A tool that opens the numeric field (openNumericInput) for a typed digit MUST
+   * return true: PlanCanvas then preventDefaults the key, otherwise the digit would also be typed
+   * into the freshly focused field (twice in the field, once from `initial`).
+   */
+  onKeyDown?(e: KeyboardEvent, c: ToolContext): boolean;
   /**
    * The shared numeric field (overlay.numericInput, see numericOverlay.ts) was validated: the field is
    * already closed and the value parsed (cm, or degrees for the angle kind).
    */
   onNumericSubmit?(valueCm: number, c: ToolContext): void;
+  /**
+   * Tab in the shared numeric field: the typed value (null when the field is empty). When a tool
+   * defines it, Tab stays in the field (the tool usually reopens it for its next value).
+   */
+  onNumericTab?(valueCm: number | null, c: ToolContext): void;
   /** The shared numeric field was dismissed (Escape or blur) without applying anything. */
   onNumericCancel?(c: ToolContext): void;
+  /**
+   * The pointer interaction in progress was interrupted without a pointerup: pointercancel, pointer
+   * capture lost, window blur during a press (PlanCanvas), or Mod+Z / Escape during a gesture
+   * (keyboard.ts). Abandon it like Escape would: cancel the open gesture, drop the drag state,
+   * commit nothing. Must be safe to call when nothing is in progress.
+   */
+  onCancel?(c: ToolContext): void;
   /** Called when another tool becomes active (and on teardown): drop any internal state. */
   onDeactivate?(c: ToolContext): void;
 }
@@ -65,4 +86,8 @@ export const TOOLS: Partial<Record<ToolId, Tool>> = {
   door: doorTool,
   window: windowTool,
   dimension: dimensionTool,
+  calibrate: calibrateTool,
+  moveBackground: moveBackgroundTool,
+  wall: wallTool,
+  rect: rectRoomTool,
 };

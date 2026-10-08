@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyNumericInput, cancelNumericInput, closeNumericInput, NUMERIC_FIELD_SIZE, openNumericInput,
-  placeNumericField, submitNumeric,
+  numericSession, placeNumericField, submitNumeric,
 } from '@/editor/numericOverlay';
 import { createEditorStore, createOverlay } from '@/editor/store';
 import { TOOLS, type Tool, type ToolContext } from '@/editor/tools/types';
@@ -40,6 +40,21 @@ describe('numeric overlay store state', () => {
     openNumericInput(store, { initial: '3', screen: { x: 0, y: 0 }, kind: 'positive' });
     store.getState().setTool('wall');
     expect(store.getState().overlay.numericInput).toBeNull();
+  });
+});
+
+describe('numericSession', () => {
+  it('changes at every opening, but not when the text is typed or the field closed', () => {
+    const store = createEditorStore();
+    const before = numericSession();
+    openNumericInput(store, { initial: '3', screen: { x: 0, y: 0 }, kind: 'positive' });
+    const first = numericSession();
+    expect(first).not.toBe(before);
+    store.getState().setOverlay({ numericInput: { ...store.getState().overlay.numericInput!, value: '35' } });
+    closeNumericInput(store);
+    expect(numericSession()).toBe(first);
+    openNumericInput(store, { initial: '3', screen: { x: 0, y: 0 }, kind: 'positive' });
+    expect(numericSession()).not.toBe(first);
   });
 });
 

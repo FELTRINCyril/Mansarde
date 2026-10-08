@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import { computeAutoDimensions, manualDimLine, OPENING_GAP } from '@/core/geometry/autoDimensions';
+import { autoDimensionsOf, manualDimLine, OPENING_GAP } from '@/core/geometry/autoDimensions';
 import type { DerivedLevel } from '@/core/geometry/derived';
 import type { Level } from '@/core/model/types';
 import { DimLineView } from '../DimLineView';
@@ -20,7 +20,7 @@ const openingTextFits = (lineUnit: number): boolean => (STYLE.dimTextGap + CAP_H
  */
 export function DimensionsLayer({ level, derived, dimMode, lineUnit }: { level: Level; derived: DerivedLevel; dimMode: DimMode; lineUnit: number }): JSX.Element | null {
   if (dimMode === 'none') return null;
-  const auto = dimMode === 'all' ? computeAutoDimensions(level, derived) : [];
+  const auto = dimMode === 'all' ? autoDimensionsOf(level, derived) : [];
   const openingInside = openingTextFits(lineUnit);
   return (
     <g data-kind="dimensions">

@@ -82,3 +82,47 @@ test('numeric overlay: blur closes it', async ({ page }) => {
   await page.getByTestId('plan-canvas').click({ position: { x: 5, y: 5 } });
   await expect(page.getByTestId('numeric-overlay')).toHaveCount(0);
 });
+
+
+test('numeric overlay: no stale red border when reopened after an invalid blur', async ({ page }) => {
+  await createProject(page, 'Saisie reouverture');
+  await openField(page, 100, 100);
+  await page.keyboard.type('abc');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('numeric-overlay-input')).toHaveClass(/input-invalid/);
+  await page.getByTestId('plan-canvas').click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId('numeric-overlay')).toHaveCount(0);
+
+  await openField(page, 100, 100, '4');
+  const input = page.getByTestId('numeric-overlay-input');
+  await expect(input).toHaveValue('4');
+  await expect(input).not.toHaveClass(/input-invalid/);
+  await expect(input).toHaveAttribute('aria-invalid', 'false');
+});
+
+test('numeric overlay: valid Enter calls the active tool and returns the focus to the plan', async ({ page }) => {
+  await createProject(page, 'Saisie tool');
+  // test page only: hook a temporary callback on the select tool entry of TOOLS
+  await page.evaluate(async () => {
+    const url = '/src/editor/tools/types.ts';
+    const { TOOLS } = await import(/* @vite-ignore */ url);
+    const w = window as unknown as { __submitted: number[]; __cancelled: number };
+    w.__submitted = [];
+    w.__cancelled = 0;
+    TOOLS.select.onNumericSubmit = (v: number) => w.__submitted.push(v);
+    TOOLS.select.onNumericCancel = () => w.__cancelled++;
+  });
+  await openField(page, 100, 100);
+  await page.keyboard.type('50');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('numeric-overlay')).toHaveCount(0);
+  await expect(page.getByTestId('plan-canvas')).toBeFocused();
+  expect(await page.evaluate(() => (window as unknown as { __submitted: number[] }).__submitted)).toEqual([350]);
+  expect(await page.evaluate(() => (window as unknown as { __cancelled: number }).__cancelled)).toBe(0);
+
+  // Escape calls the cancel callback only
+  await openField(page, 100, 100);
+  await page.keyboard.press('Escape');
+  expect(await page.evaluate(() => (window as unknown as { __cancelled: number }).__cancelled)).toBe(1);
+  expect(await page.evaluate(() => (window as unknown as { __submitted: number[] }).__submitted)).toEqual([350]);
+});

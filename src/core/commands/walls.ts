@@ -65,14 +65,12 @@ function nodeNear(level: DLevel, p: Vec2): Id | null {
   return best;
 }
 
-function createNode(level: DLevel, p: Vec2): Id {
-  const id = newId();
+function createNode(level: DLevel, p: Vec2, id: Id = newId()): Id {
   level.nodes[id] = { id, x: p.x, y: p.y };
   return id;
 }
 
-function createWall(level: DLevel, startNodeId: Id, endNodeId: Id, thickness: number, height: number): Id {
-  const id = newId();
+function createWall(level: DLevel, startNodeId: Id, endNodeId: Id, thickness: number, height: number, id: Id = newId()): Id {
   level.walls[id] = { id, startNodeId, endNodeId, thickness, height };
   return id;
 }
@@ -141,7 +139,8 @@ function removeWalls(level: DLevel, wallIds: Iterable<Id>): void {
  * Splits a wall at t: the wall keeps its id and becomes the start piece, a new wall carries the
  * end piece. Openings go to the piece containing their center, offsets are recomputed.
  */
-function splitWallAt(level: DLevel, wallId: Id, t: number): { nodeId: Id; newWallId: Id } {
+/** `ids` fixes the ids of the split node and of the second piece (deterministic recipes); fresh ids otherwise. */
+function splitWallAt(level: DLevel, wallId: Id, t: number, ids?: { nodeId: Id; wallId: Id }): { nodeId: Id; newWallId: Id } {
   const wall = requireWall(level, wallId);
   if (!Number.isFinite(t) || t <= 0 || t >= 1) throw new CommandError(ERR_POSITION);
   const f = wallFrame(level, wallId);
@@ -149,8 +148,8 @@ function splitWallAt(level: DLevel, wallId: Id, t: number): { nodeId: Id; newWal
   if (!(splitAt >= MIN_WALL_LENGTH) || !(f.length - splitAt >= MIN_WALL_LENGTH)) {
     throw new CommandError(ERR_TOO_SHORT);
   }
-  const nodeId = createNode(level, lerp(f.start, f.end, t));
-  const newWallId = createWall(level, nodeId, wall.endNodeId, wall.thickness, wall.height);
+  const nodeId = createNode(level, lerp(f.start, f.end, t), ids?.nodeId);
+  const newWallId = createWall(level, nodeId, wall.endNodeId, wall.thickness, wall.height, ids?.wallId);
   wall.endNodeId = nodeId;
 
   const startLen = wallLength(level, wallId);
@@ -360,6 +359,24 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
     );
     reconcileOpenings(level);
     touch(draft);
+  };
+}
+
+/**
+ * T junction made by dropping a node on the axis interior of another wall (ruling R30, same rule as
+ * R11 for drawn points): the wall is split at t (0 < t < 1 from its start node) and the node is
+ * merged into the split point (mergeNode rules). `ids` gives the split node and the second wall
+ * piece their ids, created by the caller so that the recipe is deterministic (gestures apply it
+ * twice). Refused when the wall is attached to the node.
+ */
+export function joinNodeToWall(levelId: Id, nodeId: Id, wallId: Id, t: number, ids: { nodeId: Id; wallId: Id }): Recipe {
+  return (draft) => {
+    const level = getLevel(draft, levelId);
+    requireNode(level, nodeId);
+    const wall = requireWall(level, wallId);
+    if (wall.startNodeId === nodeId || wall.endNodeId === nodeId) throw new CommandError(ERR_POSITION);
+    splitWallAt(level, wallId, t, ids);
+    mergeNode(levelId, nodeId, ids.nodeId)(draft);
   };
 }
 
