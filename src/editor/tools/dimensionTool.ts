@@ -1,4 +1,4 @@
-import { addDimension } from '@/core/commands/dimensions';
+import { addDimension, MIN_DIMENSION_LENGTH } from '@/core/commands/dimensions';
 import type { DimLine } from '@/core/geometry/autoDimensions';
 import { objectCorners } from '@/core/geometry/objects';
 import { dist, dot, normalize, perp, sub } from '@/core/geometry/vec';
@@ -6,9 +6,6 @@ import { SNAP_PX } from '@/core/model/defaults';
 import type { Anchor, Id, Level, Vec2 } from '@/core/model/types';
 import { activeLevel, type EditorStore } from '../store';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
-
-/** Two points closer than this (cm) do not make a dimension (same bound as addDimension). */
-const MIN_LENGTH = 1;
 
 /** A clicked point of the dimension tool: its anchor and where it is now. */
 export interface DimensionPoint { anchor: Anchor; point: Vec2; snapped: boolean }
@@ -111,7 +108,7 @@ export function createDimensionTool(): Tool {
       if (state.step === 'first') {
         state = { step: 'second', levelId: level.id, a: p };
       } else if (state.step === 'second') {
-        if (dist(state.a.point, p.point) < MIN_LENGTH) return;
+        if (dist(state.a.point, p.point) < MIN_DIMENSION_LENGTH) return;
         state = { step: 'offset', levelId: level.id, a: state.a, b: p };
         preview(e, c, level);
       } else {

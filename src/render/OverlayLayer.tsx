@@ -7,6 +7,7 @@ import { CalibrationSegment } from './CalibrationSegment';
 import { isDrawGhost } from '@/editor/tools/drawing';
 import { DimLineView } from './DimLineView';
 import { OpeningGhostView } from './OpeningGhostView';
+import { ZeroClearanceMarker } from './ZeroClearanceMarker';
 import { DrawGhostView } from './DrawGhostView';
 import { ringsPath } from './path';
 import { dashArray, num, STYLE } from './style';
@@ -67,6 +68,7 @@ export function OverlayLayer({
         </g>
       )}
       <OpeningGhostView ghost={ghost} lineUnit={lineUnit} />
+      <ZeroClearanceMarker dims={dynamicDims} active={activeDimIndex} lineUnit={lineUnit} />
       {isSegmentGhost(ghost) && <CalibrationSegment ghost={ghost} lineUnit={lineUnit} />}
       {handles.length > 0 && (
         <g data-kind="handles" stroke={STYLE.selection} strokeWidth={STYLE.handleWidth * lineUnit} fill={STYLE.paper}>

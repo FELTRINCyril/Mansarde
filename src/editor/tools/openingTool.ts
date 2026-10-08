@@ -9,7 +9,7 @@ import { newId } from '@/core/model/ids';
 import type { Id, Level, Opening, Vec2 } from '@/core/model/types';
 import { activeLevel, type EditorStore } from '../store';
 import { measureOpening } from './clearanceDims';
-import { hoveredWall } from './selectTool';
+import { hoveredWall } from './hover';
 import type { Tool, ToolContext } from './types';
 
 export type PlacedOpeningKind = 'door' | 'window';
@@ -35,18 +35,18 @@ const LABELS: Record<PlacedOpeningKind, string> = { door: 'Ajouter une porte', w
  * Pure placement rule of the door / window tools: on the wall whose axis is within half its
  * thickness + tol of p (the closest), the default opening of that kind centered on the projection
  * of p (rounded to 1 cm unless raw), pushed back so that it fits on the free stretch of the wall
- * between the faces of the walls met at its ends (wallFaceInterval; the wall ends when nothing
- * meets them), opening towards the side of the wall p is on. Invalid when that stretch is shorter
+ * p is on, between the nearest wall faces on each side of p (wallFaceInterval: walls met at the
+ * ends, crossing or abutting walls; the wall ends when nothing is met), opening towards the side of the wall p is on. Invalid when that stretch is shorter
  * than the opening or the opening overlaps another one of that wall. Null when no wall is hovered.
  */
 export function openingPreview(level: Level, kind: PlacedOpeningKind, p: Vec2, tol: number, raw = false): OpeningPreview | null {
   const wallId = hoveredWall(level, p, tol);
   if (!wallId) return null;
   const f = wallFrame(level, wallId);
-  const [lo, hi] = wallFaceInterval(level, wallId);
   const width = OPENING_DEFAULTS[kind].width;
   const v = sub(p, f.start);
   const along = dot(v, f.dir);
+  const [lo, hi] = wallFaceInterval(level, wallId, along);
   const fits = hi - lo >= width;
   const offset = fits ? Math.min(hi - width / 2, Math.max(lo + width / 2, raw ? along : Math.round(along))) : (lo + hi) / 2;
   const swing = dot(v, f.normal) >= 0 ? 'left' : 'right';

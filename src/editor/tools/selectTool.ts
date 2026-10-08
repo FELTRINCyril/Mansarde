@@ -14,12 +14,14 @@ import { wallFrame } from '@/core/geometry/walls';
 import { SNAP_PX } from '@/core/model/defaults';
 import { newId } from '@/core/model/ids';
 import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
+import { formatNumber } from '@/ui/numeric';
 import { handleTarget, hitHandle, objectLocalToWorld, worldToObjectLocal } from '../handles';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import type { SelectionItem } from '../selection';
 import { activeLevel, type EditorState, type EditorStore } from '../store';
 import { worldToScreen } from '../view';
-import { measureObject, measureOpening, measureTarget, nextSide, typedRecipe, type MeasureTarget } from './clearanceDims';
+import { ERR_NO_ROOM, measureObject, measureOpening, measureTarget, nextSide, typedPlacement, type MeasureTarget } from './clearanceDims';
+import { hoveredWall } from './hover';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
 
 /** A press becomes a drag once the pointer has moved this far (screen px). */
@@ -53,7 +55,6 @@ interface Session {
   last: Vec2; // last pointer position (screen px): where the typed distance field opens
   activeSide: string | null; // clearance chosen with Tab (side name, the list changes while dragging)
   typing: boolean; // the numeric field is open: pointer moves are ignored
-  released: boolean; // the pointer was released while typing: the gesture waits for the field
 }
 
 const GESTURE_LABELS: Record<Exclude<DragPlan['kind'], 'marquee'>, string> = {
@@ -129,25 +130,6 @@ const sameTarget = (a: MeasureTarget, b: MeasureTarget): boolean => a.kind === b
 const isDigit = (k: string): boolean => /^[0-9]$/.test(k);
 const TYPED_LABEL = 'Distance';
 
-/** Wall the cursor hovers (axis distance within half the thickness + the snap tolerance), the closest one. */
-export function hoveredWall(level: Level, p: Vec2, tol: number): Id | null {
-  let best: Id | null = null;
-  let bestD = Infinity;
-  for (const w of Object.values(level.walls)) {
-    const f = wallFrame(level, w.id);
-    if (f.length < 1e-9) continue;
-    const v = sub(p, f.start);
-    const along = dot(v, f.dir);
-    if (along < 0 || along > f.length) continue;
-    const across = Math.abs(dot(v, f.normal));
-    if (across <= w.thickness / 2 + tol && across < bestD) {
-      best = w.id;
-      bestD = across;
-    }
-  }
-  return best;
-}
-
 const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhost => ({ kind: 'outline', rings, points });
 
 /**
@@ -170,8 +152,13 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  */
 export function createSelectTool(): Tool {
   let session: Session | null = null;
-  /** Clearances of the selected element shown with Tab without dragging (and after a typed drag). */
-  let keyboard: { target: MeasureTarget; activeSide: string | null } | null = null;
+  /**
+   * Clearances of the selected element shown with Tab without dragging (and after a typed drag);
+   * `typing`: its numeric field is open and a gesture was begun for the typed values.
+   */
+  let keyboard: { target: MeasureTarget; activeSide: string | null; typing: boolean } | null = null;
+  /** Where the typed-distance field was opened (canvas px): reopenings keep it in place. */
+  let fieldScreen: Vec2 = { x: 0, y: 0 };
 
   const clearTransient = (store: EditorStore) =>
     store.getState().setOverlay({ marquee: null, guides: [], dynamicDims: [], activeDimIndex: null, ghost: null });
@@ -182,10 +169,11 @@ export function createSelectTool(): Tool {
    */
   const cancelSession = (store: EditorStore) => {
     const s = session;
+    const kb = keyboard;
     session = null;
     keyboard = null;
-    if (s?.typing) closeNumericInput(store);
-    if (s?.phase === 'drag' && s.plan?.kind !== 'marquee') store.getState().cancelGesture();
+    if (s?.typing || kb?.typing) closeNumericInput(store);
+    if ((s?.phase === 'drag' && s.plan?.kind !== 'marquee') || kb?.typing) store.getState().cancelGesture();
     clearTransient(store);
   };
 
@@ -277,11 +265,13 @@ export function createSelectTool(): Tool {
     const f = wallFrame(base, wallId);
     let offset = dot(sub(e.world, f.start), f.dir) - s.grab.x;
     if (!e.alt) offset = Math.round(offset);
-    // kept between the faces of the walls met at the ends (ruling R29), else at least within the wall
-    const [faceLo, faceHi] = wallFaceInterval(base, wallId);
-    if (faceHi - faceLo >= o.width) offset = clamp(offset, faceLo + o.width / 2, faceHi - o.width / 2);
-    else if (f.length >= o.width) offset = clamp(offset, o.width / 2, f.length - o.width / 2);
-    const ok = st.updateGesture(moveOpening(s.levelId, id, wallId, offset));
+    // kept on the free stretch the cursor is on, between the nearest wall faces (ruling R29); a
+    // stretch too short for the opening (e.g. the cursor over a crossing wall) is refused in red
+    const [faceLo, faceHi] = wallFaceInterval(base, wallId, offset);
+    const fits = faceHi - faceLo >= o.width;
+    if (fits) offset = clamp(offset, faceLo + o.width / 2, faceHi - o.width / 2);
+    const ok = fits && st.updateGesture(moveOpening(s.levelId, id, wallId, offset));
+    if (!fits) st.setOverlay({ previewInvalid: true });
     const level = levelOf(c.store.getState().project, s.levelId);
     st.setOverlay(
       ok && level
@@ -351,7 +341,7 @@ export function createSelectTool(): Tool {
     }
   }
 
-  // ----- Tab and typed distances (spec 7.4, ruling R27) -----
+  // ----- Tab and typed distances (spec 7.4, rulings R27, R31, R33) -----
 
   /** Shows the clearances of the keyboard measure from the current project; ends it when they are gone. */
   function showKeyboardMeasure(c: ToolContext): void {
@@ -364,6 +354,7 @@ export function createSelectTool(): Tool {
 
   function endKeyboardMeasure(store: EditorStore): void {
     if (!keyboard) return;
+    if (keyboard.typing) return cancelSession(store); // also drops the open gesture and field
     keyboard = null;
     clearTransient(store);
   }
@@ -377,16 +368,30 @@ export function createSelectTool(): Tool {
     c.store.getState().setOverlay({ activeDimIndex: i < 0 ? null : i });
   }
 
+  /** What the open typed-distance field applies to: the drag session or the keyboard measure. */
+  function typing(): { target: MeasureTarget; holder: { activeSide: string | null } } | null {
+    const s = session;
+    if (s?.typing) {
+      const target = sessionTarget(s);
+      return target && { target, holder: s };
+    }
+    return keyboard?.typing ? { target: keyboard.target, holder: keyboard } : null;
+  }
+
   /**
    * Tab (Shift+Tab backwards) chooses the next clearance of the dragged element, or of the single
    * selected object / opening when nothing is dragged; a digit then opens the numeric field with
-   * it. Null: not a key for this (left to the other shortcuts). Any other key ends the keyboard
-   * measure (Escape is used for that).
+   * it (without a drag, a gesture is begun for the typed values). Null: not a key for this (left
+   * to the other shortcuts). Any other key, modifiers included, ends the keyboard measure (Escape
+   * is used for that).
    */
   function typedKey(e: KeyboardEvent, c: ToolContext): boolean | null {
-    if (e.metaKey || e.ctrlKey || e.altKey) return null;
     const st = c.store.getState();
     const s = session;
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      if (!s) endKeyboardMeasure(c.store);
+      return null;
+    }
     if (s && (s.phase !== 'drag' || s.typing)) return null;
     const target = s ? sessionTarget(s) : selectedTarget(st);
     const level = target && levelOf(st.project, target.levelId);
@@ -399,7 +404,7 @@ export function createSelectTool(): Tool {
       }
       const active = nextSide(m.sides, s ? s.activeSide : (known?.activeSide ?? null), e.shiftKey);
       if (s) s.activeSide = active;
-      else keyboard = { target, activeSide: active };
+      else keyboard = { target, activeSide: active, typing: false };
       st.setOverlay({ dynamicDims: m.dims, activeDimIndex: active === null ? null : m.sides.indexOf(active) });
       return true;
     }
@@ -410,8 +415,12 @@ export function createSelectTool(): Tool {
       const dim = m.dims[i]!;
       st.setOverlay({ dynamicDims: m.dims, activeDimIndex: i });
       const screen = s ? s.last : worldToScreen(st.view, lerp(dim.a, dim.b, 0.5));
-      openNumericInput(c.store, { initial: e.key, screen, kind: 'nonNegative', label: TYPED_LABEL });
       if (s) s.typing = true;
+      else {
+        st.beginGesture(target.kind === 'opening' ? GESTURE_LABELS.opening : GESTURE_LABELS.move);
+        known!.typing = true;
+      }
+      openField(e.key, c, screen);
       return true; // used: PlanCanvas prevents the default, the digit is not typed twice
     }
     if (!s && keyboard) {
@@ -421,11 +430,40 @@ export function createSelectTool(): Tool {
     return null;
   }
 
-  /** The pointer was released while typing and the field closed without a value: the drop stands. */
-  function finishReleased(c: ToolContext): void {
-    session = null;
-    c.store.getState().commitGesture();
-    clearTransient(c.store);
+  /**
+   * Applies a typed value to the active clearance in the open gesture, measured on what is shown
+   * (the preview). False (with a toast) when refused: outside the free stretch of an opening, or
+   * refused by the command.
+   */
+  function applyTyped(t: { target: MeasureTarget; holder: { activeSide: string | null } }, value: number, c: ToolContext): boolean {
+    const st = c.store.getState();
+    const level = levelOf(st.project, t.target.levelId);
+    const side = t.holder.activeSide;
+    const placed = level && side !== null ? typedPlacement(level, t.target, side, value) : null;
+    if (!placed) return false;
+    if (!placed.ok) {
+      st.showToast(placed.error);
+      return false;
+    }
+    if (st.updateGesture(placed.recipe)) return true;
+    st.showToast(t.target.kind === 'opening' ? ERR_NO_ROOM : 'Position impossible');
+    return false;
+  }
+
+  /** The dims of what is typed, from the preview, with the active one highlighted. */
+  function refreshTyped(t: { target: MeasureTarget; holder: { activeSide: string | null } }, c: ToolContext): string[] {
+    const st = c.store.getState();
+    const level = levelOf(st.project, t.target.levelId);
+    const m = level ? measureTarget(level, t.target) : { dims: [], sides: [] };
+    const i = t.holder.activeSide === null ? -1 : m.sides.indexOf(t.holder.activeSide);
+    st.setOverlay({ dynamicDims: m.dims, activeDimIndex: i < 0 ? null : i });
+    return m.sides;
+  }
+
+  /** Opens the typed-distance field at `screen` (canvas px), remembered for reopenings. */
+  function openField(text: string, c: ToolContext, screen: Vec2): void {
+    fieldScreen = screen;
+    openNumericInput(c.store, { initial: text, screen, kind: 'nonNegative', label: TYPED_LABEL });
   }
 
   return {
@@ -434,6 +472,7 @@ export function createSelectTool(): Tool {
 
     onPointerDown(e, c) {
       if (e.button !== 0) return;
+      if (session?.typing) cancelSession(c.store); // a press while typing abandons the typed operation
       endKeyboardMeasure(c.store);
       const st = c.store.getState();
       const level = activeLevel(st);
@@ -451,7 +490,6 @@ export function createSelectTool(): Tool {
         last: e.screen,
         activeSide: null,
         typing: false,
-        released: false,
       };
       session = s;
 
@@ -500,10 +538,7 @@ export function createSelectTool(): Tool {
     },
 
     onPointerUp(e, c) {
-      if (session?.typing) {
-        session.released = true; // the field decides: Enter places, Escape keeps the drop
-        return;
-      }
+      if (session?.typing) return; // released while typing: the field decides (Enter places, Escape cancels)
       const s = session;
       session = null;
       if (!s) return;
@@ -548,36 +583,34 @@ export function createSelectTool(): Tool {
     },
 
     onNumericSubmit(value, c) {
-      const st = c.store.getState();
-      const s = session;
-      if (s?.typing) {
-        s.typing = false;
-        const target = sessionTarget(s);
-        const level = levelOf(st.project, s.levelId); // the preview: the value applies to what is shown
-        const recipe = target && level && s.activeSide !== null ? typedRecipe(level, target, s.activeSide, value) : null;
-        if (target && recipe && st.updateGesture(recipe)) {
-          session = null;
-          st.commitGesture();
-          keyboard = { target, activeSide: s.activeSide };
-          showKeyboardMeasure(c);
-          return;
-        }
-        st.showToast(target?.kind === 'opening' ? 'Pas assez de place sur ce mur' : 'Position impossible');
-        if (s.released) finishReleased(c);
-        return;
+      const t = typing();
+      if (!t) return;
+      if (!applyTyped(t, value, c)) {
+        // the field was closed by the submit: open it again with the value, to correct it
+        return openField(formatNumber(value), c, fieldScreen);
       }
-      if (!keyboard || keyboard.activeSide === null) return;
-      const level = levelOf(st.project, keyboard.target.levelId);
-      const recipe = level && typedRecipe(level, keyboard.target, keyboard.activeSide, value);
-      if (recipe) st.execute(keyboard.target.kind === 'opening' ? GESTURE_LABELS.opening : GESTURE_LABELS.move, recipe);
+      const side = t.holder.activeSide;
+      session = null;
+      c.store.getState().commitGesture();
+      keyboard = { target: t.target, activeSide: side, typing: false };
       showKeyboardMeasure(c);
     },
 
+    onNumericTab(value, c, backward) {
+      // Tab in the field: the typed value (if any) applies to the active clearance, then the next
+      // one (the previous one with Shift+Tab)
+      const t = typing();
+      if (!t) return;
+      if (value !== null && !applyTyped(t, value, c)) return; // refused: the field stays as typed
+      const sides = refreshTyped(t, c);
+      t.holder.activeSide = nextSide(sides, t.holder.activeSide, backward === true);
+      refreshTyped(t, c);
+      openField('', c, fieldScreen);
+    },
+
     onNumericCancel(c) {
-      const s = session;
-      if (!s?.typing) return;
-      s.typing = false;
-      if (s.released) finishReleased(c);
+      // Escape (or blur) in the field cancels the whole operation, released or not (ruling R33)
+      if (typing()) cancelSession(c.store);
     },
 
     onCancel(c) {

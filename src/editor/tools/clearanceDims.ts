@@ -61,22 +61,34 @@ export function nextSide(sides: string[], active: string | null, backwards = fal
   return sides[(i + (backwards ? sides.length - 1 : 1)) % sides.length]!;
 }
 
+/** Refusal of a typed opening distance that leaves the free stretch (same text as the commands). */
+export const ERR_NO_ROOM = 'Pas assez de place sur ce mur';
+
+/** Result of a typed distance: the recipe to apply, or why the value is refused. */
+export type TypedPlacement = { ok: true; recipe: Recipe } | { ok: false; error: string };
+
 /**
- * Recipe placing the target so that its clearance on `side` (measured in `level`) takes `value`:
+ * Placement of the target so that its clearance on `side` (measured in `level`) takes `value`:
  * placeAtClearance for an object (absolute position and rotation, so it can be applied to a
- * gesture base), placeOpeningAtClearance along the current wall of an opening. Null when the target
- * or that clearance does not exist.
+ * gesture base), placeOpeningAtClearance along the current wall of an opening. An opening must stay
+ * between its two current obstacles (the nearest wall faces or neighbour openings, ruling R29): a
+ * value that would push it into a wall or past a neighbour is refused (ERR_NO_ROOM). Null when the
+ * target or that clearance does not exist.
  */
-export function typedRecipe(level: Level, t: MeasureTarget, side: string, value: number): Recipe | null {
+export function typedPlacement(level: Level, t: MeasureTarget, side: string, value: number): TypedPlacement | null {
   if (t.kind === 'object') {
     const o = level.objects[t.id];
     const c = o && objectClearances(o, deriveLevel(level)).find((x) => x.side === side);
     if (!o || !c) return null;
     const p = placeAtClearance(o, c, value);
-    return setObjectTransform(t.levelId, o.id, { x: tidy(p.x), y: tidy(p.y), rotation: o.rotation });
+    return { ok: true, recipe: setObjectTransform(t.levelId, o.id, { x: tidy(p.x), y: tidy(p.y), rotation: o.rotation }) };
   }
   const o = level.openings[t.id];
-  const c = o && level.walls[o.wallId] && openingClearances(level, o).find((x) => x.side === side);
-  if (!o || !c) return null;
-  return moveOpening(t.levelId, o.id, o.wallId, tidy(placeOpeningAtClearance(o, c, value)));
+  if (!o || !level.walls[o.wallId]) return null;
+  const cs = openingClearances(level, o);
+  const c = cs.find((x) => x.side === side);
+  if (!c) return null;
+  const free = cs.reduce((sum, x) => sum + x.distance, 0); // room left between the two obstacles
+  if (value > free + 1e-6) return { ok: false, error: ERR_NO_ROOM };
+  return { ok: true, recipe: moveOpening(t.levelId, o.id, o.wallId, tidy(placeOpeningAtClearance(o, c, value))) };
 }

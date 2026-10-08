@@ -159,7 +159,8 @@ describe('openingClearances', () => {
     const level = levelFromWalls(rectRoom(0, 0, 400, 300));
     const door = createOpening(findWall(level, 400, 0, 400, 300), 'door', 45, { width: 80 }); // edge at y = 5 < 10
     const [before] = openingClearances(level, door);
-    expect(before!.distance).toBeGreaterThanOrEqual(0);
+    // the edge (y = 5) lies inside the top wall body: no face between it and the node, 5 cm to the node
+    expect(before!.distance).toBeCloseTo(5, 9);
   });
 });
 
@@ -179,6 +180,28 @@ describe('wallFaceInterval', () => {
     expect(wallFaceInterval(lone, findWall(lone, 0, 0, 300, 0))).toEqual([0, 300]);
     const room = levelFromWalls(rectRoom(0, 0, 400, 300));
     const [lo, hi] = wallFaceInterval(room, findWall(room, 0, 0, 400, 0));
+    expect(lo).toBeCloseTo(10, 6);
+    expect(hi).toBeCloseTo(390, 6);
+  });
+
+  it('is measured around the given axis position: a crossing wall splits the wall in two stretches', () => {
+    // wall 0..600 along y = 0, crossed at x = 200 by a 20 cm wall without shared node (faces x = 190, 210)
+    const level = levelFromWalls([[0, 0, 600, 0], [200, -100, 200, 100]]);
+    const id = findWall(level, 0, 0, 600, 0);
+    const [lo1, hi1] = wallFaceInterval(level, id, 80);
+    expect(lo1).toBe(0);
+    expect(hi1).toBeCloseTo(190, 6);
+    const [lo2, hi2] = wallFaceInterval(level, id, 400);
+    expect(lo2).toBeCloseTo(210, 6);
+    expect(hi2).toBe(600);
+    // over the crossing wall: the nearest stretch
+    expect(wallFaceInterval(level, id, 195)[1]).toBeCloseTo(190, 6);
+    expect(wallFaceInterval(level, id, 206)[0]).toBeCloseTo(210, 6);
+  });
+
+  it('a position inside a neighbour wall body (corner) gives the stretch next to it', () => {
+    const room = levelFromWalls(rectRoom(0, 0, 400, 300));
+    const [lo, hi] = wallFaceInterval(room, findWall(room, 0, 0, 400, 0), 0);
     expect(lo).toBeCloseTo(10, 6);
     expect(hi).toBeCloseTo(390, 6);
   });

@@ -448,7 +448,7 @@ describe('select tool: Tab and typed distances (spec 7.4, ruling R27)', () => {
     expect(objectOf(store, o.id)).toMatchObject({ x: 200, y: 150 });
   });
 
-  it('released while typing: Enter still places and commits; Escape in the field keeps the dropped position', () => {
+  it('released while typing: Enter still places and commits; Escape in the field cancels the whole drag (R33)', () => {
     const { store, ctx, tool } = setup();
     room(store);
     const o = box(200, 150);
@@ -463,7 +463,9 @@ describe('select tool: Tab and typed distances (spec 7.4, ruling R27)', () => {
     tool.onNumericSubmit!(50, ctx);
     expect(objectOf(store, o.id)).toMatchObject({ x: 220, y: 220 });
     expect(store.getState().gesture).toBeNull();
+    const before = entries(store);
 
+    // released, then Escape in the field: back to where the drag started
     tool.onPointerDown!(at(220, 220), ctx);
     tool.onPointerMove!(at(240, 220), ctx);
     tool.onKeyDown!(key('Tab'), ctx);
@@ -471,8 +473,47 @@ describe('select tool: Tab and typed distances (spec 7.4, ruling R27)', () => {
     tool.onPointerUp!(at(240, 220), ctx);
     tool.onNumericCancel!(ctx);
     expect(store.getState().gesture).toBeNull();
-    expect(objectOf(store, o.id)).toMatchObject({ x: 240, y: 220 });
+    expect(objectOf(store, o.id)).toMatchObject({ x: 220, y: 220 });
     expect(store.getState().overlay.dynamicDims).toEqual([]);
+    expect(entries(store)).toBe(before);
+
+    // still pressed, then Escape in the field: the same, and the release does nothing
+    tool.onPointerDown!(at(220, 220), ctx);
+    tool.onPointerMove!(at(250, 200), ctx);
+    tool.onKeyDown!(key('Tab'), ctx);
+    tool.onKeyDown!(key('3'), ctx);
+    tool.onNumericCancel!(ctx);
+    tool.onPointerMove!(at(260, 200), ctx);
+    tool.onPointerUp!(at(260, 200), ctx);
+    expect(objectOf(store, o.id)).toMatchObject({ x: 220, y: 220 });
+    expect(entries(store)).toBe(before);
+  });
+
+  it('Tab inside the field applies the typed value and moves to the next clearance (onNumericTab)', () => {
+    const { store, ctx, tool } = setup();
+    room(store);
+    const o = box(200, 150); // 50 x 40
+    add(store, o);
+    const before = entries(store);
+    tool.onPointerDown!(at(200, 150), ctx);
+    tool.onPointerMove!(at(210, 150), ctx);
+    for (let i = 0; i < 3; i++) tool.onKeyDown!(key('Tab'), ctx); // back, front, left
+    tool.onKeyDown!(key('2'), ctx);
+    tool.onNumericTab!(25, ctx); // left = 25, then right is active
+    expect(objectOf(store, o.id).x).toBeCloseTo(10 + 25 + 25, 9);
+    let ov = store.getState().overlay;
+    expect(ov.activeDimIndex).toBe(3);
+    expect(ov.numericInput).toMatchObject({ value: '' });
+    tool.onNumericTab!(null, ctx, true); // Shift+Tab, empty: back to the previous clearance (left)
+    expect(store.getState().overlay.activeDimIndex).toBe(2);
+    tool.onNumericTab!(null, ctx); // Tab, empty: right
+    tool.onNumericTab!(null, ctx); // and back (wraps around)
+    expect(store.getState().overlay.activeDimIndex).toBe(0);
+    tool.onNumericSubmit!(60, ctx);
+    expect(objectOf(store, o.id)).toMatchObject({ x: 60, y: 10 + 60 + 20 });
+    expect(entries(store)).toBe(before + 1);
+    ov = store.getState().overlay;
+    expect(ov.dynamicDims[ov.activeDimIndex!]!.value).toBeCloseTo(60, 6);
   });
 
   it('while dragging an opening: the typed value becomes the distance to the inner face', () => {
@@ -490,20 +531,74 @@ describe('select tool: Tab and typed distances (spec 7.4, ruling R27)', () => {
     expect(store.getState().history.past.at(-1)!.label).toBe("Déplacer l'ouverture");
   });
 
-  it('a refused typed opening position keeps the drag going and tells why', () => {
+  it('a typed opening distance that would enter the neighbour wall is refused, the field stays open', () => {
     const { store, ctx, tool } = setup();
     room(store);
     const door = createOpening(topWall(store).id, 'door', 200);
     store.getState().execute('Door', addOpening(level(store).id, door));
+    const before = entries(store);
     tool.onPointerDown!(at(200, 0), ctx);
     tool.onPointerMove!(at(180, 0), ctx);
-    tool.onKeyDown!(key('Tab'), ctx);
-    tool.onKeyDown!(key('9'), ctx);
-    tool.onNumericSubmit!(900, ctx);
+    tool.onKeyDown!(key('Tab'), ctx); // before = 180 - 41.5 - 10 = 128.5, after = 390 - 221.5 = 168.5
+    tool.onKeyDown!(key('3'), ctx);
+    store.getState().setOverlay({ numericInput: null }); // closed by the submit, as the field does
+    tool.onNumericSubmit!(300, ctx); // 300 > 128.5 + 168.5 = 297
     expect(store.getState().toast?.message).toBe('Pas assez de place sur ce mur');
     expect(store.getState().gesture).not.toBeNull();
-    tool.onPointerMove!(at(170, 0), ctx);
-    expect(level(store).openings[door.id]!.offset).toBe(170);
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '300' });
+    expect(level(store).openings[door.id]!.offset).toBe(180);
+    // the largest value that fits puts the door against the right inner face
+    tool.onNumericSubmit!(297, ctx);
+    expect(level(store).openings[door.id]!.offset).toBeCloseTo(10 + 297 + 41.5, 9);
+    expect(entries(store)).toBe(before + 1);
+  });
+
+  it('without dragging, a too large typed opening distance is refused too (no history entry)', () => {
+    const { store, ctx, tool } = setup();
+    room(store);
+    const door = createOpening(topWall(store).id, 'door', 200);
+    store.getState().execute('Door', addOpening(level(store).id, door));
+    const before = entries(store);
+    click(tool, ctx, { x: 200, y: 0 });
+    expect(store.getState().selection).toEqual([{ kind: 'opening', id: door.id }]);
+    tool.onKeyDown!(key('Tab'), ctx);
+    tool.onKeyDown!(key('4'), ctx);
+    expect(store.getState().gesture).not.toBeNull();
+    tool.onNumericSubmit!(400, ctx);
+    expect(store.getState().toast?.message).toBe('Pas assez de place sur ce mur');
+    expect(level(store).openings[door.id]!.offset).toBe(200);
+    tool.onNumericCancel!(ctx); // Escape: nothing changed, nothing recorded
+    expect(store.getState().gesture).toBeNull();
+    expect(entries(store)).toBe(before);
+  });
+
+  it('an opening dragged next to a crossing wall stays on its side', () => {
+    const { store, ctx, tool, levelId } = setup();
+    store.getState().execute('W', addWallChain(levelId, [{ kind: 'free', x: 0, y: 0 }, { kind: 'free', x: 600, y: 0 }], 20, 250));
+    store.getState().execute('X', addWallChain(levelId, [{ kind: 'free', x: 200, y: -100 }, { kind: 'free', x: 200, y: 100 }], 20, 250));
+    expect(Object.keys(level(store).walls)).toHaveLength(2); // crossing without shared node
+    const wall = Object.values(level(store).walls).find((w) => level(store).nodes[w.startNodeId]!.y === 0)!;
+    const door = createOpening(wall.id, 'door', 100);
+    store.getState().execute('Door', addOpening(levelId, door));
+    tool.onPointerDown!(at(100, 0), ctx);
+    tool.onPointerMove!(at(120, 0), ctx);
+    expect(level(store).openings[door.id]!.offset).toBe(120);
+    tool.onPointerMove!(at(170, 0), ctx); // clamped against the crossing wall face x = 190
+    expect(level(store).openings[door.id]!.offset).toBeCloseTo(148.5, 9);
+    tool.onPointerUp!(at(170, 0), ctx);
+  });
+
+  it('a shortcut with a modifier ends the Tab measure before acting', () => {
+    const { store, ctx, tool } = setup();
+    room(store);
+    const o = box(200, 150);
+    add(store, o);
+    click(tool, ctx, { x: 200, y: 150 });
+    tool.onKeyDown!(key('Tab'), ctx);
+    expect(store.getState().overlay.dynamicDims).toHaveLength(4);
+    expect(tool.onKeyDown!({ ...key('z'), metaKey: true, ctrlKey: true } as KeyboardEvent, ctx)).toBe(false);
+    expect(store.getState().overlay.dynamicDims).toEqual([]);
+    expect(store.getState().overlay.activeDimIndex).toBeNull();
   });
 
   it('a single selected object without dragging: Tab shows its clearances, typing moves it (one entry)', () => {

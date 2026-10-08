@@ -59,6 +59,18 @@ describe('openingPreview', () => {
     expect(openingPreview(narrow, 'door', { x: 45, y: 0 }, 8)!.valid).toBe(false);
   });
 
+  it('crossing wall: the door stays on the stretch the cursor is on', () => {
+    // wall 0..600 crossed at x = 200 by a 20 cm wall without shared node (faces x = 190, 210)
+    const lv = levelFromWalls([[0, 0, 600, 0], [200, -100, 200, 100]]);
+    const left = openingPreview(lv, 'door', { x: 80, y: 4 }, 8)!;
+    expect(left.valid).toBe(true);
+    expect(left.opening.offset).toBe(80);
+    const nearCrossing = openingPreview(lv, 'door', { x: 170, y: 4 }, 8)!;
+    expect(nearCrossing.opening.offset).toBeCloseTo(190 - 41.5, 6);
+    const right = openingPreview(lv, 'door', { x: 230, y: 4 }, 8)!;
+    expect(right.opening.offset).toBeCloseTo(210 + 41.5, 6);
+  });
+
   it('centers on the cursor projection (1 cm rounding, raw with Alt), swing on the cursor side', () => {
     const lv = levelFromWalls([[0, 0, 300, 0]]);
     // wall normal = perp(dir) = (0, 1): y > 0 is the left side

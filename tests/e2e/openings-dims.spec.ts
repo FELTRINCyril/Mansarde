@@ -122,4 +122,23 @@ test('door and window tools, dimension tool, typed clearance while moving a bed'
   // depth 190: back edge 60 cm below the inner face y = 10
   expect(bed.y - 95).toBeCloseTo(70, 6);
   expect(await page.evaluate(() => window.__planMaison!.store.getState().history.past.at(-1)!.label)).toBe('Déplacer');
+
+  // the door (bottom wall, x 108.5..191.5) selected alone: Tab, a distance too large is refused and
+  // the field stays open with it; Tab in the field moves to the next clearance; Escape changes nothing
+  const door = await onPage(page, { x: 150, y: 300 });
+  await page.mouse.click(door.x, door.y);
+  await expect(page.getByTestId('opening-variant')).toBeVisible();
+  const entries = await page.evaluate(() => window.__planMaison!.store.getState().history.past.length);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('9');
+  await page.keyboard.type('00');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('toast')).toContainText('Pas assez de place sur ce mur');
+  await expect(field).toHaveValue('900');
+  await expect(field).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(field).toBeFocused(); // still typing, on the other clearance
+  await page.keyboard.press('Escape');
+  await expect(field).toHaveCount(0);
+  expect(await page.evaluate(() => window.__planMaison!.store.getState().history.past.length)).toBe(entries);
 });

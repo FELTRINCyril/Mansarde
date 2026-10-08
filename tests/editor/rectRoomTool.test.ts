@@ -127,8 +127,9 @@ describe('rectangle tool: in the editor', () => {
     const store = createEditorStore();
     store.getState().openProject(emptyProject());
     const ctx: ToolContext = { store, toWorld: (q) => q, pxPerCm: () => 1, fitView: vi.fn() };
+    // the door tool has no onNumericTab (the selection tool now has one, for typed distances)
+    store.getState().setTool('door');
     openNumericInput(store, { initial: '3', screen: { x: 0, y: 0 }, kind: 'positive' });
-    expect(store.getState().tool).toBe('select');
     expect(tabNumericInput(store, ctx, '3')).toBe('unhandled');
   });
 

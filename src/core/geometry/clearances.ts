@@ -1,7 +1,7 @@
 import type { Level, Opening, PlacedObject, Vec2 } from '../model/types';
 import { deriveLevel, type DerivedLevel } from './derived';
 import { openingFrame, openingInterval } from './openings';
-import { ringEdges } from './polygon';
+import { pointInPolygon, ringEdges } from './polygon';
 import { add, deg2rad, dot, lineIntersection, rotate, scale, segmentIntersection, sub } from './vec';
 import { wallFrame, type WallFrame } from './walls';
 
@@ -101,16 +101,52 @@ function faceLimit(wall: WallFrame, halfThickness: number, edges: [Vec2, Vec2][]
 }
 
 /**
- * Free stretch of a wall between the faces of the walls met at its ends, as positions along its
- * axis (0 = start node): the nearest faces seen from the middle of the wall (see faceLimit). An
- * isolated wall gives [0, length]. Used to place new openings clear of the neighbour walls.
+ * Free stretch of a wall nearest to the axis position `at` (0 = start node, default the middle).
+ * The wall is cut wherever one of its two face lines meets an edge of the wall shape without
+ * openings (exact face-line positions, probed just outside the faces like faceLimit); a piece is
+ * free when the probe points on both sides of its middle lie outside the shape. The faces of the
+ * walls met at the ends bound the free stretches, and so does any wall crossing or abutting this
+ * one in between. Returns the free stretch containing `at`, else the nearest one ([at, at] when
+ * there is none). An isolated wall gives [0, length]. Used to keep openings clear of the walls.
  */
-export function wallFaceInterval(level: Level, wallId: string, d: DerivedLevel = deriveLevel(level)): [number, number] {
+export function wallFaceInterval(level: Level, wallId: string, at?: number, d: DerivedLevel = deriveLevel(level)): [number, number] {
   const wall = wallFrame(level, wallId);
   const half = (level.walls[wallId]?.thickness ?? 0) / 2;
+  const L = wall.length;
+  const from = Math.min(L, Math.max(0, at ?? L / 2));
   const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
-  const mid = wall.length / 2;
-  return [faceLimit(wall, half, edges, mid, 0), faceLimit(wall, half, edges, mid, wall.length)];
+  const probe = (side: number, s: number) => add(add(wall.start, scale(wall.dir, s)), scale(wall.normal, side * (half + FACE_PROBE)));
+  const cuts = [0, L];
+  for (const side of [-1, 1]) {
+    const face = add(wall.start, scale(wall.normal, side * half));
+    for (const [c, e] of edges) {
+      if (!segmentIntersection(probe(side, 0), probe(side, L), c, e)) continue;
+      const exact = lineIntersection(face, wall.dir, c, sub(e, c));
+      if (exact) cuts.push(Math.min(L, Math.max(0, dot(sub(exact, wall.start), wall.dir))));
+    }
+  }
+  cuts.sort((a, b) => a - b);
+  const inWall = (p: Vec2) => d.shapeNoOpenings.some((poly) => pointInPolygon(p, poly));
+  const free: [number, number][] = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const [a, b] = [cuts[i]!, cuts[i + 1]!];
+    if (b - a < EPS) continue;
+    const m = (a + b) / 2;
+    if (inWall(probe(-1, m)) || inWall(probe(1, m))) continue;
+    const last = free[free.length - 1];
+    if (last && Math.abs(last[1] - a) < EPS) last[1] = b;
+    else free.push([a, b]);
+  }
+  let best: [number, number] = [from, from];
+  let bestD = Infinity;
+  for (const [a, b] of free) {
+    const dd = from < a ? a - from : from > b ? from - b : 0;
+    if (dd < bestD) {
+      bestD = dd;
+      best = [a, b];
+    }
+  }
+  return best;
 }
 
 /**

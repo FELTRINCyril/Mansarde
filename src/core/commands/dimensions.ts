@@ -6,7 +6,7 @@ import { dist } from '../geometry/vec';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
 
 /** Two anchors closer than this (cm) do not make a dimension. */
-const MIN_DIMENSION_LENGTH = 1;
+export const MIN_DIMENSION_LENGTH = 1;
 
 const ERR_DIMENSION_NOT_FOUND = 'Cote introuvable';
 const ERR_ANCHOR = 'Ancre introuvable';
