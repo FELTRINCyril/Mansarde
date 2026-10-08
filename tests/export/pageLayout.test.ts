@@ -161,24 +161,35 @@ describe('levelBounds', () => {
 describe('sheet layout', () => {
   const room = { minX: -30, minY: -20, maxX: 370, maxY: 280 }; // 400 x 300 cm
 
-  it('places the plan at the margins at the exact scale: 4 m at 1/50 is 80 mm', () => {
+  it('centers the plan in the drawing area (above the title block) at the exact scale: 4 m at 1/50 is 80 mm', () => {
     const p = planPlacement(room, { format: 'A4', orientation: 'landscape', scale: 50 });
     const mmPerCm = p.width / p.viewBox.width;
     expect(mmPerCm).toBeCloseTo(10 / 50, 12);
     expect(p.height / p.viewBox.height).toBeCloseTo(mmPerCm, 12);
     expect(400 * mmPerCm).toBeCloseTo(80, 9);
-    // the bounds' top-left corner lands exactly on the margins
-    expect(p.x + (room.minX - p.viewBox.x) * mmPerCm).toBeCloseTo(MARGIN_MM, 9);
-    expect(p.y + (room.minY - p.viewBox.y) * mmPerCm).toBeCloseTo(MARGIN_MM, 9);
+    // A4 landscape: drawing area 277 x 162 mm from (10, 10); the 80 x 60 mm bounds are centered in it
+    expect(p.x + (room.minX - p.viewBox.x) * mmPerCm).toBeCloseTo(10 + (277 - 80) / 2, 9);
+    expect(p.y + (room.minY - p.viewBox.y) * mmPerCm).toBeCloseTo(10 + (162 - 60) / 2, 9);
+  });
+
+  it('a plan that fills the drawing area exactly starts on the margins', () => {
+    const full = { minX: 0, minY: 0, maxX: 1385, maxY: 810 }; // 277 x 162 mm at 1/50
+    const p = planPlacement(full, { format: 'A4', orientation: 'landscape', scale: 50 });
+    const mmPerCm = p.width / p.viewBox.width;
+    expect(p.x + (full.minX - p.viewBox.x) * mmPerCm).toBeCloseTo(MARGIN_MM, 9);
+    expect(p.y + (full.minY - p.viewBox.y) * mmPerCm).toBeCloseTo(MARGIN_MM, 9);
   });
 
   it('adds a bleed of BLEED_PX print units (5 mm on paper at every scale) for dimension text', () => {
     expect(BLEED_PX).toBe(20);
     for (const scale of [20, 50, 100, 200]) {
-      const p = planPlacement(room, { format: 'A3', orientation: 'portrait', scale });
-      expect(p.x).toBeCloseTo(MARGIN_MM - 5, 9);
-      expect(p.y).toBeCloseTo(MARGIN_MM - 5, 9);
-      expect(p.width).toBeCloseTo((400 * 10) / scale + 10, 9);
+      const spec = { format: 'A3', orientation: 'portrait', scale } as const;
+      const p = planPlacement(room, spec);
+      const size = { width: (400 * 10) / scale, height: (300 * 10) / scale };
+      // A3 portrait: drawing area 277 x 372 mm
+      expect(p.x).toBeCloseTo(MARGIN_MM + (277 - size.width) / 2 - 5, 9);
+      expect(p.y).toBeCloseTo(MARGIN_MM + (372 - size.height) / 2 - 5, 9);
+      expect(p.width).toBeCloseTo(size.width + 10, 9);
       expect(p.viewBox.x).toBeCloseTo(room.minX - BLEED_PX * printLineUnit(scale), 9);
     }
   });

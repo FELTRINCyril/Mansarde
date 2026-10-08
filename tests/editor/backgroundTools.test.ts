@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { setBackground, updateBackground } from '@/core/commands/project';
 import type { Background, Level, Vec2 } from '@/core/model/types';
-import { watchBackgroundMode } from '@/editor/background';
+import { fitBounds, watchBackgroundMode } from '@/editor/background';
 import { createEditorStore } from '@/editor/store';
 import { createCalibrateTool } from '@/editor/tools/calibrateTool';
 import { createMoveBackgroundTool } from '@/editor/tools/moveBackgroundTool';
@@ -182,5 +182,22 @@ describe('watchBackgroundMode', () => {
     store.getState().setTool('moveBackground');
     store.getState().execute('lock', updateBackground(level().id, { locked: true }));
     expect(store.getState().tool).toBe('moveBackground'); // unsubscribed
+  });
+});
+
+describe('fitBounds: what key 0 shows', () => {
+  it('the plan bounds grown to the visible tracing image (rotated about its top-left corner)', () => {
+    const plan = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    const bg: Background = { ...BG, x: 50, y: -20, widthPx: 400, heightPx: 200, scale: 0.5, rotation: 90 };
+    // 200 x 100 cm turned 90 degrees clockwise about (50, -20): x from -50 to 50, y from -20 to 180
+    expect(fitBounds(plan, bg)).toEqual({ minX: -50, minY: -20, maxX: 100, maxY: 180 });
+    expect(fitBounds(null, { ...bg, rotation: 0 })).toEqual({ minX: 50, minY: -20, maxX: 250, maxY: 80 });
+  });
+
+  it('ignores a hidden image, and has nothing to show without plan nor image', () => {
+    const plan = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    expect(fitBounds(plan, { ...BG, visible: false })).toEqual(plan);
+    expect(fitBounds(plan, null)).toEqual(plan);
+    expect(fitBounds(null, null)).toBeNull();
   });
 });

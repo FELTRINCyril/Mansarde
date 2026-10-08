@@ -101,6 +101,29 @@ describe('PlanSvg', () => {
     for (const text of ['3,80 m', '2,80 m', '4,20 m', '3,20 m', '0,83 m']) expect(all).toContain(text);
   });
 
+  it('writes dimension and room texts over a mask of the color beneath (furniture never crosses them)', () => {
+    const markup = render(sampleProject());
+    const groups = [...markup.matchAll(/<g data-kind="auto-dimension"[\s\S]*?<\/g>/g)].map((m) => m[0]);
+    // the room dimensions are written inside the room, the facade ones on the paper
+    const masks = groups.map((g) => g.match(/<rect data-kind="text-mask"[^>]*fill="([^"]+)"/)?.[1]);
+    expect(masks).toContain('#f4efe6');
+    expect(masks).toContain('#ffffff');
+    for (const g of groups) expect(g.indexOf('text-mask')).toBeLessThan(g.indexOf('<text')); // mask drawn first
+    const label = markup.match(/<g data-kind="room-label"[\s\S]*?<\/g>/)![0];
+    expect(label).toMatch(/^<g[^>]*><rect data-kind="text-mask"[^>]*fill="#f4efe6"/);
+  });
+
+  it('leaves out the automatic dimensions that would be unreadable when zoomed out, never the manual ones', () => {
+    const near = render(sampleProject(), { lineUnit: 1 });
+    expect(near).toContain('0,83 m');
+    // 5 cm per pixel: "0,83 m" (about 36 px) no longer fits on its 83 cm (17 px) line
+    const far = render(sampleProject(), { lineUnit: 5, viewBox: { x: -500, y: -500, width: 1500, height: 1500 } });
+    expect(far).not.toContain('0,83 m');
+    expect(far).toContain('4,20 m'); // the facade still fits
+    expect(far).toContain(`data-kind="dimension" data-id="${DIM_ID}"`);
+    expect(far).not.toContain('NaN');
+  });
+
   it('hides grid, selection and overlay in print mode', () => {
     const overlay = <circle data-kind="test-overlay" cx={0} cy={0} r={5} />;
     const selection = [{ kind: 'object' as const, id: BED_ID }];

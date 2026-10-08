@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type JSX, type MouseEvent, type PointerEvent } from 'react';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
+import { fitBounds } from '@/editor/background';
 import { handleTarget, objectHandles } from '@/editor/handles';
 import { handleGlobalKey, isIgnoredKey } from '@/editor/keyboard';
 import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
@@ -21,11 +22,11 @@ const WHEEL_ZOOM = 0.0015;
 const WHEEL_LINE_PX = 16;
 const WHEEL_PAGE_PX = 400;
 
-/** View that shows the whole active level in a viewport of the given size. */
+/** View that shows the whole active level, tracing image included, in a viewport of the given size. */
 function fitActiveLevel(size: Size): View | null {
   const level = activeLevel(useEditor.getState());
   if (!level || size.width <= 0 || size.height <= 0) return null;
-  return fitView(levelBounds(level, deriveLevel(level)), size);
+  return fitView(fitBounds(levelBounds(level, deriveLevel(level)), level.background), size);
 }
 
 /**

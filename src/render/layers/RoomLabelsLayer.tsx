@@ -1,20 +1,7 @@
 import type { JSX } from 'react';
-import { pointInRing } from '@/core/geometry/polygon';
 import type { Room } from '@/core/geometry/rooms';
-import { formatArea } from '@/core/model/format';
-import type { Vec2 } from '@/core/model/types';
-import { CAP_HEIGHT, FONT_FAMILY, num, STYLE, textWidth } from '../style';
-
-/** Rough check: the rectangle of size w x h centered on c lies inside the room (corners only). */
-function boxFits(room: Room, c: Vec2, w: number, h: number): boolean {
-  const corners: Vec2[] = [
-    { x: c.x - w / 2, y: c.y - h / 2 },
-    { x: c.x + w / 2, y: c.y - h / 2 },
-    { x: c.x + w / 2, y: c.y + h / 2 },
-    { x: c.x - w / 2, y: c.y + h / 2 },
-  ];
-  return corners.every((p) => pointInRing(p, room.ring) && !room.islands.some((i) => pointInRing(p, i)));
-}
+import { roomLabelBox, roomLabelLayout } from '../roomLabelLayout';
+import { CAP_HEIGHT, FONT_FAMILY, num, STYLE } from '../style';
 
 /**
  * Room name, and the area on the line below when the room is large enough to hold both lines;
@@ -22,18 +9,23 @@ function boxFits(room: Room, c: Vec2, w: number, h: number): boolean {
  * svg2pdf ignores).
  */
 function RoomLabel({ room, lineUnit }: { room: Room; lineUnit: number }): JSX.Element {
-  const nameSize = STYLE.text * lineUnit;
-  const areaSize = STYLE.areaText * lineUnit;
-  const pad = STYLE.labelPadding * lineUnit;
-  const area = formatArea(room.area);
-  const blockWidth = Math.max(textWidth(room.name, nameSize), textWidth(area, areaSize)) + 2 * pad;
-  const blockHeight = nameSize + areaSize + 2 * pad;
-  const showArea = boxFits(room, room.labelPoint, blockWidth, blockHeight);
+  const { nameSize, areaSize, area, showArea } = roomLabelLayout(room, lineUnit);
   const x = num(room.labelPoint.x);
   const y = num(room.labelPoint.y);
   const common = { x, y, textAnchor: 'middle' as const, fontFamily: FONT_FAMILY, fill: STYLE.roomText, stroke: 'none' };
+  const box = roomLabelBox(room, lineUnit);
   return (
     <g data-kind="room-label" data-id={room.key}>
+      {/* a mask of the room color under the texts: they stay readable over the furniture (ruling R21) */}
+      <rect
+        data-kind="text-mask"
+        x={num(box.minX)}
+        y={num(box.minY)}
+        width={num(box.maxX - box.minX)}
+        height={num(box.maxY - box.minY)}
+        fill={STYLE.roomFill}
+        stroke="none"
+      />
       {/* name alone: baseline 0.35 em below the center; with the area: just above the center */}
       <text {...common} fontSize={nameSize} fontWeight="bold" dy={num((showArea ? -0.2 : 0.35) * nameSize)}>
         {room.name}

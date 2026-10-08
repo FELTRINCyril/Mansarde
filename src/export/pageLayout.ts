@@ -138,10 +138,18 @@ export interface PlanPlacement {
   height: number;
 }
 
-/** The bounds' top-left corner on the top-left margins, at exactly 1/scale, grown by the bleed. */
+/**
+ * The bounds centered in the drawing area (drawableAreaMm, from the top-left margins: above the
+ * title block band), at exactly 1/scale, grown by the bleed. A plan larger than the area (never
+ * exported, see fits) would start on the margins.
+ */
 export function planPlacement(b: BoundsCm, spec: PageSpec): PlanPlacement {
   const bleedCm = BLEED_PX * printLineUnit(spec.scale);
   const mmPerCm = 10 / spec.scale;
+  const area = drawableAreaMm(spec);
+  const size = contentSizeMm(b, spec.scale);
+  const left = MARGIN_MM + Math.max(0, (area.width - size.width) / 2);
+  const top = MARGIN_MM + Math.max(0, (area.height - size.height) / 2);
   const viewBox = {
     x: b.minX - bleedCm,
     y: b.minY - bleedCm,
@@ -151,8 +159,8 @@ export function planPlacement(b: BoundsCm, spec: PageSpec): PlanPlacement {
   const bleedMm = bleedCm * mmPerCm;
   return {
     viewBox,
-    x: MARGIN_MM - bleedMm,
-    y: MARGIN_MM - bleedMm,
+    x: left - bleedMm,
+    y: top - bleedMm,
     width: viewBox.width * mmPerCm,
     height: viewBox.height * mmPerCm,
   };

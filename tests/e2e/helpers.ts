@@ -26,3 +26,28 @@ export async function onPage(page: Page, w: Vec): Promise<Vec> {
   const v = await page.evaluate(() => window.__planMaison!.store.getState().view);
   return { x: box.x + w.x * v.pxPerCm + v.tx, y: box.y + w.y * v.pxPerCm + v.ty };
 }
+
+/** A grid point (cm, multiple of 100) shown at the given fraction of the canvas. */
+export async function gridPointAt(page: Page, fx: number, fy: number): Promise<Vec> {
+  const box = (await page.getByTestId('plan-canvas').boundingBox())!;
+  const v = await page.evaluate(() => window.__planMaison!.store.getState().view);
+  const round = (n: number) => Math.round(n / 100) * 100;
+  return { x: round((box.width * fx - v.tx) / v.pxPerCm), y: round((box.height * fy - v.ty) / v.pxPerCm) };
+}
+
+/** Moves the mouse to a world point (cm), in a few steps like a hand would. */
+export async function moveTo(page: Page, w: Vec): Promise<void> {
+  const p = await onPage(page, w);
+  await page.mouse.move(p.x, p.y, { steps: 3 });
+}
+
+/** Types a length (cm) in the numeric field opened by its first digit, then Enter. */
+export async function typeLength(page: Page, value: string): Promise<void> {
+  await page.keyboard.press(value[0]!);
+  const input = page.getByTestId('numeric-overlay-input');
+  await expect(input).toBeFocused();
+  await page.keyboard.type(value.slice(1));
+  await expect(input).toHaveValue(value);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('numeric-overlay')).toHaveCount(0);
+}

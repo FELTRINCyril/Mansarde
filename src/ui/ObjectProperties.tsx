@@ -65,7 +65,12 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
 
   return (
     <Section title="Objet">
-      <ReadOnly label="Modèle" value={shape === 'symbol' ? kindName : `${kindName} (${SHAPE_NAMES[shape]})`} />
+      <ReadOnly
+        label="Modèle"
+        // the shape is named only when it says something more ("Piano (Rectangle)", not "Rectangle (Rectangle)")
+        value={shape === 'symbol' || kindName === SHAPE_NAMES[shape] ? kindName : `${kindName} (${SHAPE_NAMES[shape]})`}
+        testId="object-model"
+      />
       <TextField label="Nom" value={o.name} testId="object-name" onCommit={(name) => update({ name })} />
       <NumericInput label="Largeur" valueCm={o.width} testId="object-width" onCommit={(width) => update({ width })} />
       <NumericInput label="Profondeur" valueCm={o.depth} testId="object-depth" onCommit={(depth) => update({ depth })} />

@@ -1,13 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createProject, onPage, type Vec } from './helpers';
-
-/** A grid point (cm) shown at the given fraction of the canvas. */
-async function gridPointAt(page: Page, fx: number, fy: number): Promise<Vec> {
-  const box = (await page.getByTestId('plan-canvas').boundingBox())!;
-  const v = await page.evaluate(() => window.__planMaison!.store.getState().view);
-  const round = (n: number) => Math.round(n / 100) * 100;
-  return { x: round((box.width * fx - v.tx) / v.pxPerCm), y: round((box.height * fy - v.ty) / v.pxPerCm) };
-}
+import { createProject, gridPointAt, moveTo, onPage, typeLength } from './helpers';
 
 async function counts(page: Page): Promise<{ walls: number; nodes: number; history: number }> {
   return page.evaluate(() => {
@@ -15,22 +7,6 @@ async function counts(page: Page): Promise<{ walls: number; nodes: number; histo
     const level = s.project!.levels.find((l) => l.id === s.activeLevelId)!;
     return { walls: Object.keys(level.walls).length, nodes: Object.keys(level.nodes).length, history: s.history.past.length };
   });
-}
-
-async function moveTo(page: Page, w: Vec) {
-  const p = await onPage(page, w);
-  await page.mouse.move(p.x, p.y, { steps: 3 });
-}
-
-/** Types a length in the numeric field opened by the first digit, then Enter. */
-async function typeLength(page: Page, value: string) {
-  await page.keyboard.press(value[0]!);
-  const input = page.getByTestId('numeric-overlay-input');
-  await expect(input).toBeFocused();
-  await page.keyboard.type(value.slice(1));
-  await expect(input).toHaveValue(value);
-  await page.keyboard.press('Enter');
-  await expect(page.getByTestId('numeric-overlay')).toHaveCount(0);
 }
 
 test('wall tool: a 400 x 300 room typed on the keyboard, closed by a click on the start point', async ({ page }) => {
