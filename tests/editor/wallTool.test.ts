@@ -1,23 +1,31 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { addRectRoom } from '@/core/commands/walls';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Level, Vec2 } from '@/core/model/types';
+import { applyNumericInput } from '@/editor/numericOverlay';
 import { createEditorStore, type EditorStore } from '@/editor/store';
-import { isDrawGhost } from '@/editor/tools/drawing';
-import type { PointerInfo, Tool, ToolContext } from '@/editor/tools/types';
+import { FIELD_DROP_PX, isDrawGhost } from '@/editor/tools/drawing';
+import { TOOLS, type PointerInfo, type Tool, type ToolContext } from '@/editor/tools/types';
 import { reduceWallTool, WALL_IDLE, wallToolOverlay, type Mods, type WallToolEnv, type WallToolState } from '@/editor/tools/wallMachine';
 import { createWallTool } from '@/editor/tools/wallTool';
 import { emptyProject } from '../core/helpers';
 
 const NO_MODS: Mods = { shift: false, alt: false, meta: false };
 
-/** 1 px per cm, screen = world. */
+const original = TOOLS.wall;
+afterEach(() => {
+  TOOLS.wall = original;
+});
+
+/** 1 px per cm, screen = world; the tool under test is the registered wall tool (numeric field callbacks). */
 function setup() {
   const store = createEditorStore();
   store.getState().openProject(emptyProject());
   store.getState().setTool('wall');
   const ctx: ToolContext = { store, toWorld: (q) => q, pxPerCm: () => 1, fitView: vi.fn() };
-  return { store, ctx, tool: createWallTool() };
+  const tool = createWallTool();
+  TOOLS.wall = tool;
+  return { store, ctx, tool };
 }
 
 const level = (store: EditorStore): Level => store.getState().project!.levels[0]!;
@@ -210,11 +218,14 @@ describe('wall tool: in the editor', () => {
     click(tool, ctx, { x: 0, y: 0 });
     tool.onPointerMove!(at(123, 0), ctx);
     expect(tool.onKeyDown!(key('3'), ctx)).toBe(true);
-    expect(store.getState().overlay.numericInput).toMatchObject({ value: '3', screen: { x: 123, y: 0 }, kind: 'positive', label: 'Longueur' });
+    // the field opens under the cursor, lowered below the angle / thickness label (down-right of it)
+    expect(store.getState().overlay.numericInput).toMatchObject({
+      value: '3', screen: { x: 123, y: FIELD_DROP_PX }, kind: 'positive', label: 'Longueur',
+    });
     // the preview direction is frozen while typing
     tool.onPointerMove!(at(0, 200), ctx);
-    store.getState().setOverlay({ numericInput: null }); // the field closes itself before submitting
-    tool.onNumericSubmit!(350, ctx);
+    expect(applyNumericInput(store, ctx, '350')).toBe(true);
+    expect(store.getState().overlay.numericInput).toBeNull();
     expect(tool.onKeyDown!(key('Enter'), ctx)).toBe(true);
     const lvl = level(store);
     const pts = Object.values(lvl.nodes).map((n) => ({ x: n.x, y: n.y }));
@@ -242,8 +253,100 @@ describe('wall tool: in the editor', () => {
     expect(isDrawGhost(ov.ghost) && ov.ghost.marker).toEqual({ at: { x: 100, y: 60 }, snap: 'grid' });
     expect(tool.onKeyDown!(key('3'), ctx)).toBe(false);
     click(tool, ctx, { x: 0, y: 0 });
-    expect(tool.onKeyDown!(key('z', { metaKey: true }), ctx)).toBe(false);
+    expect(tool.onKeyDown!(key('z', { metaKey: true, altKey: true, ctrlKey: true }), ctx)).toBe(false);
     tool.onDeactivate!(ctx);
+    expect(tool.onKeyDown!(key('Enter'), ctx)).toBe(false);
+  });
+
+  // both modifiers set: Mod is Cmd on macOS and Ctrl elsewhere, the tests run on either
+  const MOD = { metaKey: true, ctrlKey: true };
+
+  it('R32: Mod+Z removes the last point, then the chain; redo is ignored; the history is untouched', () => {
+    const { store, ctx, tool } = setup();
+    store.getState().execute('Room', addRectRoom(level(store).id, { x: 0, y: 500 }, { x: 300, y: 700 }, 20, 250));
+    click(tool, ctx, { x: 0, y: 0 });
+    click(tool, ctx, { x: 300, y: 0 });
+    click(tool, ctx, { x: 300, y: 200 });
+    expect(tool.onKeyDown!(key('z', MOD), ctx)).toBe(true);
+    expect(tool.onKeyDown!(key('z', { ...MOD, shiftKey: true }), ctx)).toBe(true);
+    expect(tool.onKeyDown!(key('y', MOD), ctx)).toBe(true);
+    // the preview now starts from (300, 0)
+    const ov = store.getState().overlay;
+    expect(ov.dynamicDims[0]?.a).toEqual({ x: 300, y: 0 });
+    expect(tool.onKeyDown!(key('Enter'), ctx)).toBe(true);
+    let lvl = level(store);
+    expect(Object.keys(lvl.walls)).toHaveLength(5); // the room + one wall
+    expect(store.getState().history.past).toHaveLength(2);
+    // a lone point: Mod+Z cancels the chain, the room stays
+    click(tool, ctx, { x: 0, y: 900 });
+    expect(tool.onKeyDown!(key('z', MOD), ctx)).toBe(true);
+    expect(tool.onKeyDown!(key('Enter'), ctx)).toBe(false); // idle again
+    lvl = level(store);
+    expect(Object.keys(lvl.walls)).toHaveLength(5);
+    expect(store.getState().history.past).toHaveLength(2);
+  });
+
+  it('a pointer cancel keeps the chain', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, { x: 0, y: 0 });
+    click(tool, ctx, { x: 300, y: 0 });
+    tool.onCancel!(ctx);
+    click(tool, ctx, { x: 300, y: 200 });
+    tool.onKeyDown!(key('Enter'), ctx);
+    expect(Object.keys(level(store).walls)).toHaveLength(2);
+  });
+
+  it('the partition thickness is frozen by a click made with Ctrl / Cmd, and Cmd+Enter finishes', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, { x: 0, y: 0 });
+    click(tool, ctx, { x: 300, y: 0 }, { meta: true });
+    click(tool, ctx, { x: 300, y: 200 }); // modifier released
+    tool.onKeyDown!(key('Enter'), ctx);
+    expect(Object.values(level(store).walls).map((w) => w.thickness)).toEqual([7, 7]);
+    click(tool, ctx, { x: 0, y: 500 });
+    click(tool, ctx, { x: 300, y: 500 });
+    expect(tool.onKeyDown!(key('Enter', MOD), ctx)).toBe(true);
+    expect(Object.values(level(store).walls).map((w) => w.thickness)).toEqual([7, 7, 7]);
+    // no modifier anywhere: the default thickness
+    click(tool, ctx, { x: 0, y: 900 });
+    click(tool, ctx, { x: 300, y: 900 });
+    tool.onKeyDown!(key('Enter'), ctx);
+    expect(Object.values(level(store).walls).map((w) => w.thickness)).toEqual([7, 7, 7, 20]);
+  });
+
+  it('Alt held: a click within the tolerance of the first free point still closes the loop', () => {
+    const { store, ctx, tool } = setup();
+    for (const p of [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 300 }]) click(tool, ctx, p, { alt: true });
+    click(tool, ctx, { x: 4, y: -3 }, { alt: true });
+    const lvl = level(store);
+    expect(Object.keys(lvl.walls)).toHaveLength(3);
+    expect(nodeDegrees(lvl)).toEqual([2, 2, 2]);
+    expect(store.getState().tool).toBe('wall');
+  });
+
+  it('a click with a click count of 2 (double-click) adds nothing', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, { x: 0, y: 0 });
+    click(tool, ctx, { x: 300, y: 0 });
+    click(tool, ctx, { x: 320, y: 0 }, { detail: 2 });
+    tool.onDoubleClick!(at(320, 0), ctx);
+    const lvl = level(store);
+    expect(Object.values(lvl.nodes).map((n) => n.x).sort((a, b) => a - b)).toEqual([0, 300]);
+  });
+
+  it('a change of the active level drops the chain, its ghost and its numeric field', () => {
+    const { store, ctx, tool } = setup();
+    const p = store.getState().project!;
+    const other = { ...p.levels[0]!, id: 'level-2', name: 'Étage' };
+    store.setState({ project: { ...p, levels: [...p.levels, other] } });
+    click(tool, ctx, { x: 0, y: 0 });
+    tool.onPointerMove!(at(200, 0), ctx);
+    tool.onKeyDown!(key('2'), ctx);
+    expect(store.getState().overlay.numericInput).not.toBeNull();
+    store.getState().setActiveLevel('level-2');
+    expect(store.getState().overlay.ghost).toBeNull();
+    expect(store.getState().overlay.dynamicDims).toEqual([]);
+    expect(store.getState().overlay.numericInput).toBeNull();
     expect(tool.onKeyDown!(key('Enter'), ctx)).toBe(false);
   });
 });

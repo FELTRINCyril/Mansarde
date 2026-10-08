@@ -2,8 +2,8 @@ import { snapPoint, type SnapResult } from '@/core/geometry/snap';
 import { len, normalize, sub } from '@/core/geometry/vec';
 import { MIN_WALL_LENGTH } from '@/core/model/defaults';
 import type { Id, Vec2 } from '@/core/model/types';
-import { DYN_DIM_GAP_PX, EMPTY_DRAW_OVERLAY, thicknessLabel, type DrawOverlay } from './drawing';
-import type { Mods, WallToolEnv } from './wallMachine';
+import { formatNumber } from '@/ui/numeric';
+import { DYN_DIM_GAP_PX, EMPTY_DRAW_OVERLAY, fieldScreen, thicknessLabel, type DrawOverlay, type Mods, type WallToolEnv } from './drawing';
 
 export type RectToolEnv = WallToolEnv;
 
@@ -13,15 +13,17 @@ export type RectToolEvent =
   | { type: 'down'; world: Vec2; screen: Vec2; mods: Mods }
   | { type: 'move'; world: Vec2; screen: Vec2; mods: Mods }
   | { type: 'up'; world: Vec2; screen: Vec2; mods: Mods }
-  | { type: 'escape' }
-  | { type: 'digit'; key: string }
-  | { type: 'numericTab'; value: number | null } // null: Tab on an empty field (switches without fixing)
+  | { type: 'escape' } // Escape key, Mod+Z (R32), pointer cancel / window blur
+  | { type: 'digit'; key: string; meta?: boolean }
+  // Tab (Shift+Tab: backward) in the field; value null = empty field, the side follows the cursor again
+  | { type: 'numericTab'; value: number | null; backward?: boolean }
   | { type: 'numericSubmit'; value: number }
   | { type: 'numericCancel' };
 
 export type RectToolEffect =
   | { type: 'commit'; levelId: Id; a: Vec2; b: Vec2; thickness: number; height: number }
-  | { type: 'openNumeric'; initial: string; screen: Vec2; label: string };
+  | { type: 'openNumeric'; initial: string; screen: Vec2; label: string }
+  | { type: 'closeNumeric' };
 
 export type RectToolState =
   | { phase: 'idle'; hover: SnapResult | null }
@@ -32,7 +34,7 @@ export type RectToolState =
       b: SnapResult; // snapped cursor
       screen: Vec2;
       released: boolean; // pointer already up, typed values still pending
-      partition: boolean;
+      partition: boolean; // Ctrl / Cmd held at any event of the drag (frozen once seen)
       width: number | null; // typed width (cm), along the side of the cursor
       height: number | null;
       typing: RectField | null; // field open in the numeric overlay
@@ -61,18 +63,25 @@ function commit(s: Drag, env: RectToolEnv): RectToolResult {
   return { state: RECT_IDLE, effects: [{ type: 'commit', levelId: s.levelId, a: s.a, b: rectCorner(s), thickness, height: env.height }] };
 }
 
-const open = (s: Drag, field: RectField, initial: string): RectToolResult => ({
-  state: { ...s, typing: field },
-  effects: [{ type: 'openNumeric', initial, screen: s.screen, label: RECT_FIELD_LABELS[field] }],
-});
+/** Opens the field of a side; `initial` defaults to the value already typed for that side. */
+const open = (s: Drag, field: RectField, initial?: string): RectToolResult => {
+  const typed = s[field];
+  const text = initial ?? (typed === null ? '' : formatNumber(typed));
+  return {
+    state: { ...s, typing: field },
+    effects: [{ type: 'openNumeric', initial: text, screen: fieldScreen(s.screen, diagonal(s.a, rectCorner(s))), label: RECT_FIELD_LABELS[field] }],
+  };
+};
 
 /**
  * The rectangular room tool as a pure state machine (spec 7.3, 7.4): press = snapped corner A,
  * drag = snapped corner B (preview with width / height dimensions), release = addRectRoom (a
  * release without a real rectangle does nothing). While dragging, a digit opens the width field,
- * Tab fixes the typed value and switches to the other side, Enter fixes it and creates the room
- * (a typed size follows the side of the cursor; the other one follows the cursor). Once a field
- * is open the release waits for Enter; Escape (or dismissing the field after the release) cancels.
+ * Tab / Shift+Tab fix the typed value and switch to the other side (prefilled with its value when
+ * already typed; an emptied field lets that side follow the cursor again), Enter fixes it and
+ * creates the room (a typed size follows the side of the cursor; the other one follows the
+ * cursor). Once a field is open the release waits for Enter. Escape, Mod+Z, a pointer cancel (or
+ * dismissing the field after the release) cancel without creating anything.
  */
 export function reduceRectTool(state: RectToolState, event: RectToolEvent, env: RectToolEnv): RectToolResult {
   const s: RectToolState = state.phase === 'drag' && state.levelId !== env.level.id ? RECT_IDLE : state;
@@ -99,23 +108,30 @@ export function reduceRectTool(state: RectToolState, event: RectToolEvent, env: 
     case 'down':
       return same;
     case 'move':
-      return { state: { ...s, b: snap(event.world, event.mods, env), screen: event.screen, partition: event.mods.meta }, effects: [] };
+      return {
+        state: { ...s, b: snap(event.world, event.mods, env), screen: event.screen, partition: s.partition || event.mods.meta },
+        effects: [],
+      };
     case 'up': {
-      const cur: Drag = { ...s, b: snap(event.world, event.mods, env), screen: event.screen, partition: event.mods.meta, released: true };
+      const cur: Drag = {
+        ...s, b: snap(event.world, event.mods, env), screen: event.screen, partition: s.partition || event.mods.meta, released: true,
+      };
       if (cur.typing) return { state: cur, effects: [] };
       const c = rectCorner(cur);
       const big = Math.abs(c.x - cur.a.x) >= MIN_WALL_LENGTH && Math.abs(c.y - cur.a.y) >= MIN_WALL_LENGTH;
       return big ? commit(cur, env) : { state: RECT_IDLE, effects: [] };
     }
     case 'escape':
-      return { state: RECT_IDLE, effects: [] };
-    case 'digit':
+      return { state: RECT_IDLE, effects: s.typing ? [{ type: 'closeNumeric' }] : [] };
+    case 'digit': {
       if (s.typing) return same;
-      return open(s, s.width === null || s.height !== null ? 'width' : 'height', event.key);
+      const cur: Drag = { ...s, partition: s.partition || !!event.meta };
+      return open(cur, s.width === null || s.height !== null ? 'width' : 'height', event.key);
+    }
     case 'numericTab': {
       if (!s.typing) return same;
-      const fixed: Drag = event.value === null ? s : { ...s, [s.typing]: event.value };
-      return open(fixed, s.typing === 'width' ? 'height' : 'width', '');
+      // two sides: forward and backward both lead to the other one
+      return open({ ...s, [s.typing]: event.value }, s.typing === 'width' ? 'height' : 'width');
     }
     case 'numericSubmit':
       if (!s.typing) return same;

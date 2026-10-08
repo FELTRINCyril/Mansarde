@@ -1,38 +1,29 @@
 import { addWallChain } from '@/core/commands/walls';
-import { openNumericInput } from '../numericOverlay';
-import { activeLevel } from '../store';
-import type { PointerInfo, Tool, ToolContext } from './types';
-import { reduceWallTool, WALL_IDLE, wallToolOverlay, type Mods, type WallToolEnv, type WallToolEvent, type WallToolState } from './wallMachine';
-
-/** Environment of the drawing tools: active level, zoom and project settings; null without a project. */
-export function drawingEnv(c: ToolContext): WallToolEnv | null {
-  const st = c.store.getState();
-  const level = activeLevel(st);
-  if (!st.project || !level) return null;
-  const s = st.project.settings;
-  return {
-    level,
-    pxPerCm: c.pxPerCm(),
-    gridStep: s.gridStep,
-    thickness: s.defaultWallThickness,
-    partitionThickness: s.partitionThickness,
-    height: s.defaultCeilingHeight,
-  };
-}
-
-export const modsOf = (e: PointerInfo): Mods => ({ shift: e.shift, alt: e.alt, meta: e.meta });
-
-/** A plain digit (no modifier): opens the numeric field of a drawing tool. */
-export const isDigitKey = (e: KeyboardEvent): boolean => /^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey;
+import { closeNumericInput, openNumericInput } from '../numericOverlay';
+import { drawingEnv, EMPTY_DRAW_OVERLAY, isDigitKey, modsOf, undoKeyOf, watchActiveLevel } from './drawing';
+import type { Tool, ToolContext } from './types';
+import { reduceWallTool, WALL_IDLE, wallToolOverlay, type WallToolEvent, type WallToolState } from './wallMachine';
 
 /** The wall tool (M): thin wiring of reduceWallTool (wallMachine.ts) to the editor store. */
 export function createWallTool(): Tool {
   let state: WallToolState = WALL_IDLE;
 
+  /** Drops the chain, its ghost and its numeric field (active level or project changed). */
+  const abandon = (c: ToolContext) => {
+    if (state.phase === 'idle') return;
+    state = WALL_IDLE;
+    if (c.store.getState().tool !== 'wall') return;
+    closeNumericInput(c.store);
+    c.store.getState().setOverlay(EMPTY_DRAW_OVERLAY);
+  };
+
+  const owner = {};
   const dispatch = (event: WallToolEvent, c: ToolContext): void => {
+    watchActiveLevel(c.store, owner, () => abandon(c));
     const env = drawingEnv(c);
     if (!env) {
       state = WALL_IDLE;
+      c.store.getState().setOverlay(EMPTY_DRAW_OVERLAY);
       return;
     }
     const r = reduceWallTool(state, event, env);
@@ -51,19 +42,27 @@ export function createWallTool(): Tool {
     id: 'wall',
     cursor: 'crosshair',
     onPointerDown(e, c) {
-      if (e.button === 0) dispatch({ type: 'click', world: e.world, screen: e.screen, mods: modsOf(e) }, c);
+      if (e.button === 0) dispatch({ type: 'click', world: e.world, screen: e.screen, mods: modsOf(e), detail: e.detail }, c);
     },
     onPointerMove(e, c) {
       dispatch({ type: 'move', world: e.world, screen: e.screen, mods: modsOf(e) }, c);
     },
-    onDoubleClick(_e, c) {
-      dispatch({ type: 'finish' }, c);
+    onDoubleClick(e, c) {
+      dispatch({ type: 'finish', meta: e.meta }, c);
     },
     onKeyDown(e, c) {
-      if (state.phase !== 'drawing' || e.metaKey || e.ctrlKey || e.altKey) return false;
-      if (e.key === 'Escape') dispatch({ type: 'escape' }, c);
-      else if (e.key === 'Enter') dispatch({ type: 'finish' }, c);
-      else if (isDigitKey(e)) dispatch({ type: 'digit', key: e.key }, c);
+      if (state.phase !== 'drawing') return false;
+      const undo = undoKeyOf(e);
+      if (undo) {
+        // R32: Mod+Z removes the last point, redo does nothing; the history is never touched mid-chain
+        if (undo === 'undo') dispatch({ type: 'undoPoint' }, c);
+        return true;
+      }
+      if (e.altKey) return false;
+      const meta = e.metaKey || e.ctrlKey;
+      if (e.key === 'Escape') dispatch({ type: 'escape', meta }, c);
+      else if (e.key === 'Enter') dispatch({ type: 'finish', meta }, c);
+      else if (isDigitKey(e)) dispatch({ type: 'digit', key: e.key, meta }, c);
       else return false;
       return true; // handled: the caller prevents the default (a digit must not reach the new field)
     },
@@ -73,6 +72,11 @@ export function createWallTool(): Tool {
     onNumericCancel(c) {
       dispatch({ type: 'numericCancel' }, c);
     },
+    /**
+     * Pointer cancel, capture lost or window blur: a click is complete at pointerdown, so there is
+     * no press in progress to abandon; the chain is kept (Escape / Mod+Z are there to drop it).
+     */
+    onCancel() {},
     onDeactivate() {
       state = WALL_IDLE;
     },

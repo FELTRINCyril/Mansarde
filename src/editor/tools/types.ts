@@ -52,8 +52,9 @@ export interface Tool {
   /**
    * Tab in the shared numeric field: the typed value (null when the field is empty). When a tool
    * defines it, Tab stays in the field (the tool usually reopens it for its next value).
+   * `backward` is true for Shift+Tab (previous value).
    */
-  onNumericTab?(valueCm: number | null, c: ToolContext): void;
+  onNumericTab?(valueCm: number | null, c: ToolContext, backward?: boolean): void;
   /** The shared numeric field was dismissed (Escape or blur) without applying anything. */
   onNumericCancel?(c: ToolContext): void;
   /**

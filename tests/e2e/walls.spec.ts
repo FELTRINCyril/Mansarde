@@ -155,3 +155,50 @@ test('rectangle tool: typed width, Tab, typed height, Enter', async ({ page }) =
   expect(size).toEqual({ w: 500, h: 350 });
   expect((await counts(page)).history).toBe(1);
 });
+
+test('wall tool: Mod+Z removes the last point of the chain, never the previous history entry', async ({ page }) => {
+  await createProject(page, 'Murs annuler');
+  await page.keyboard.press('r');
+  const a = await gridPointAt(page, 0.2, 0.2);
+  const pa = await onPage(page, a);
+  const pb = await onPage(page, { x: a.x + 300, y: a.y + 200 });
+  await page.mouse.move(pa.x, pa.y);
+  await page.mouse.down();
+  await page.mouse.move(pb.x, pb.y, { steps: 3 });
+  await page.mouse.up();
+  expect(await counts(page)).toEqual({ walls: 4, nodes: 4, history: 1 });
+
+  await page.keyboard.press('m');
+  const s = { x: a.x, y: a.y + 250 };
+  for (const w of [s, { x: s.x + 200, y: s.y }, { x: s.x + 200, y: s.y + 100 }]) {
+    const p = await onPage(page, w);
+    await page.mouse.click(p.x, p.y);
+  }
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  expect(await counts(page)).toEqual({ walls: 4, nodes: 4, history: 1 });
+  await page.keyboard.press('Enter');
+  expect(await counts(page)).toEqual({ walls: 5, nodes: 6, history: 2 });
+});
+
+test('numeric field: its label is shown whole above the input and the field leaves the tool label visible', async ({ page }) => {
+  await createProject(page, 'Libellé');
+  await page.keyboard.press('m');
+  const s = await gridPointAt(page, 0.3, 0.3);
+  await moveTo(page, s);
+  const p = await onPage(page, s);
+  await page.mouse.click(p.x, p.y);
+  await moveTo(page, { x: s.x + 200, y: s.y });
+  await page.keyboard.press('2');
+  const label = page.locator('.numeric-overlay-label');
+  await expect(label).toHaveText('Longueur');
+  expect(await label.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  const lb = (await label.boundingBox())!;
+  const input = (await page.getByTestId('numeric-overlay-input').boundingBox())!;
+  expect(lb.y + lb.height).toBeLessThanOrEqual(input.y);
+  const field = (await page.getByTestId('numeric-overlay').boundingBox())!;
+  const tool = (await page.locator('[data-kind="draw-label"]').boundingBox())!;
+  const top = Math.min(field.y, lb.y);
+  const overlaps = tool.x < field.x + field.width && field.x < tool.x + tool.width && tool.y < field.y + field.height && top < tool.y + tool.height;
+  expect(overlaps).toBe(false);
+});

@@ -95,7 +95,7 @@ function NumericField(p: {
             });
           } else if (e.key === 'Tab') {
             // only for tools with several values (onNumericTab); otherwise Tab leaves the field
-            const r = tabNumericInput(useEditor, p.ctx, e.currentTarget.value);
+            const r = tabNumericInput(useEditor, p.ctx, e.currentTarget.value, e.shiftKey);
             if (r !== 'unhandled') {
               e.preventDefault();
               setInvalid(r === 'invalid');

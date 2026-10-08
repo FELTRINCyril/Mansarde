@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Level, Vec2 } from '@/core/model/types';
-import { openNumericInput, tabNumericInput } from '@/editor/numericOverlay';
+import { applyNumericInput, openNumericInput, tabNumericInput } from '@/editor/numericOverlay';
 import { createEditorStore, type EditorStore } from '@/editor/store';
 import { RECT_IDLE, reduceRectTool, rectToolOverlay, type RectToolEvent, type RectToolState } from '@/editor/tools/rectRoomMachine';
 import { createRectRoomTool } from '@/editor/tools/rectRoomTool';
@@ -130,5 +130,70 @@ describe('rectangle tool: in the editor', () => {
     openNumericInput(store, { initial: '3', screen: { x: 0, y: 0 }, kind: 'positive' });
     expect(store.getState().tool).toBe('select');
     expect(tabNumericInput(store, ctx, '3')).toBe('unhandled');
+  });
+
+  const MOD = { metaKey: true, ctrlKey: true, altKey: false, shiftKey: false };
+  const keyOf = (k: string, mods: Partial<KeyboardEvent> = {}) =>
+    ({ key: k, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods }) as KeyboardEvent;
+
+  it('R32: Mod+Z abandons the drag (history untouched), redo is ignored', () => {
+    const { store, ctx, tool } = setup();
+    tool.onPointerDown!(at(0, 0), ctx);
+    tool.onPointerUp!(at(400, 300), ctx); // a first room, one history entry
+    tool.onPointerDown!(at(0, 500), ctx);
+    tool.onPointerMove!(at(300, 700), ctx);
+    expect(tool.onKeyDown!(keyOf('z', { ...MOD, shiftKey: true }), ctx)).toBe(true);
+    expect(tool.onKeyDown!(keyOf('z', MOD), ctx)).toBe(true);
+    expect(store.getState().overlay.ghost).toBeNull(); // the rectangle preview is gone
+    tool.onPointerUp!(at(300, 700), ctx);
+    expect(Object.keys(level(store).walls)).toHaveLength(4);
+    expect(store.getState().history.past).toHaveLength(1);
+  });
+
+  it('a pointer cancel abandons the drag: the next release elsewhere creates nothing', () => {
+    const { store, ctx, tool } = setup();
+    tool.onPointerDown!(at(0, 0), ctx);
+    tool.onPointerMove!(at(300, 200), ctx);
+    tool.onKeyDown!(keyOf('4'), ctx);
+    tool.onCancel!(ctx);
+    expect(store.getState().overlay.numericInput).toBeNull();
+    tool.onPointerUp!(at(600, 600), ctx);
+    expect(Object.keys(level(store).walls)).toHaveLength(0);
+  });
+
+  it('3, Tab, Tab, Enter: returning to the width prefills it with 3', () => {
+    const { store, ctx, tool } = setup();
+    tool.onPointerDown!(at(0, 0), ctx);
+    tool.onPointerMove!(at(300, 200), ctx);
+    tool.onKeyDown!(keyOf('3'), ctx);
+    expect(tabNumericInput(store, ctx, '3')).toBe('ok');
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '', label: 'Hauteur' });
+    expect(tabNumericInput(store, ctx, '', true)).toBe('ok'); // Shift+Tab
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '3', label: 'Largeur' });
+    expect(applyNumericInput(store, ctx, '3')).toBe(true);
+    const xs = Object.values(level(store).nodes).map((n) => n.x);
+    const ys = Object.values(level(store).nodes).map((n) => n.y);
+    expect(Math.max(...xs) - Math.min(...xs)).toBe(3);
+    expect(Math.max(...ys) - Math.min(...ys)).toBe(200);
+  });
+
+  it('the partition thickness stays once Ctrl / Cmd was seen during the drag', () => {
+    const { store, ctx, tool } = setup();
+    tool.onPointerDown!({ ...at(0, 0), meta: true }, ctx);
+    tool.onPointerMove!(at(200, 100), ctx);
+    tool.onPointerUp!(at(400, 300), ctx);
+    expect(Object.values(level(store).walls).map((w) => w.thickness)).toEqual([7, 7, 7, 7]);
+  });
+
+  it('a change of the active level drops the drag and its ghost', () => {
+    const { store, ctx, tool } = setup();
+    const p = store.getState().project!;
+    store.setState({ project: { ...p, levels: [...p.levels, { ...p.levels[0]!, id: 'level-2' }] } });
+    tool.onPointerDown!(at(0, 0), ctx);
+    tool.onPointerMove!(at(300, 200), ctx);
+    store.getState().setActiveLevel('level-2');
+    expect(store.getState().overlay.ghost).toBeNull();
+    tool.onPointerUp!(at(300, 200), ctx);
+    expect(store.getState().project!.levels.every((l) => Object.keys(l.walls).length === 0)).toBe(true);
   });
 });
