@@ -57,11 +57,18 @@ export interface EditorState {
   /** Resets history, selection, gesture, overlay and tool; activeLevelId = first level. */
   openProject(p: Project): void;
   closeProject(): void;
-  /** applyCommand + one history entry (none for a no-op); on refusal toasts the error and returns false. Cancels an active gesture first. */
+  /**
+   * applyCommand + one history entry (none for a no-op); on refusal (command error, or a result
+   * whose geometry cannot be computed, ERR_GEOMETRY) toasts the error and returns false. Cancels an
+   * active gesture first.
+   */
   execute(label: string, recipe: Recipe): boolean;
   /** Starts a live edit; an already active gesture is cancelled first. */
   beginGesture(label: string): void;
-  /** Applies recipe to the gesture base (not cumulatively on the preview). Refusal keeps the last valid preview and flags previewInvalid. */
+  /**
+   * Applies recipe to the gesture base (not cumulatively on the preview). Refusal (command error, or
+   * geometry that cannot be computed) keeps the last valid preview and flags previewInvalid.
+   */
   updateGesture(recipe: Recipe): boolean;
   /**
    * Pushes ONE history entry, computed from the base and the last accepted recipe; nothing if there
@@ -104,6 +111,21 @@ function reconcile(s: EditorState, project: Project): Pick<EditorState, 'selecti
   // rooms are only computed when a room is selected
   const rooms = s.selection.some((i) => i.kind === 'room') && level ? deriveLevel(level).rooms : [];
   return { selection: pruneSelection(s.selection, level, rooms), activeLevelId: level?.id ?? null };
+}
+
+export const ERR_GEOMETRY = 'Géométrie impossible à calculer pour cette modification.';
+
+/**
+ * Ruling R37: an edit is refused when a level it changed can only be derived in degraded mode
+ * (a boolean operation failed even after its retries) while it was exact before. A level that was
+ * already degraded (e.g. an imported file) stays editable, so that the user can repair it.
+ */
+function degradesGeometry(before: Project, after: Project): boolean {
+  return after.levels.some((level) => {
+    if (before.levels.includes(level) || !deriveLevel(level).degraded) return false;
+    const prev = before.levels.find((l) => l.id === level.id);
+    return !prev || !deriveLevel(prev).degraded;
+  });
 }
 
 export function createEditorStore() {
@@ -159,6 +181,10 @@ export function createEditorStore() {
           return false;
         }
         if (r.patches.length === 0) return true;
+        if (degradesGeometry(project, r.project)) {
+          get().showToast(ERR_GEOMETRY);
+          return false;
+        }
         set((s) => ({
           project: r.project,
           history: pushEntry(s.history, { label, patches: r.patches, inverse: r.inverse }),
@@ -177,7 +203,7 @@ export function createEditorStore() {
         const { gesture } = get();
         if (!gesture) return false;
         const r = applyCommand(gesture.base, recipe);
-        if (!r.ok) {
+        if (!r.ok || degradesGeometry(gesture.base, r.project)) {
           set((s) => ({ project: gesture.last, overlay: { ...s.overlay, previewInvalid: true } }));
           return false;
         }

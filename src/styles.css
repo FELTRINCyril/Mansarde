@@ -1004,3 +1004,49 @@ select {
   border: 1px solid #efc3bd;
   border-radius: var(--radius);
 }
+
+/* ===== Error fallbacks and geometry notice (ruling R37) ===== */
+
+.app-error {
+  padding: 40px;
+}
+
+.plan-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.plan-error-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.plan-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.plan-notice {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border: 1px solid #e6d3a3;
+  border-radius: 6px;
+  background: #fbf4e2;
+  color: #6b5216;
+  font-size: 12px;
+  pointer-events: none;
+}

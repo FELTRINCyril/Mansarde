@@ -15,10 +15,14 @@ export interface Room {
 
 export const DEFAULT_ROOM_NAME = 'Pièce';
 const LABEL_POINT_PRECISION = 1;
+/** Holes smaller than this (cm2) are slivers left by the boolean library, not rooms. */
+const MIN_ROOM_AREA = 1;
+
+const roomHoles = (polygon: Shape[number]): Ring[] => polygon.holes.filter((h) => area(h) >= MIN_ROOM_AREA);
 
 /** Outer rings of the shape polygons lying directly inside each hole (innermost enclosing hole wins). */
 function islandsByHole(shape: Shape): Map<Ring, Ring[]> {
-  const holes = shape.flatMap((polygon) => polygon.holes);
+  const holes = shape.flatMap(roomHoles);
   const islands = new Map<Ring, Ring[]>(holes.map((hole) => [hole, []]));
   const holeAreas = new Map(holes.map((hole) => [hole, area(hole)]));
   for (const polygon of shape) {
@@ -38,7 +42,7 @@ const toPolylabelRing = (ring: Ring): number[][] => ring.map((p) => [p.x, p.y]);
 
 /**
  * Rooms are the holes of the wall shape computed without openings, so that a door never merges
- * two rooms. A closed wall shape standing free inside a hole is an island: it is subtracted from
+ * two rooms (holes under MIN_ROOM_AREA are boolean slivers, not rooms). A closed wall shape standing free inside a hole is an island: it is subtracted from
  * the room area and from label matching and label point. Each room takes the oldest unused label
  * whose anchor lies inside its ring and outside its islands; labels in no room, or outranked by
  * an older one, are ignored (not deleted).
@@ -49,7 +53,7 @@ export function computeRooms(level: Level, wallShape?: Shape): Room[] {
   const used = new Set<string>();
   const rooms: Room[] = [];
   for (const polygon of shape) {
-    for (const ring of polygon.holes) {
+    for (const ring of roomHoles(polygon)) {
       const islands = islandsOf.get(ring) ?? [];
       const label =
         level.roomLabels.find(

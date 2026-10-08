@@ -61,7 +61,7 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
       <RoomsLayer rooms={derived.rooms} translucent={imageShown} />
       <ObjectsLayer objects={level.objects} customObjects={p.project.customObjects} lineUnit={lineUnit} />
       <RoomLabelsLayer rooms={derived.rooms} lineUnit={lineUnit} />
-      <WallsLayer shape={derived.shapeWithOpenings} />
+      <WallsLayer shape={derived.shapeWithOpenings} degraded={derived.degraded} />
       <OpeningsLayer level={level} lineUnit={lineUnit} />
       <DimensionsLayer level={level} derived={derived} dimMode={p.dimMode} lineUnit={lineUnit} />
       {screen && p.selection && (

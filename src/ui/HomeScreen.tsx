@@ -12,11 +12,19 @@ import {
 import { Banner } from './Banner';
 import { ConfirmDialog, PromptDialog } from './ConfirmDialog';
 import { formatModified } from './dateFormat';
+import { ErrorBoundary } from './ErrorBoundary';
 import { ProjectThumbnail } from './ProjectThumbnail';
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 type Dialog = { kind: 'new' } | { kind: 'rename'; meta: ProjectMeta } | { kind: 'delete'; meta: ProjectMeta };
+
+/** Shown instead of a thumbnail whose rendering threw: the project can still be opened, exported or deleted. */
+const ThumbnailError = (): JSX.Element => (
+  <div className="project-thumb project-thumb-empty" data-testid="project-thumb-error">
+    Aperçu indisponible
+  </div>
+);
 
 const levelCount = (n: number): string => (n > 1 ? `${n} niveaux` : `${n} niveau`);
 
@@ -120,7 +128,9 @@ export function HomeScreen(p: {
           <ul className="project-list" aria-label="Projets">
             {projects.map((m) => (
               <li key={m.id} className="project-card" data-testid="project-item">
-                <ProjectThumbnail projectStore={projectStore} id={m.id} updatedAt={m.updatedAt} />
+                <ErrorBoundary resetKey={m.updatedAt} fallback={() => <ThumbnailError />}>
+                  <ProjectThumbnail projectStore={projectStore} id={m.id} updatedAt={m.updatedAt} />
+                </ErrorBoundary>
                 <button type="button" className="project-open" onClick={() => p.onOpen(m.id)}>
                   <span className="project-title" data-testid="project-name-cell">
                     {m.name}

@@ -1,5 +1,5 @@
 import type { Id, Level, Ring, Shape, Vec2 } from '../model/types';
-import { difference, unionRings } from './boolean';
+import { BooleanOpError, copyShape, difference, unionRings, unionShapes } from './boolean';
 import { openingCutRing } from './openings';
 import { area } from './polygon';
 import { add, angleOf, cross, deg2rad, dist, dot, lineIntersection, normalize, perp, scale, sub } from './vec';
@@ -225,23 +225,82 @@ export function computeJointPolygons(level: Level): Ring[] {
 const usable = (r: Ring): boolean =>
   r.length >= 3 && r.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)) && area(r) >= MIN_RING_AREA;
 
+/** A computed shape, and whether it is a simplified fallback because a boolean operation failed. */
+export interface ShapeResult { shape: Shape; degraded: boolean }
+
+const asShape = (rings: Ring[]): Shape => rings.map((outer) => ({ outer, holes: [] }));
+
+/**
+ * Union of the rings one at a time: a ring whose union fails is kept as a separate polygon
+ * (overlapping the others). Exact when no step fails.
+ */
+function unionStepwise(rings: Ring[]): ShapeResult {
+  let acc: Shape = [];
+  const leftovers: Ring[] = [];
+  for (const r of rings) {
+    try {
+      acc = unionShapes([acc, asShape([r])]);
+    } catch (e) {
+      if (!(e instanceof BooleanOpError)) throw e;
+      leftovers.push(r);
+    }
+  }
+  return { shape: [...acc, ...asShape(leftovers)], degraded: leftovers.length > 0 };
+}
+
 /**
  * Union of the square wall bodies and the outer joint fills (the exact mitered buffer of the
- * wall graph); openings are subtracted when requested. The per-wall outlines are contained in
- * this shape; they are not used to build it because a miter cut between walls of very
- * different thickness can remove part of the thick wall that the thin one does not cover.
+ * wall graph), without openings. The per-wall outlines are contained in this shape; they are not
+ * used to build it because a miter cut between walls of very different thickness can remove part
+ * of the thick wall that the thin one does not cover. Never throws on a boolean failure (ruling
+ * R37): the union is retried ring by ring, and the rings that still fail are kept as separate,
+ * possibly overlapping polygons (degraded: such a shape has no meaningful holes, so no rooms).
  */
-export function computeWallShape(level: Level, opts: { withOpenings: boolean }): Shape {
+export function wallShapeResult(level: Level): ShapeResult {
   const junctions = computeJunctions(level);
   const rings = [...bodiesFrom(junctions), ...jointsFrom(junctions)].filter(usable);
-  const shape = unionRings(rings);
+  try {
+    return { shape: unionRings(rings), degraded: false };
+  } catch (e) {
+    if (!(e instanceof BooleanOpError)) throw e;
+    return unionStepwise(rings);
+  }
+}
+
+/** The wall shape (see wallShapeResult), openings subtracted when requested. */
+export function computeWallShape(level: Level, opts: { withOpenings: boolean }): Shape {
+  const { shape } = wallShapeResult(level);
   return opts.withOpenings ? subtractOpenings(level, shape) : shape;
 }
 
-/** The wall shape minus the cut ring of every opening of the level. */
-export function subtractOpenings(level: Level, shape: Shape): Shape {
+/**
+ * The wall shape minus the cut ring of every opening of the level. Never throws on a boolean
+ * failure (ruling R37): the cuts are retried one at a time and those that still fail are skipped
+ * (degraded: the opening is drawn over a closed wall).
+ */
+export function subtractOpeningsResult(level: Level, shape: Shape): ShapeResult {
   const cuts = Object.values(level.openings)
     .map((o) => openingCutRing(level, o))
     .filter(usable);
-  return difference(shape, cuts);
+  try {
+    return { shape: difference(shape, cuts), degraded: false };
+  } catch (e) {
+    if (!(e instanceof BooleanOpError)) throw e;
+  }
+  let acc = copyShape(shape);
+  let skipped = 0;
+  for (const cut of cuts) {
+    try {
+      acc = difference(acc, [cut]);
+    } catch (e) {
+      if (!(e instanceof BooleanOpError)) throw e;
+      skipped++;
+    }
+  }
+  return { shape: acc, degraded: skipped > 0 };
+}
+
+/** The wall shape minus the cut ring of every opening of the level (see subtractOpeningsResult). */
+export function subtractOpenings(level: Level, shape: Shape): Shape {
+  return subtractOpeningsResult(level, shape).shape;
 }

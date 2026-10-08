@@ -14,7 +14,8 @@ import { ExportDialog } from './ExportDialog';
 import { Header } from './Header';
 import { levelsWithMissingImages, missingImageMessage } from './imageCheck';
 import { LevelTabs } from './LevelTabs';
-import { PlanCanvas, type Size } from './PlanCanvas';
+import { PlanArea } from './PlanArea';
+import type { Size } from './PlanCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { SettingsDialog } from './SettingsDialog';
 import { Toolbar } from './Toolbar';
@@ -174,7 +175,7 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
         <Toolbar />
         <CatalogPanel onPlace={placeAtCenter} />
         <main className="editor-center">
-          <PlanCanvas imageUrls={imageUrls} onResize={onResize} />
+          <PlanArea imageUrls={imageUrls} onResize={onResize} onExportProject={p.onExportProject} onClose={p.onClose} />
         </main>
         <BackgroundServicesContext.Provider value={backgroundServices}>
           <PropertiesPanel />
