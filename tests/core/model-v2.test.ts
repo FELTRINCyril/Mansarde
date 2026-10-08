@@ -7,6 +7,7 @@ import { BEAM_DEFAULTS, CUPBOARD_DEFAULTS, DEFAULT_SETTINGS, SLOPE_DEFAULT_END, 
 import { createBeam, createCupboard, createLevel, createObjectFromSize, createProject, createSlope } from '@/core/model/factory';
 import type { Level, ObjectPose, Project } from '@/core/model/types';
 import { parseImport, serializeExport } from '@/core/persistence/exchange';
+import { projectSchema } from '@/core/persistence/schema';
 import { findWall, levelFromWalls, rectRoom } from './fixtures';
 
 /** Room 400 x 300 with one slope, one beam and one cupboard on the top wall (0,0)-(400,0). */
@@ -29,6 +30,25 @@ function projectWith(level: Level): Project {
 }
 
 const only = <T>(rec: Record<string, T>): T => Object.values(rec)[0]!;
+
+/**
+ * Statements of a module source that load another module at run time: static imports and
+ * re-exports that are not `type`-only, dynamic import() and require(). String literals and
+ * comments are blanked first so that their content is never mistaken for code.
+ */
+function runtimeImports(source: string): string[] {
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''");
+  const patterns = [
+    /^\s*import\s+(?!type[\s{])[^;]*/gm, // import x / import { } / import '...'
+    /^\s*export\s+(?!type[\s{])(?:\*|\{)[^;]*?\bfrom\b[^;]*/gm, // export * / export { } from
+    /\bimport\s*\(/g,
+    /\brequire\s*\(/g,
+  ];
+  return patterns.flatMap((re) => code.match(re) ?? []);
+}
 
 describe('V2 factories and defaults', () => {
   it('createLevel has empty slopes, beams and cupboards', () => {
@@ -94,12 +114,31 @@ describe('catalog pose fields', () => {
     expect(getCatalogEntry('chair')!.pose).toBe('tuckable');
   });
 
+  it('the runtime-import detector catches every form of module dependency', () => {
+    expect(runtimeImports("import type { A } from './a';\nexport type { B } from './b';\nconst s = 'import(';")).toEqual([]);
+    for (const bad of [
+      "import { A } from './a';",
+      "import React from 'react';",
+      "import './side-effect';",
+      "import {\n  A,\n} from './a';",
+      "import { type A } from './a';", // keeps an `import {}` under verbatimModuleSyntax
+      "export { A } from './a';",
+      "export * from './a';",
+      "export * as ns from './a';",
+      "export {\n  A,\n} from './a';",
+      "const m = await import('./a');",
+      "const m = import ('./a');",
+      "const r = require('react');",
+    ]) {
+      expect(runtimeImports(bad), bad).not.toEqual([]);
+    }
+  });
+
   it('catalog.ts stays importable from src/core: type-only imports', () => {
     // the migration (src/core) reads catalog poses; catalog.ts must never pull React or the DOM
     const source = readFileSync('src/catalog/catalog.ts', 'utf8');
-    const imports = source.split('\n').filter((l) => /^\s*import\b/.test(l));
-    expect(imports.length).toBeGreaterThan(0);
-    for (const line of imports) expect(line, line).toMatch(/^import type /);
+    expect(source).toMatch(/^import type /m);
+    expect(runtimeImports(source)).toEqual([]);
   });
 });
 
@@ -120,6 +159,7 @@ describe('validateProject V2 invariants', () => {
     ['a cupboard of negative gap', (l) => { only(l.cupboards).gap = -1; }, /cupboard .*gap/],
     ['a cupboard with 0 doors', (l) => { only(l.cupboards).doorCount = 0; }, /cupboard .*door count/],
     ['a cupboard with 1.5 doors', (l) => { only(l.cupboards).doorCount = 1.5; }, /cupboard .*door count/],
+    ['a cupboard with 21 doors', (l) => { only(l.cupboards).doorCount = 21; }, /cupboard .*door count/],
     ['a slope of depth 0', (l) => { only(l.slopes).depth = 0; }, /slope .*depth/],
     ['a slope of length 0', (l) => { only(l.slopes).b = { ...only(l.slopes).a }; }, /slope .*length/],
     ['a slope of zero end height', (l) => { only(l.slopes).heightEnd = 0; }, /slope .*height/],
@@ -137,6 +177,12 @@ describe('validateProject V2 invariants', () => {
       expect(problems.some((p) => message.test(p)), problems.join(' | ')).toBe(true);
     });
   }
+
+  it('accepts a cupboard with 20 doors (ruling V2-R2 upper bound)', () => {
+    const level = v2Level();
+    only(level.cupboards).doorCount = 20;
+    expect(validateProject(projectWith(level))).toEqual([]);
+  });
 
   it('accepts a cupboard exactly as wide as its wall (tolerance 1e-6)', () => {
     const level = v2Level();
@@ -214,6 +260,13 @@ describe('schema of V2 elements', () => {
     ['an unknown beam mode', (l) => { Object.values<any>(l.beams)[0].mode = 'floating'; }],
     ['a zero cupboard width', (l) => { Object.values<any>(l.cupboards)[0].width = 0; }],
     ['a fractional door count', (l) => { Object.values<any>(l.cupboards)[0].doorCount = 2.5; }],
+    ['a door count of 21', (l) => { Object.values<any>(l.cupboards)[0].doorCount = 21; }],
+    ['a door count of 0', (l) => { Object.values<any>(l.cupboards)[0].doorCount = 0; }],
+    ['a negative plinth', (l) => { Object.values<any>(l.cupboards)[0].plinth = -1; }],
+    ['a negative gap', (l) => { Object.values<any>(l.cupboards)[0].gap = -0.5; }],
+    ['a zero slope start height', (l) => { Object.values<any>(l.slopes)[0].heightStart = 0; }],
+    ['a zero slope end height', (l) => { Object.values<any>(l.slopes)[0].heightEnd = 0; }],
+    ['a zero beam width', (l) => { Object.values<any>(l.beams)[0].width = 0; }],
     ['an unknown door type', (l) => { Object.values<any>(l.cupboards)[0].doorType = 'folding'; }],
     ['an unknown height mode', (l) => { Object.values<any>(l.cupboards)[0].heightMode = 'auto'; }],
     ['an extra cupboard key', (l) => { Object.values<any>(l.cupboards)[0].extra = 1; }],
@@ -226,10 +279,20 @@ describe('schema of V2 elements', () => {
       const o = createObjectFromSize({ kind: 'catalog', catalogId: 'chair' }, 100, 100, { width: 50, depth: 50, height: 80 }, 'C', '#fff');
       p.levels[0]!.objects[o.id] = o;
       const f = JSON.parse(serializeExport(p, {}));
+      expect(projectSchema.safeParse(f.project).success).toBe(true); // control: valid before the mutation
       mutate(f.project.levels[0]);
+      // refused by the schema itself, not only by validateProject afterwards
+      expect(projectSchema.safeParse(f.project).success).toBe(false);
       const r = parseImport(JSON.stringify(f));
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.error).toMatch(/^Fichier invalide : /);
     });
   }
+
+  it('accepts a door count of 20 (ruling V2-R2 upper bound)', () => {
+    const p = projectWith(v2Level());
+    only(p.levels[0]!.cupboards).doorCount = 20;
+    expect(projectSchema.safeParse(JSON.parse(JSON.stringify(p))).success).toBe(true);
+    expect(parseImport(serializeExport(p, {}))).toEqual({ ok: true, project: p, images: {} });
+  });
 });

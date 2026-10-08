@@ -1,4 +1,4 @@
-import { MIN_WALL_LENGTH } from '../model/defaults';
+import { MAX_CUPBOARD_DOORS, MIN_WALL_LENGTH } from '../model/defaults';
 import { OBJECT_POSES } from '../model/types';
 import type { Level, ObjectPose, Project, Vec2 } from '../model/types';
 import { openingFitsWall, openingsOverlap } from '../geometry/openings';
@@ -159,7 +159,9 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
     for (const [name, v] of [['plinth', c.plinth], ['gap', c.gap]] as const) {
       if (!(v >= 0) || !Number.isFinite(v)) out.push(`${tag}: ${name} must be non-negative and finite`);
     }
-    if (!Number.isInteger(c.doorCount) || c.doorCount < 1) out.push(`${tag}: door count must be an integer >= 1`);
+    if (!Number.isInteger(c.doorCount) || c.doorCount < 1 || c.doorCount > MAX_CUPBOARD_DOORS) {
+      out.push(`${tag}: door count must be an integer from 1 to ${MAX_CUPBOARD_DOORS}`);
+    }
     if (validWalls.has(c.wallId)) {
       const len = wallLength(level, c.wallId);
       if (!(c.offset - c.width / 2 >= -FIT_EPS && c.offset + c.width / 2 <= len + FIT_EPS)) {

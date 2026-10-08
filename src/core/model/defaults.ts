@@ -11,4 +11,6 @@ export const SLOPE_DEFAULT_END = 150;  // cm, height at the end line of a new sl
 export const BEAM_DEFAULTS = { width: 12, drop: 15 } as const;
 export const CUPBOARD_DEFAULTS = { width: 120, depth: 60, plinth: 10, height: 220, gap: 2, color: '#e8e1d4', doorType: 'hinged' } as const;
 /** Doors of a cupboard of that width: about one door per 55 cm, at least one. */
+/** Upper bound of Cupboard.doorCount (ruling V2-R2): keeps hand-edited files from costing an absurd 3D mesh. */
+export const MAX_CUPBOARD_DOORS = 20;
 export const doorCountFor = (width: number): number => Math.max(1, Math.round(width / 55));
