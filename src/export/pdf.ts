@@ -97,8 +97,9 @@ function drawScaleBar(doc: jsPDF, spec: PageSpec): void {
 
 /**
  * The level as a vector PDF at exactly 1/scale: the print rendering of the plan (PlanSvg, lines
- * 0.25 mm, texts about 3 mm on paper) placed at the top-left margins, with the scale bar and the
- * title block in the bottom right corner. Rejects when the plan does not fit the page.
+ * 0.25 mm, texts about 3 mm on paper) centered in the drawing area above the title block band
+ * (planPlacement), with the scale bar and the title block in the bottom right corner. Rejects when
+ * the plan does not fit the page.
  */
 export async function exportPdf(args: {
   project: Project;

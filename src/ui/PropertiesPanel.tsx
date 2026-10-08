@@ -5,9 +5,9 @@ import { updateOpening } from '@/core/commands/openings';
 import { setWallHeight, setWallLength, setWallThickness } from '@/core/commands/walls';
 import { manualDimLine } from '@/core/geometry/autoDimensions';
 import { deriveLevel } from '@/core/geometry/derived';
-import { OPENING_DEFAULTS } from '@/core/model/defaults';
 import { formatArea, formatLength } from '@/core/model/format';
 import type { Level, OpeningKind, OpeningVariant } from '@/core/model/types';
+import { changeOpeningKind } from '@/editor/changeOpeningKind';
 import { deletableCount } from '@/editor/deleteSelection';
 import { deleteSelection } from '@/editor/keyboard';
 import { renameRoomAt } from '@/editor/renameRoom';
@@ -127,9 +127,7 @@ function OpeningProperties({ level, id }: { level: Level; id: string }): JSX.Ele
         value={o.kind}
         options={KIND_OPTIONS}
         testId="opening-kind"
-        onChange={(kind) =>
-          update({ kind, variant: OPENING_DEFAULTS[kind].variant, sillHeight: OPENING_DEFAULTS[kind].sillHeight })
-        }
+        onChange={(kind) => changeOpeningKind(useEditor, level.id, id, kind)}
       />
       {leaves && <Choice label="Variante" value={o.variant} options={VARIANTS[o.kind]} testId="opening-variant" onChange={(variant) => update({ variant })} />}
       <NumericInput label="Largeur" valueCm={o.width} testId="opening-width" onCommit={(width) => update({ width })} />

@@ -197,6 +197,49 @@ describe('serializeExport / parseImport', () => {
   });
 });
 
+describe('import error messages are French (final review item 4)', () => {
+  const errorOf = (mutate: (f: any) => void): string => {
+    const f = exported(richProject());
+    mutate(f);
+    const r = parseImport(JSON.stringify(f));
+    if (r.ok) throw new Error('expected a refusal');
+    return r.error;
+  };
+
+  it('names the path and the kind of schema problem in French', () => {
+    expect(errorOf((f) => { f.project.settings.gridStep = 'dix'; })).toBe('Fichier invalide : project.settings.gridStep type inattendu');
+    expect(errorOf((f) => { f.project.settings.gridStep = 0; })).toBe('Fichier invalide : project.settings.gridStep valeur hors limites');
+    expect(errorOf((f) => { delete f.project.name; })).toBe('Fichier invalide : project.name champ manquant');
+    const opening = (f: any) => Object.values<any>(f.project.levels[0].openings)[0];
+    expect(errorOf((f) => { opening(f).kind = 'gate'; })).toMatch(/^Fichier invalide : project\.levels\.0\.openings\.[^ ]+\.kind valeur non reconnue$/);
+    expect(errorOf((f) => { f.project.extra = 1; })).toBe('Fichier invalide : project champ inconnu (extra)');
+  });
+
+  it('keeps the French messages written in the schema', () => {
+    expect(errorOf((f) => { f.images[Object.keys(f.images)[0]!].mime = 'image/svg+xml'; })).toMatch(/type d'image non pris en charge$/);
+  });
+
+  it('wraps a broken document invariant in a French sentence', () => {
+    const error = errorOf((f) => { f.project.levels[0].walls = {}; });
+    expect(error).toMatch(/^Fichier invalide : plan incohérent \(.+\)$/);
+  });
+
+  it('never shows an English schema message', () => {
+    const mutations: Array<(f: any) => void> = [
+      (f) => { Object.values<any>(f.project.levels[0].nodes)[0].x = null; },
+      (f) => { Object.values<any>(f.project.levels[0].dimensions)[0].a = { kind: 'weird' }; },
+      (f) => { Object.values<any>(f.project.levels[0].objects)[0].source = { kind: 'catalog' }; },
+      (f) => { f.project.levels[0].background.opacity = 1.5; },
+      (f) => { f.project.levels = 'none'; },
+    ];
+    for (const m of mutations) {
+      const error = errorOf(m);
+      expect(error).toMatch(/^Fichier invalide : /);
+      expect(error.replace(/^Fichier invalide : /, '')).not.toMatch(/invalid input|expected|received|too (big|small)|unrecognized/i);
+    }
+  });
+});
+
 describe('migrate', () => {
   it('has no migration yet and is the identity at the current version', () => {
     expect(Object.keys(migrations)).toEqual([]);

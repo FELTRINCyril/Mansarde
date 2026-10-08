@@ -3,6 +3,7 @@ import { cloneProjectWithNewIds } from '../model/clone';
 import { newId } from '../model/ids';
 import { FORMAT_VERSION } from '../model/types';
 import type { Id, Project } from '../model/types';
+import type { z } from 'zod';
 import { migrate } from './migrate';
 import { exportFileSchema } from './schema';
 
@@ -21,6 +22,31 @@ export type ImportResult =
   | { ok: false; error: string };
 
 const invalid = (detail: string): ImportResult => ({ ok: false, error: `Fichier invalide : ${detail}` });
+
+/**
+ * French wording of a schema issue, shown to the user after its path (the messages written in the
+ * schema itself, already French, take precedence over this map).
+ */
+function frenchIssue(issue: z.core.$ZodRawIssue): string {
+  switch (issue.code) {
+    case 'invalid_type':
+      return issue.input === undefined ? 'champ manquant' : 'type inattendu';
+    case 'too_big':
+    case 'too_small':
+    case 'not_multiple_of':
+      return 'valeur hors limites';
+    case 'invalid_value':
+      return 'valeur non reconnue';
+    case 'unrecognized_keys':
+      return `champ inconnu (${issue.keys.join(', ')})`;
+    case 'invalid_format':
+      return 'format invalide';
+    case 'invalid_key':
+      return 'identifiant invalide';
+    default:
+      return 'format inattendu';
+  }
+}
 
 /** Path of the first "__proto__" key (zod records would silently drop it), or null. */
 function findProtoKey(value: unknown, path: string): string | null {
@@ -76,7 +102,7 @@ function parseImportUnsafe(text: string): ImportResult {
     return invalid('migration impossible');
   }
 
-  const parsed = exportFileSchema.safeParse(migrated);
+  const parsed = exportFileSchema.safeParse(migrated, { error: frenchIssue });
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const path = issue ? issue.path.map(String).join('.') : '';
@@ -90,7 +116,8 @@ function parseImportUnsafe(text: string): ImportResult {
   } catch {
     return invalid('structure incohérente');
   }
-  if (problems.length > 0) return invalid(problems[0]!);
+  // the invariant checks speak English (developer wording): wrapped in a French sentence for the user
+  if (problems.length > 0) return invalid(`plan incohérent (${problems[0]!})`);
 
   for (const level of project.levels) {
     if (level.background && !Object.hasOwn(images, level.background.imageId)) {
