@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type JSX, type ReactNode } from 'react';
 
 interface Props {
   /** What to show instead of the children once they threw while rendering. */
@@ -32,4 +32,17 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     return this.state.error ? this.props.fallback(this.state.error) : this.props.children;
   }
+}
+
+/** Last resort around the whole app (main.tsx): an error no inner boundary caught. The projects are safe in the browser storage. */
+export function AppError(): JSX.Element {
+  return (
+    <div className="app-error" role="alert" data-testid="app-error">
+      <h1 className="home-title">Plan Maison</h1>
+      <p>Une erreur inattendue empêche l'affichage. Vos projets restent enregistrés dans le navigateur.</p>
+      <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
+        Recharger la page
+      </button>
+    </div>
+  );
 }
