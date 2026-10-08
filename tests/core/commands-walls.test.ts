@@ -336,6 +336,25 @@ describe('moveNodes', () => {
     expect(level.openings[door]!.offset).toBe(100);
   });
 
+  it('a door keeps its place when the start node moves along the wall (V2-R12)', () => {
+    const { p, door } = doorWall(); // door center at x = 100
+    const start = nodeAt(lvl(p), 0, 0);
+    const level = lvl(run(p, moveNodes(levelId(p), [{ nodeId: start, to: { x: 40, y: 0 } }])));
+    expect(level.openings[door]!.offset).toBe(60); // still centered on x = 100
+    // a start moving across the wall changes nothing along it
+    const across = lvl(run(p, moveNodes(levelId(p), [{ nodeId: start, to: { x: 0, y: 30 } }])));
+    const f = { x: 300, y: -30 };
+    const along = (30 * f.y) / Math.hypot(f.x, f.y); // dot((0, 30), new direction)
+    expect(across.openings[door]!.offset).toBeCloseTo(100 - along, 9);
+  });
+
+  it('a door follows its wall when the whole wall moves (V2-R12 applies to start-only moves)', () => {
+    const { p, door } = doorWall();
+    const w = Object.keys(lvl(p).walls)[0]!;
+    const level = lvl(run(p, moveWalls(levelId(p), [w], { x: 50, y: 20 })));
+    expect(level.openings[door]!.offset).toBe(100);
+  });
+
   it('pulls the door back when the wall shrinks under it', () => {
     const { p, door, end } = doorWall();
     const level = lvl(run(p, moveNodes(levelId(p), [{ nodeId: end, to: { x: 120, y: 0 } }])));
@@ -480,6 +499,21 @@ describe('mergeNode', () => {
     expect(level.dimensions[other]!.a).toEqual({ kind: 'node', nodeId: a });
   });
 
+  it('a door keeps its place when the start node of its wall is merged elsewhere along it (V2-R12)', () => {
+    let door = '';
+    const p = projectFrom(
+      [
+        [0, 0, 300, 0],
+        [-50, 0, -50, 100],
+      ],
+      (l) => {
+        door = addDoor(l, wallBetween(l, [0, 0], [300, 0]), 100);
+      },
+    );
+    const level = lvl(run(p, mergeNode(levelId(p), nodeAt(lvl(p), 0, 0), nodeAt(lvl(p), -50, 0))));
+    expect(level.openings[door]!.offset).toBe(150); // still centered on x = 100
+  });
+
   it('refuses unknown or identical nodes', () => {
     const p = projectFrom([[0, 0, 400, 0]]);
     const a = nodeAt(lvl(p), 0, 0);
@@ -571,6 +605,16 @@ describe('setWallLength', () => {
     const level = lvl(run(p, setWallLength(levelId(p), w, 350, 'end')));
     expect(level.nodes[nodeAt(lvl(p), 0, 0)]!.x).toBeCloseTo(-50, 9);
     expect(level.nodes[nodeAt(lvl(p), 300, 0)]).toMatchObject({ x: 300, y: 0 });
+  });
+
+  it('keeping the end leaves the doors in place (V2-R12)', () => {
+    let door = '';
+    const p = projectFrom([[0, 0, 300, 0]], (l) => {
+      door = addDoor(l, Object.keys(l.walls)[0]!, 250, 83);
+    });
+    const w = Object.keys(lvl(p).walls)[0]!;
+    const level = lvl(run(p, setWallLength(levelId(p), w, 350, 'end')));
+    expect(level.openings[door]!.offset).toBeCloseTo(300, 9); // start at x = -50, door still at x = 250
   });
 
   it('reconciles openings of the resized wall', () => {

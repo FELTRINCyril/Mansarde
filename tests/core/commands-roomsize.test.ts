@@ -6,8 +6,9 @@ import { deriveLevel } from '@/core/geometry/derived';
 import { rectangularRoom } from '@/core/geometry/roomRect';
 import { computeRooms } from '@/core/geometry/rooms';
 import { createCupboard } from '@/core/model/factory';
+import { cupboardFootprint } from '@/core/geometry/cupboards';
 import type { Level, Project } from '@/core/model/types';
-import { findWall, levelFromWalls, type WallSegment } from './fixtures';
+import { findWall, levelFromWalls, rectRoom, type WallSegment } from './fixtures';
 import { emptyProject, levelId, lvl, noop, projectFrom, refuse, run } from './helpers';
 
 const interior = (x1: number, y1: number, x2: number, y2: number): Project => {
@@ -33,6 +34,16 @@ const twoRooms: WallSegment[] = [
   [410, 310, -10, 310],
   [-10, 310, -10, -10],
   [410, -10, 410, 310],
+];
+
+/** Axis rectangle 0..400 x 0..300 whose top side is two walls (T junction with a stub going up at x = 200). */
+const tSide: WallSegment[] = [
+  [0, 0, 200, 0],
+  [200, 0, 400, 0],
+  [200, 0, 200, -100],
+  [400, 0, 400, 300],
+  [400, 300, 0, 300],
+  [0, 300, 0, 0],
 ];
 
 const roomLeftOf = (level: Level, x: number) => deriveLevel(level).rooms.find((r) => r.labelPoint.x < x)!;
@@ -62,6 +73,8 @@ describe('addRectRoomInterior', () => {
     const p = emptyProject();
     const a = { x: 0, y: 0 };
     expect(refuse(p, addRectRoomInterior(levelId(p), a, { x: 0.5, y: 300 }, 20, 250))).toBe('Pièce trop petite');
+    expect(refuse(p, addRectRoomInterior(levelId(p), a, { x: 400, y: 9.99 }, 20, 250))).toBe('Pièce trop petite');
+    run(p, addRectRoomInterior(levelId(p), a, { x: 10, y: 10 }, 20, 250)); // 10 cm, same minimum as setRoomInteriorSize
     expect(refuse(p, addRectRoomInterior(levelId(p), a, { x: 400, y: 300 }, 0, 250))).toBe('Épaisseur invalide');
     expect(refuse(p, addRectRoomInterior(levelId(p), a, { x: 400, y: 300 }, 20, NaN))).toBe('Hauteur invalide');
     expect(refuse(p, addRectRoomInterior(levelId(p), a, { x: NaN, y: 300 }, 20, 250))).toBe('Position invalide');
@@ -111,19 +124,29 @@ describe('rectangularRoom', () => {
     expect(rectangularRoom(lshape, deriveLevel(lshape), 'ghost')).toBeNull();
   });
 
-  it('rejects a room whose side is made of two collinear walls', () => {
+  it('accepts a side made of two collinear walls (V2-R7)', () => {
     // top side split in two walls at x = 200 (a stub wall goes up from there)
-    const level = levelFromWalls([
-      [0, 0, 200, 0],
-      [200, 0, 400, 0],
-      [200, 0, 200, -100],
-      [400, 0, 400, 300],
-      [400, 300, 0, 300],
-      [0, 300, 0, 0],
-    ]);
-    expect(rectangularRoom(level, deriveLevel(level), onlyRoomKey(level))).toBeNull();
+    const level = levelFromWalls(tSide);
+    const rect = rectangularRoom(level, deriveLevel(level), onlyRoomKey(level))!;
+    expect(rect).not.toBeNull();
+    expect(rect.width).toBeCloseTo(380, 9);
+    expect(rect.depth).toBeCloseTo(280, 9);
+    expect(rect.faces).toHaveLength(5);
+    const top = rect.faces.filter((f) => f.a.y === 10 && f.b.y === 10);
+    expect(top.map((f) => f.wallId).sort()).toEqual([findWall(level, 0, 0, 200, 0), findWall(level, 200, 0, 400, 0)].sort());
+    expect(new Set(top.map((f) => f.edge)).size).toBe(1);
+  });
+
+  it('ignores a collinear wall beyond the room edge, rejects an edge with a gap', () => {
+    const extended = levelFromWalls([...rectRoom(0, 0, 400, 300), [400, 300, 400, 600]]);
+    expect(rectangularRoom(extended, deriveLevel(extended), onlyRoomKey(extended))!.faces).toHaveLength(4);
+    // the top side is covered by two walls of different thickness: two face lines, no single side
+    const mixed = levelFromWalls([[0, 0, 200, 0, 20], [200, 0, 400, 0, 30], [400, 0, 400, 300], [400, 300, 0, 300], [0, 300, 0, 0]]);
+    expect(rectangularRoom(mixed, deriveLevel(mixed), onlyRoomKey(mixed))).toBeNull();
   });
 });
+
+const IMPOSSIBLE = 'Impossible de redimensionner cette pièce ainsi.';
 
 describe('setRoomInteriorSize', () => {
   it('width 420 on the max side moves the right wall: 420 x 300', () => {
@@ -168,6 +191,70 @@ describe('setRoomInteriorSize', () => {
     expect(lvl(next).cupboards[c.id]!.offset).toBeCloseTo(260, 9); // top axis now 320 long
   });
 
+  it('moves every wall of a side made of collinear walls (V2-R7)', () => {
+    const p = projectFrom(tSide);
+    const next = run(p, setRoomInteriorSize(levelId(p), onlyRoomKey(lvl(p)), 'depth', 300, 'min'));
+    const level = lvl(next);
+    expect(computeRooms(level)[0]!.area).toBeCloseTo(380 * 300, 6);
+    findWall(level, 0, -20, 200, -20);
+    findWall(level, 200, -20, 400, -20);
+    findWall(level, 200, -20, 200, -100); // the stub got shorter, same direction
+  });
+
+  it('works on a rotated room, on every side', () => {
+    const c = Math.cos(Math.PI / 6);
+    const s = Math.sin(Math.PI / 6);
+    const r = (x: number, y: number): [number, number] => [x * c - y * s, x * s + y * c];
+    const corners = [r(0, 0), r(400, 0), r(400, 300), r(0, 300)];
+    const p = projectFrom(corners.map((q, i) => [...q, ...corners[(i + 1) % 4]!] as WallSegment));
+    const key = onlyRoomKey(lvl(p));
+    for (const [axis, value, side] of [['width', 400, 'max'], ['width', 350, 'min'], ['depth', 300, 'max'], ['depth', 250, 'min']] as const) {
+      const level = lvl(run(p, setRoomInteriorSize(levelId(p), key, axis, value, side)));
+      const rect = rectangularRoom(level, deriveLevel(level), onlyRoomKey(level))!;
+      expect(axis === 'width' ? rect.width : rect.depth).toBeCloseTo(value, 6);
+      expect(axis === 'width' ? rect.depth : rect.width).toBeCloseTo(axis === 'width' ? 280 : 380, 6);
+    }
+  });
+
+  it('refuses when a collinear extension of the moved wall would turn (V2-R11)', () => {
+    const p = projectFrom([
+      [-10, -10, 410, -10],
+      [410, -10, 410, 310],
+      [410, 310, 410, 610],
+      [410, 310, -10, 310],
+      [-10, 310, -10, -10],
+    ]);
+    expect(refuse(p, setRoomInteriorSize(levelId(p), onlyRoomKey(lvl(p)), 'width', 420, 'max'))).toBe(IMPOSSIBLE);
+    // the other way the extension is not touched: allowed
+    run(p, setRoomInteriorSize(levelId(p), onlyRoomKey(lvl(p)), 'width', 420, 'min'));
+  });
+
+  it('refuses when the move would open the room (corner without a shared node, V2-R11)', () => {
+    // the top wall ends on the inner face of the right wall (x = 400) without a node there
+    const p = projectFrom([
+      [-10, -10, 400, -10],
+      [410, -20, 410, 310],
+      [410, 310, -10, 310],
+      [-10, 310, -10, -10],
+    ]);
+    const key = onlyRoomKey(lvl(p));
+    expect(rectangularRoom(lvl(p), deriveLevel(lvl(p)), key)).not.toBeNull();
+    expect(refuse(p, setRoomInteriorSize(levelId(p), key, 'width', 420, 'max'))).toBe(IMPOSSIBLE);
+  });
+
+  it('cupboards stay in place whatever the drawing direction of their wall (V2-R12)', () => {
+    const p0 = interior(0, 0, 400, 300);
+    const top = findWall(lvl(p0), -10, -10, 410, -10); // drawn left to right
+    const bottom = findWall(lvl(p0), 410, 310, -10, 310); // drawn right to left
+    const ct = createCupboard(top, 200, 'left'); // center x = 190
+    const cb = createCupboard(bottom, 220, 'right'); // center x = 190
+    const p = run(run(p0, addCupboard(levelId(p0), ct)), addCupboard(levelId(p0), cb));
+    const next = run(p, setRoomInteriorSize(levelId(p), onlyRoomKey(lvl(p)), 'width', 380, 'min'));
+    const centerX = (id: string) => cupboardFootprint(lvl(next), lvl(next).cupboards[id]!).reduce((sum, q) => sum + q.x, 0) / 4;
+    expect(centerX(ct.id)).toBeCloseTo(190, 9);
+    expect(centerX(cb.id)).toBeCloseTo(190, 9);
+  });
+
   it('is a no-op for the current value, refuses invalid values and rooms', () => {
     const p = interior(0, 0, 400, 300);
     const key = onlyRoomKey(lvl(p));
@@ -193,7 +280,7 @@ describe('setRoomInteriorSize', () => {
     const p = projectFrom(twoRooms);
     const a = roomLeftOf(lvl(p), 410);
     // B is 280 wide: moving the shared wall by 350 would push it 50 cm past B's far wall
-    expect(refuse(p, setRoomInteriorSize(levelId(p), a.key, 'width', 750, 'max'))).toBe('Un mur voisin deviendrait trop court');
+    expect(refuse(p, setRoomInteriorSize(levelId(p), a.key, 'width', 750, 'max'))).toBe(IMPOSSIBLE);
     // exactly onto B's far wall: B's top and bottom walls would have a zero length
     expect(refuse(p, setRoomInteriorSize(levelId(p), a.key, 'width', 700, 'max'))).toBe('Mur trop court');
   });

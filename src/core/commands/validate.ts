@@ -1,6 +1,7 @@
 import { MAX_CUPBOARD_DOORS, MIN_WALL_LENGTH } from '../model/defaults';
 import { OBJECT_POSES } from '../model/types';
 import type { Level, ObjectPose, Project, Vec2 } from '../model/types';
+import { cupboardFitsWall } from '../geometry/cupboards';
 import { openingFitsWall, openingsOverlap } from '../geometry/openings';
 import { wallLength } from '../geometry/walls';
 
@@ -8,7 +9,6 @@ import { wallLength } from '../geometry/walls';
 const has = (rec: object, key: string): boolean => Object.hasOwn(rec, key);
 const isPose = (v: unknown): boolean => (OBJECT_POSES as readonly unknown[]).includes(v as ObjectPose);
 const segmentLength = (a: Vec2, b: Vec2): number => Math.hypot(b.x - a.x, b.y - a.y);
-const FIT_EPS = 1e-6;
 
 /** Checks every document invariant; returns human-readable problems (empty = valid). */
 export function validateProject(p: Project): string[] {
@@ -164,7 +164,7 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
     }
     if (validWalls.has(c.wallId)) {
       const len = wallLength(level, c.wallId);
-      if (!(c.offset - c.width / 2 >= -FIT_EPS && c.offset + c.width / 2 <= len + FIT_EPS)) {
+      if (!cupboardFitsWall(c, len)) {
         out.push(`${tag}: does not fit in its wall`);
       }
     }

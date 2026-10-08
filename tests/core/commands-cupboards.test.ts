@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { addCupboard, deleteCupboards, moveCupboard, updateCupboard } from '@/core/commands/cupboards';
 import { CUPBOARDS_DO_NOT_FIT, reconcileCupboards } from '@/core/commands/reconcile';
-import { deleteWalls, mergeNode, moveNodes, moveWalls, setWallLength, splitWall } from '@/core/commands/walls';
+import { addWallChain, deleteWalls, joinNodeToWall, mergeNode, moveNodes, moveWalls, setWallLength, setWallThickness, splitWall } from '@/core/commands/walls';
 import { cupboardFootprint } from '@/core/geometry/cupboards';
 import { MAX_CUPBOARD_DOORS } from '@/core/model/defaults';
-import { createCupboard } from '@/core/model/factory';
+import { createCupboard, createOpening } from '@/core/model/factory';
 import type { Cupboard, Id, Level, Project } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from './fixtures';
 import { levelId, lvl, noop, projectFrom, refuse, run } from './helpers';
@@ -119,7 +119,7 @@ describe('deleteCupboards', () => {
 });
 
 describe('cupboard follows, clamps or refuses with its wall', () => {
-  it('follows: moving the wall or one of its nodes keeps the offset', () => {
+  it('follows: moving the wall keeps the offset; moving its start node keeps its place (V2-R12)', () => {
     const { p: p0, top } = setup();
     const { p, id } = withCupboard(p0, top, 200);
     const moved = run(p, moveWalls(levelId(p), [top], { x: 0, y: -20 }));
@@ -127,9 +127,13 @@ describe('cupboard follows, clamps or refuses with its wall', () => {
     // back edge on the inner face of the moved wall: axis y = -20, half thickness 10
     expect(cupboardFootprint(lvl(moved), lvl(moved).cupboards[id]!)[0]).toEqual({ x: 140, y: -10 });
 
+    // the wall grows at its start: the offset (from the start node) absorbs the 40 cm
     const startMoved = run(p, moveNodes(levelId(p), [{ nodeId: nodeAt(lvl(p), 0, 0), to: { x: -40, y: 0 } }]));
-    expect(lvl(startMoved).cupboards[id]!.offset).toBe(200);
-    expect(cupboardFootprint(lvl(startMoved), lvl(startMoved).cupboards[id]!)[0]).toEqual({ x: 100, y: 10 });
+    expect(lvl(startMoved).cupboards[id]!.offset).toBe(240);
+    expect(cupboardFootprint(lvl(startMoved), lvl(startMoved).cupboards[id]!)[0]).toEqual({ x: 140, y: 10 });
+    // moving the end node changes nothing for it
+    const endMoved = run(p, moveNodes(levelId(p), [{ nodeId: nodeAt(lvl(p), 400, 0), to: { x: 450, y: 0 } }]));
+    expect(lvl(endMoved).cupboards[id]!.offset).toBe(200);
   });
 
   it('clamps: a shortened wall pulls the cupboard back inside', () => {
@@ -172,6 +176,16 @@ describe('cupboard follows, clamps or refuses with its wall', () => {
   });
 });
 
+describe('setWallThickness', () => {
+  it('the cupboard stays against the face of the thicker wall', () => {
+    const { p: p0, top } = setup();
+    const { p, id } = withCupboard(p0, top, 200);
+    const next = run(p, setWallThickness(levelId(p), [top], 40));
+    expect(lvl(next).cupboards[id]).toEqual(lvl(p).cupboards[id]);
+    expect(cupboardFootprint(lvl(next), lvl(next).cupboards[id]!)[0]).toEqual({ x: 140, y: 20 });
+  });
+});
+
 describe('deleteWalls removes cupboards', () => {
   it('deletes the cupboards of deleted walls only', () => {
     const { p: p0, top, right } = setup();
@@ -188,6 +202,69 @@ describe('deleteWalls removes cupboards', () => {
     const { p } = withCupboard(p0, wall, 150);
     const next = run(p, mergeNode(levelId(p), nodeAt(lvl(p), 0, 0), nodeAt(lvl(p), 300, 0)));
     expect(lvl(next).cupboards).toEqual({});
+  });
+});
+
+describe('mergeNode hands the items of a duplicate wall over to the kept wall', () => {
+  /** kept wall A, doomed wall B (0,0)->(300,50) whose end is merged onto A's (300, 0) end. */
+  function twins(reversedA: boolean, setup: (level: Level, a: Id, b: Id) => void): { p: Project; a: Id; merge: () => Project } {
+    const p = projectFrom([reversedA ? [300, 0, 0, 0] : [0, 0, 300, 0], [0, 0, 300, 50]], (l) => {
+      setup(l, findWall(l, 0, 0, 300, 0), findWall(l, 0, 0, 300, 50));
+    });
+    const merge = () => run(p, mergeNode(levelId(p), nodeAt(lvl(p), 300, 50), nodeAt(lvl(p), 300, 0)));
+    return { p, a: findWall(lvl(p), 0, 0, 300, 0), merge };
+  }
+
+  it('same direction: cupboard and door keep offset, face, hinge and swing', () => {
+    let c = '';
+    let d = '';
+    const { a, merge } = twins(false, (l, _a, b) => {
+      const cup = createCupboard(b, 150, 'left');
+      l.cupboards[cup.id] = cup;
+      c = cup.id;
+      const door = createOpening(b, 'door', 60, { hinge: 'start', swing: 'left' });
+      l.openings[door.id] = door;
+      d = door.id;
+    });
+    const level = lvl(merge());
+    expect(Object.keys(level.walls)).toEqual([a]);
+    expect(level.cupboards[c]).toMatchObject({ wallId: a, offset: 150, side: 'left' });
+    expect(level.openings[d]).toMatchObject({ wallId: a, offset: 60, hinge: 'start', swing: 'left' });
+  });
+
+  it('kept wall running the other way: offset, face, hinge and swing are mirrored', () => {
+    let c = '';
+    let d = '';
+    const { a, merge } = twins(true, (l, _a, b) => {
+      const cup = createCupboard(b, 100, 'left');
+      l.cupboards[cup.id] = cup;
+      c = cup.id;
+      const door = createOpening(b, 'door', 250, { hinge: 'start', swing: 'left' });
+      l.openings[door.id] = door;
+      d = door.id;
+    });
+    const level = lvl(merge());
+    expect(level.cupboards[c]).toMatchObject({ wallId: a, offset: 200, side: 'right' });
+    expect(level.openings[d]).toMatchObject({ wallId: a, offset: 50, hinge: 'end', swing: 'right' });
+  });
+
+  it('items that do not fit or overlap a door of the kept wall are dropped', () => {
+    let c = '';
+    let d = '';
+    const { merge } = twins(false, (l, a, b) => {
+      const cup = createCupboard(b, 260, 'left', { width: 100 }); // [210, 310] on the 304 cm wall, 300 after
+      l.cupboards[cup.id] = cup;
+      c = cup.id;
+      const keptDoor = createOpening(a, 'door', 100);
+      l.openings[keptDoor.id] = keptDoor;
+      const door = createOpening(b, 'door', 120);
+      l.openings[door.id] = door;
+      d = door.id;
+    });
+    const level = lvl(merge());
+    expect(level.cupboards[c]).toBeUndefined();
+    expect(level.openings[d]).toBeUndefined();
+    expect(Object.keys(level.openings)).toHaveLength(1);
   });
 });
 
@@ -208,9 +285,19 @@ describe('splitWall distributes cupboards', () => {
     expect(level.cupboards[b.id]!.offset).toBeCloseTo(90, 9);
   });
 
-  it('refuses a split under a cupboard', () => {
+  it('refuses a split under a cupboard (V2-R8), whichever command splits', () => {
     const { p: p0, wall } = lone();
-    const { p } = withCupboard(p0, wall, 150);
-    expect(refuse(p, splitWall(levelId(p), wall, 0.5))).toBe('Un placard est à cheval sur la jonction');
+    const { p } = withCupboard(p0, wall, 150); // [90, 210]
+    const STRADDLE = 'Un placard est à cheval sur la jonction';
+    expect(refuse(p, splitWall(levelId(p), wall, 0.5))).toBe(STRADDLE);
+    // a wall drawn onto the face behind the cupboard: T junction at x = 150
+    const chain = addWallChain(levelId(p), [{ kind: 'free', x: 150, y: -100 }, { kind: 'onWall', wallId: wall, t: 0.5 }], 20, 250);
+    expect(refuse(p, chain)).toBe(STRADDLE);
+    // a lone wall whose node is dropped on the wall at x = 150
+    const p2 = run(p, addWallChain(levelId(p), [{ kind: 'free', x: 150, y: -100 }, { kind: 'free', x: 150, y: -50 }], 20, 250));
+    const join = joinNodeToWall(levelId(p2), nodeAt(lvl(p2), 150, -50), wall, 0.5, { nodeId: 'n-split', wallId: 'w-split' });
+    expect(refuse(p2, join)).toBe(STRADDLE);
+    // outside the cupboard the split goes through
+    run(p2, joinNodeToWall(levelId(p2), nodeAt(lvl(p2), 150, -50), wall, 0.25, { nodeId: 'n-split', wallId: 'w-split' }));
   });
 });

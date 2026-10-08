@@ -1,6 +1,7 @@
 import type { Draft } from 'immer';
 import { MAX_CUPBOARD_DOORS } from '../model/defaults';
 import type { Cupboard, Id, Level } from '../model/types';
+import { cupboardFitsWall } from '../geometry/cupboards';
 import { wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
 import { ERR_POSITION, ERR_SIZE, SIDES, isNonNegative, isOneOf, isPositive, lookup, patchEntries, writeChanges } from './volumeHelpers';
@@ -12,7 +13,6 @@ const ERR_DOORS = 'Nombre de portes invalide';
 
 const HEIGHT_MODES = ['fixed', 'ceiling'] as const;
 const DOOR_TYPES = ['hinged', 'sliding'] as const;
-const FIT_EPS = 1e-6; // same tolerance as openingFitsWall and validateProject
 
 type DLevel = Draft<Level>;
 
@@ -29,8 +29,7 @@ function requireValidNumbers(c: Cupboard): void {
 /** The cupboard must lie within the length of its wall (spec 4.4); cupboards may overlap each other. */
 function requireRoom(level: DLevel, c: Cupboard): void {
   if (!Object.hasOwn(level.walls, c.wallId)) throw new CommandError(ERR_WALL_NOT_FOUND);
-  const len = wallLength(level, c.wallId);
-  if (!(c.offset - c.width / 2 >= -FIT_EPS && c.offset + c.width / 2 <= len + FIT_EPS)) throw new CommandError(ERR_NO_ROOM);
+  if (!cupboardFitsWall(c, wallLength(level, c.wallId))) throw new CommandError(ERR_NO_ROOM);
 }
 
 function requireValidCupboard(level: DLevel, c: Cupboard): void {

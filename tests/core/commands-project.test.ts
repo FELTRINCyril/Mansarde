@@ -79,6 +79,8 @@ describe('custom objects', () => {
     expect(refuse(p, addCustomObject(def({ id: 'c2', height: NaN })))).toBe('Dimension invalide');
     const l = def({ id: 'c2', shape: 'lshape', lshape: { notchWidth: -1, notchDepth: 5 } });
     expect(refuse(p, addCustomObject(l))).toBe('Dimension invalide');
+    expect(refuse(p, addCustomObject(def({ id: 'c2', pose: 'ceiling' as 'floor' })))).toBe('Pose invalide');
+    expect(run(p, addCustomObject(def({ id: 'c2', pose: 'covering' }))).customObjects['c2']!.pose).toBe('covering');
   });
 
   it('deletes an unused definition', () => {
