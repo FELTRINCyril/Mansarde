@@ -3,7 +3,7 @@ import { validateProject } from '@/core/commands/validate';
 import { FORMAT_VERSION } from '@/core/model/types';
 import type { Project } from '@/core/model/types';
 import { parseImport } from '@/core/persistence/exchange';
-import { migrate, migrateStoredProject, migrations } from '@/core/persistence/migrate';
+import { canMigrateFrom, migrate, migrateStoredProject, migrations } from '@/core/persistence/migrate';
 import { v1Export, v1Project } from './v1Fixture';
 
 type AnyRec = Record<string, any>;
@@ -80,6 +80,23 @@ describe('migration 1 -> 2', () => {
   it('returns a current stored project unchanged', () => {
     const p = migrateStoredProject(v1Project() as { formatVersion: number }) as Project;
     expect(migrateStoredProject(p)).toBe(p);
+  });
+});
+
+describe('canMigrateFrom', () => {
+  it('accepts the integer versions from 1 to FORMAT_VERSION only', () => {
+    expect([1, 2].map(canMigrateFrom)).toEqual([true, true]);
+    expect([0, -1, 1.5, 3, NaN, Infinity, '1', undefined, null].map(canMigrateFrom)).toEqual(Array(9).fill(false));
+  });
+  it('refuses a version whose migration chain has a gap', () => {
+    const step = migrations[1]!;
+    delete migrations[1];
+    try {
+      expect(canMigrateFrom(1)).toBe(false);
+      expect(canMigrateFrom(2)).toBe(true);
+    } finally {
+      migrations[1] = step;
+    }
   });
 });
 

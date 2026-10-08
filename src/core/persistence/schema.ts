@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_CUPBOARD_DOORS } from '../model/defaults';
 import { FORMAT_VERSION } from '../model/types';
 import { OBJECT_POSES } from '../model/types';
 import type { Anchor, Background, Beam, Cupboard, CustomObjectDef, Level, ManualDimension, Opening, PlacedObject, Project, RoomLabel, Slope, Wall, WallNode } from '../model/types';
@@ -121,7 +122,7 @@ const cupboard = z.strictObject({
   heightMode: z.enum(['fixed', 'ceiling']),
   height: pos,
   gap: nonNeg,
-  doorCount: z.number().int().min(1).max(MAX_ABS),
+  doorCount: z.number().int().min(1).max(MAX_CUPBOARD_DOORS),
   doorType: z.enum(['hinged', 'sliding']),
   color: z.string(),
 });

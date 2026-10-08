@@ -81,6 +81,16 @@ export function migrate(raw: { formatVersion: number }): unknown {
 }
 
 /**
+ * True when data at that format version can be brought up to FORMAT_VERSION: an integer from 1 to
+ * FORMAT_VERSION with every intermediate migration registered.
+ */
+export function canMigrateFrom(version: unknown): version is number {
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > FORMAT_VERSION) return false;
+  for (let v = version; v < FORMAT_VERSION; v++) if (!Object.hasOwn(migrations, v)) return false;
+  return true;
+}
+
+/**
  * Brings a project stored by an older version of the app (IndexedDB) up to FORMAT_VERSION, through
  * the same migrations as the export files. A current project is returned as is (same object).
  */
