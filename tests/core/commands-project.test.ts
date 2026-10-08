@@ -21,6 +21,7 @@ const def = (over: Partial<CustomObjectDef> = {}): CustomObjectDef => ({
   height: 90,
   color: '#abc',
   lshape: null,
+  pose: 'floor',
   ...over,
 });
 

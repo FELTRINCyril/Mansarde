@@ -29,6 +29,9 @@ function cloneLevel(level: Level, maps: CloneMaps, imageIdMap?: Map<Id, Id>): Le
     openings: {},
     objects: {},
     dimensions: {},
+    slopes: {},
+    beams: {},
+    cupboards: {},
     roomLabels: level.roomLabels.map((l) => ({ ...structuredClone(l), id: newId() })),
   };
   if (level.background) {
@@ -64,10 +67,25 @@ function cloneLevel(level: Level, maps: CloneMaps, imageIdMap?: Map<Id, Id>): Le
     const id = newId();
     out.dimensions[id] = { ...d, id, a: remapAnchor(d.a), b: remapAnchor(d.b) };
   }
+  for (const s of Object.values(level.slopes)) {
+    const id = newId();
+    out.slopes[id] = { ...structuredClone(s), id };
+  }
+  for (const b of Object.values(level.beams)) {
+    const id = newId();
+    out.beams[id] = { ...structuredClone(b), id };
+  }
+  for (const c of Object.values(level.cupboards)) {
+    const id = newId();
+    out.cupboards[id] = { ...c, id, wallId: mapOr(wallMap, c.wallId) };
+  }
   return out;
 }
 
-/** Deep copy of a level where every id (level, nodes, walls, openings, objects, dimensions, labels) is new. */
+/**
+ * Deep copy of a level where every id (level, nodes, walls, openings, objects, dimensions, labels,
+ * slopes, beams, cupboards) is new.
+ */
 export function cloneLevelWithNewIds(level: Level): Level {
   return cloneLevel(level, {});
 }

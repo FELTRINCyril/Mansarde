@@ -68,7 +68,7 @@ describe('cloneProjectWithNewIds', () => {
   function richProject(): Project {
     const p = createProject('Maison');
     p.levels = [richLevel()];
-    p.customObjects['c1'] = { id: 'c1', name: 'Meuble', shape: 'rect', width: 50, depth: 40, height: 100, color: '#abc', lshape: null };
+    p.customObjects['c1'] = { id: 'c1', name: 'Meuble', shape: 'rect', width: 50, depth: 40, height: 100, color: '#abc', lshape: null, pose: 'floor' };
     const obj = createObjectFromSize({ kind: 'custom', customObjectId: 'c1' }, 50, 50, { width: 50, depth: 40, height: 100 }, 'M', '#abc');
     p.levels[0]!.objects[obj.id] = obj;
     p.levels[0]!.background = {

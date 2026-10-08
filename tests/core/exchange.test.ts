@@ -28,7 +28,7 @@ function richProject(name = 'Maison'): { project: Project; images: Record<Id, Im
   const custom = newId();
   p.customObjects[custom] = {
     id: custom, name: 'Meuble L', shape: 'lshape', width: 120, depth: 80, height: 90,
-    color: '#aabbcc', lshape: { notchWidth: 40, notchDepth: 30 },
+    color: '#aabbcc', lshape: { notchWidth: 40, notchDepth: 30 }, pose: 'floor',
   };
   const catalogObj = createObjectFromSize({ kind: 'catalog', catalogId: 'sofa' }, 100, 100, { width: 80, depth: 80, height: 80 }, 'Canapé', '#ffffff');
   const customObj = createObjectFromSize({ kind: 'custom', customObjectId: custom }, 250, 150, { width: 120, depth: 80, height: 90 }, 'Meuble L', '#aabbcc', {
@@ -74,7 +74,7 @@ describe('serializeExport / parseImport', () => {
   it('tags the file with app and formatVersion', () => {
     const f = exported(richProject());
     expect(f.app).toBe('plan-maison');
-    expect(f.formatVersion).toBe(1);
+    expect(f.formatVersion).toBe(2);
   });
 
   it('accepts unknown keys at the export root', () => {
@@ -241,10 +241,10 @@ describe('import error messages are French (final review item 4)', () => {
 });
 
 describe('migrate', () => {
-  it('has no migration yet and is the identity at the current version', () => {
-    expect(Object.keys(migrations)).toEqual([]);
-    const raw = { formatVersion: 1, project: {} };
-    expect(migrate(raw)).toEqual(raw);
+  it('is the identity at the current version', () => {
+    expect(Object.keys(migrations)).toEqual(['1']); // details in migrate.test.ts
+    const raw = { formatVersion: 2, project: {} };
+    expect(migrate(raw)).toBe(raw);
   });
 });
 

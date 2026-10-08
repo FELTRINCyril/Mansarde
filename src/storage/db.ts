@@ -1,6 +1,7 @@
 import { openDB } from 'idb';
 import type { IDBPDatabase } from 'idb';
 import type { Id, Project } from '@/core/model/types';
+import { migrateStoredProject } from '@/core/persistence/migrate';
 
 export interface ProjectMeta { id: Id; name: string; updatedAt: string; levelCount: number }
 export interface StoredImage { id: Id; projectId: Id; mime: string; blob: Blob; widthPx: number; heightPx: number }
@@ -18,6 +19,14 @@ export function openDb(name: string = DEFAULT_DB_NAME): Promise<IDBPDatabase> {
   });
 }
 
+/**
+ * Projects saved by an older version of the app are migrated on every read (the store itself is
+ * only rewritten by the next save): an app update never leaves a stored project unreadable.
+ */
+function toCurrentFormat(stored: Project): Project {
+  return migrateStoredProject(stored) as Project;
+}
+
 export class ProjectStore {
   private readonly db: IDBPDatabase;
 
@@ -26,14 +35,15 @@ export class ProjectStore {
   }
 
   async listProjects(): Promise<ProjectMeta[]> {
-    const all = (await this.db.getAll('projects')) as Project[];
+    const all = ((await this.db.getAll('projects')) as Project[]).map(toCurrentFormat);
     return all
       .map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt, levelCount: p.levels.length }))
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
   }
 
   async getProject(id: Id): Promise<Project | null> {
-    return ((await this.db.get('projects', id)) as Project | undefined) ?? null;
+    const stored = (await this.db.get('projects', id)) as Project | undefined;
+    return stored ? toCurrentFormat(stored) : null;
   }
 
   async saveProject(p: Project): Promise<void> {

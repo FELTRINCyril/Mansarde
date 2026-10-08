@@ -15,11 +15,11 @@ describe('newId', () => {
 })
 
 describe('createProject', () => {
-  it('has one level named RDC, version 1 and default settings', () => {
+  it('has one level named RDC, version 2 and default settings', () => {
     const now = new Date('2026-10-07T10:00:00.000Z')
     const p = createProject('Maison', now)
     expect(p.name).toBe('Maison')
-    expect(p.formatVersion).toBe(1)
+    expect(p.formatVersion).toBe(2)
     expect(p.formatVersion).toBe(FORMAT_VERSION)
     expect(p.settings).toEqual(DEFAULT_SETTINGS)
     expect(p.levels).toHaveLength(1)

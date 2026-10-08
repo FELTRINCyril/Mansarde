@@ -1,4 +1,6 @@
-import type { GenericShape, LShapeParams } from '../core/model/types';
+// Type-only imports: src/core (the V1 -> V2 migration) reads this module, so it must never pull
+// React or a browser API (symbols live in symbols.tsx).
+import type { GenericShape, LShapeParams, ObjectPose } from '../core/model/types';
 
 export type CatalogCategory =
   | 'Chambre'
@@ -22,6 +24,10 @@ export interface CatalogEntry {
   shape: GenericShape | 'symbol';
   /** Default notch for 'generic-lshape'. */
   lshape?: LShapeParams;
+  /** Default pose of a new object. */
+  pose: ObjectPose;
+  /** Tables and desks: 'tuckable' objects may stand under them. */
+  acceptsUnder?: boolean;
 }
 
 const BEDROOM = '#d9c8b4';
@@ -32,9 +38,19 @@ const BATH = '#bfdbe0';
 const STRUCTURE = '#d0d0d0';
 const GENERIC = '#dddddd';
 
-function sym(id: string, name: string, category: CatalogCategory, width: number, depth: number, height: number, color: string): CatalogEntry {
-  return { id, name, category, width, depth, height, color, shape: 'symbol' };
+function sym(
+  id: string,
+  name: string,
+  category: CatalogCategory,
+  width: number,
+  depth: number,
+  height: number,
+  color: string,
+  extra: { pose?: ObjectPose; acceptsUnder?: boolean } = {},
+): CatalogEntry {
+  return { id, name, category, width, depth, height, color, shape: 'symbol', pose: extra.pose ?? 'floor', ...(extra.acceptsUnder ? { acceptsUnder: true } : {}) };
 }
+const UNDER = { acceptsUnder: true } as const;
 
 export const CATALOG: CatalogEntry[] = [
   // Chambre
@@ -51,15 +67,15 @@ export const CATALOG: CatalogEntry[] = [
   sym('sofa-3', 'Canapé 3 places', 'Séjour', 210, 95, 85, LIVING),
   sym('sofa-corner', "Canapé d'angle", 'Séjour', 250, 200, 85, LIVING),
   sym('armchair', 'Fauteuil', 'Séjour', 80, 85, 85, LIVING),
-  sym('coffee-table', 'Table basse', 'Séjour', 110, 60, 40, LIVING),
+  sym('coffee-table', 'Table basse', 'Séjour', 110, 60, 40, LIVING, UNDER),
   sym('tv-unit', 'Meuble TV', 'Séjour', 160, 45, 50, LIVING),
   sym('bookcase', 'Bibliothèque', 'Séjour', 100, 35, 200, LIVING),
   sym('display-cabinet', 'Vitrine', 'Séjour', 100, 45, 180, LIVING),
   // Bureau et repas
-  sym('desk', 'Bureau', 'Bureau et repas', 140, 70, 75, DINING),
-  sym('chair', 'Chaise', 'Bureau et repas', 45, 50, 90, DINING),
-  sym('table-rect', 'Table rectangulaire', 'Bureau et repas', 160, 90, 75, DINING),
-  sym('table-round', 'Table ronde', 'Bureau et repas', 110, 110, 75, DINING),
+  sym('desk', 'Bureau', 'Bureau et repas', 140, 70, 75, DINING, UNDER),
+  sym('chair', 'Chaise', 'Bureau et repas', 45, 50, 90, DINING, { pose: 'tuckable' }),
+  sym('table-rect', 'Table rectangulaire', 'Bureau et repas', 160, 90, 75, DINING, UNDER),
+  sym('table-round', 'Table ronde', 'Bureau et repas', 110, 110, 75, DINING, UNDER),
   // Cuisine
   sym('counter', 'Plan de travail', 'Cuisine', 120, 60, 90, KITCHEN),
   sym('sink', 'Évier', 'Cuisine', 80, 60, 90, KITCHEN),
@@ -76,8 +92,8 @@ export const CATALOG: CatalogEntry[] = [
   sym('stairs-straight', 'Escalier droit', 'Structure', 90, 300, 270, STRUCTURE),
   sym('stairs-quarter', 'Escalier quart tournant', 'Structure', 90, 250, 270, STRUCTURE),
   // Generiques
-  { id: 'generic-rect', name: 'Rectangle', category: 'Génériques', width: 100, depth: 60, height: 75, color: GENERIC, shape: 'rect' },
-  { id: 'generic-circle', name: 'Cercle', category: 'Génériques', width: 80, depth: 80, height: 75, color: GENERIC, shape: 'circle' },
+  { id: 'generic-rect', name: 'Rectangle', category: 'Génériques', width: 100, depth: 60, height: 75, color: GENERIC, shape: 'rect', pose: 'floor' },
+  { id: 'generic-circle', name: 'Cercle', category: 'Génériques', width: 80, depth: 80, height: 75, color: GENERIC, shape: 'circle', pose: 'floor' },
   {
     id: 'generic-lshape',
     name: 'Forme en L',
@@ -88,6 +104,7 @@ export const CATALOG: CatalogEntry[] = [
     color: GENERIC,
     shape: 'lshape',
     lshape: { notchWidth: 120, notchDepth: 90 },
+    pose: 'floor',
   },
 ];
 

@@ -1,10 +1,14 @@
 import { MIN_WALL_LENGTH } from '../model/defaults';
-import type { Level, Project } from '../model/types';
+import { OBJECT_POSES } from '../model/types';
+import type { Level, ObjectPose, Project, Vec2 } from '../model/types';
 import { openingFitsWall, openingsOverlap } from '../geometry/openings';
 import { wallLength } from '../geometry/walls';
 
 // Ids come from untrusted files: look records up by own keys only (never "constructor", "toString"...).
 const has = (rec: object, key: string): boolean => Object.hasOwn(rec, key);
+const isPose = (v: unknown): boolean => (OBJECT_POSES as readonly unknown[]).includes(v as ObjectPose);
+const segmentLength = (a: Vec2, b: Vec2): number => Math.hypot(b.x - a.x, b.y - a.y);
+const FIT_EPS = 1e-6;
 
 /** Checks every document invariant; returns human-readable problems (empty = valid). */
 export function validateProject(p: Project): string[] {
@@ -20,6 +24,9 @@ export function validateProject(p: Project): string[] {
     if (seenLevels.has(level.id)) problems.push(`Duplicate level id ${level.id}`);
     seenLevels.add(level.id);
     validateLevel(p, level, problems);
+  }
+  for (const def of Object.values(p.customObjects)) {
+    if (!isPose(def.pose)) problems.push(`Custom object ${def.id}: unknown pose`);
   }
   return problems;
 }
@@ -108,6 +115,7 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
     if (obj.source.kind === 'custom' && !has(p.customObjects, obj.source.customObjectId)) {
       out.push(`${tag}: custom object definition not found`);
     }
+    if (!isPose(obj.pose)) out.push(`${tag}: unknown pose`);
   }
 
   // 6. dimensions (existence only: resolution is the job of resolveAnchor)
@@ -117,6 +125,45 @@ function validateLevel(p: Project, level: Level, out: string[]): void {
       if (anchor.kind === 'node' && !has(level.nodes, anchor.nodeId)) out.push(`${tag}: node not found`);
       if (anchor.kind === 'objectCorner' && !has(level.objects, anchor.objectId)) {
         out.push(`${tag}: object not found`);
+      }
+    }
+  }
+
+  // 7. roof slopes
+  for (const s of Object.values(level.slopes)) {
+    const tag = `${where} slope ${s.id}`;
+    if (!(segmentLength(s.a, s.b) >= MIN_WALL_LENGTH)) out.push(`${tag}: start line length below ${MIN_WALL_LENGTH} cm`);
+    if (!(s.depth > 0)) out.push(`${tag}: depth must be positive`);
+    if (!(s.heightStart > 0) || !(s.heightEnd > 0)) out.push(`${tag}: heights must be positive`);
+  }
+
+  // 8. beams
+  for (const b of Object.values(level.beams)) {
+    const tag = `${where} beam ${b.id}`;
+    if (!(segmentLength(b.a, b.b) >= MIN_WALL_LENGTH)) out.push(`${tag}: length below ${MIN_WALL_LENGTH} cm`);
+    if (!(b.width > 0)) out.push(`${tag}: width must be positive`);
+    if (!(b.drop > 0)) out.push(`${tag}: drop must be positive`);
+    if (!(b.bottom > 0)) out.push(`${tag}: bottom must be positive`);
+  }
+
+  // 9. cupboards (they stand against a wall face and must fit in the wall length, like openings)
+  for (const c of Object.values(level.cupboards)) {
+    const tag = `${where} cupboard ${c.id}`;
+    if (!has(level.walls, c.wallId)) {
+      out.push(`${tag}: wall not found`);
+      continue;
+    }
+    for (const [name, v] of [['width', c.width], ['depth', c.depth], ['height', c.height]] as const) {
+      if (!(v > 0) || !Number.isFinite(v)) out.push(`${tag}: ${name} must be positive and finite`);
+    }
+    for (const [name, v] of [['plinth', c.plinth], ['gap', c.gap]] as const) {
+      if (!(v >= 0) || !Number.isFinite(v)) out.push(`${tag}: ${name} must be non-negative and finite`);
+    }
+    if (!Number.isInteger(c.doorCount) || c.doorCount < 1) out.push(`${tag}: door count must be an integer >= 1`);
+    if (validWalls.has(c.wallId)) {
+      const len = wallLength(level, c.wallId);
+      if (!(c.offset - c.width / 2 >= -FIT_EPS && c.offset + c.width / 2 <= len + FIT_EPS)) {
+        out.push(`${tag}: does not fit in its wall`);
       }
     }
   }

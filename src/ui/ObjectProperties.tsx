@@ -58,6 +58,7 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
         height: o.height,
         color: o.color,
         lshape: shape === 'lshape' && o.lshape ? { ...o.lshape } : null,
+        pose: o.pose,
       }),
     );
     if (ok) useEditor.getState().showToast(`"${o.name}" est enregistré dans Mes objets.`);

@@ -70,7 +70,7 @@ describe('objectFootprint', () => {
 
 describe('objectShape', () => {
   const defs: Record<string, CustomObjectDef> = {
-    c1: { id: 'c1', name: 'Rond', shape: 'circle', width: 50, depth: 50, height: 50, color: '#fff', lshape: null },
+    c1: { id: 'c1', name: 'Rond', shape: 'circle', width: 50, depth: 50, height: 50, color: '#fff', lshape: null, pose: 'floor' },
   };
   const placed = (source: PlacedObject['source']): PlacedObject => box({ source });
 

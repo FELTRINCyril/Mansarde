@@ -33,13 +33,21 @@ describe('objectFromRef', () => {
       x: 100, y: 50, rotation: 0, width: 90, depth: 190, name: 'Lit 90', lshape: null,
     });
   });
+  it('takes the default pose of the catalog entry or of the custom definition', () => {
+    expect(objectFromRef(emptyProject(), 'catalog:chair', { x: 0, y: 0 })?.pose).toBe('tuckable');
+    expect(objectFromRef(emptyProject(), 'catalog:bed-90', { x: 0, y: 0 })?.pose).toBe('floor');
+    const p = ok(emptyProject(), addCustomObject({
+      id: 'c9', name: 'Tapis', shape: 'rect', width: 150, depth: 70, height: 1, color: '#aabbcc', lshape: null, pose: 'covering',
+    }));
+    expect(objectFromRef(p, 'custom:c9', { x: 0, y: 0 })?.pose).toBe('covering');
+  });
   it('gives the L generic its default notch', () => {
     const o = objectFromRef(emptyProject(), 'catalog:generic-lshape', { x: 0, y: 0 });
     expect(o?.lshape).toEqual({ notchWidth: 120, notchDepth: 90 });
   });
   it('builds a custom object from the project definition', () => {
     const p = ok(emptyProject(), addCustomObject({
-      id: 'c1', name: 'Établi', shape: 'rect', width: 150, depth: 70, height: 90, color: '#aabbcc', lshape: null,
+      id: 'c1', name: 'Établi', shape: 'rect', width: 150, depth: 70, height: 90, color: '#aabbcc', lshape: null, pose: 'floor',
     }));
     const o = objectFromRef(p, 'custom:c1', { x: 5, y: 6 });
     expect(o).toMatchObject({
@@ -184,7 +192,7 @@ describe('objectFromRef L shapes (R22)', () => {
   it('copies the L notch of a custom definition into the placed object', () => {
     const p = ok(emptyProject(), addCustomObject({
       id: 'c2', name: 'Bureau en L', shape: 'lshape', width: 180, depth: 160, height: 75, color: '#ccbbaa',
-      lshape: { notchWidth: 100, notchDepth: 90 },
+      lshape: { notchWidth: 100, notchDepth: 90 }, pose: 'floor',
     }));
     const o = objectFromRef(p, 'custom:c2', { x: 0, y: 0 })!;
     expect(o.lshape).toEqual({ notchWidth: 100, notchDepth: 90 });

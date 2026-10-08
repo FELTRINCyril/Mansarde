@@ -24,6 +24,7 @@ export function objectFromRef(project: Project, ref: string, at: Vec2): PlacedOb
     const size = { width: e.width, depth: e.depth, height: e.height };
     return createObjectFromSize({ kind: 'catalog', catalogId: e.id }, at.x, at.y, size, e.name, e.color, {
       lshape: e.lshape ? { ...e.lshape } : null,
+      pose: e.pose,
     });
   }
   if (kind === 'custom') {
@@ -32,6 +33,7 @@ export function objectFromRef(project: Project, ref: string, at: Vec2): PlacedOb
     const size = { width: d.width, depth: d.depth, height: d.height };
     return createObjectFromSize({ kind: 'custom', customObjectId: d.id }, at.x, at.y, size, d.name, d.color, {
       lshape: d.lshape ? { ...d.lshape } : null,
+      pose: d.pose,
     });
   }
   return null;
