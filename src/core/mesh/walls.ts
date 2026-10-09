@@ -1,6 +1,7 @@
 import type { Id, Level, Opening, Ring, Shape, Vec2 } from '../model/types';
 import { BooleanOpError, difference, intersection, isUsableRing } from '../geometry/boolean';
 import { openingCutRing } from '../geometry/openings';
+import { area, bbox } from '../geometry/polygon';
 import { MeshBuilder } from './builder';
 import { ceilingField, slopeEnds, type Field } from './cells';
 import { emitColumns, type Column, type Interval } from './solid';
@@ -21,16 +22,59 @@ function cutByOpenings(outline: Ring, cuts: Ring[]): { body: Shape; footprints: 
   }
 }
 
+/** An opening and its cut ring (openingCutRing), computed once per level. */
+export interface OpeningCut { opening: Opening; ring: Ring }
+
+/** Cut rings of the openings whose wall and nodes exist (an opening on a missing wall has none). */
+export function openingCuts(level: Level): OpeningCut[] {
+  const out: OpeningCut[] = [];
+  for (const o of Object.values(level.openings)) {
+    const w = level.walls[o.wallId];
+    if (!w || !level.nodes[w.startNodeId] || !level.nodes[w.endNodeId]) continue;
+    const ring = openingCutRing(level, o);
+    if (isUsableRing(ring)) out.push({ opening: o, ring });
+  }
+  return out;
+}
+
+/** Below this area (cm2) a neighbouring opening merely touches the outline (collinear walls, butt joints). */
+const MIN_OVERLAP = 1e-6;
+
+const boxesOverlap = (a: Ring, b: Ring): boolean => {
+  const p = bbox(a)!;
+  const q = bbox(b)!;
+  return p.minX < q.maxX && q.minX < p.maxX && p.minY < q.maxY && q.minY < p.maxY;
+};
+
 /**
- * One wall (ruling V2-R14): its own outline (d.outlines, mitered at its nodes) with its own
- * openings cut through, extruded from the floor to min(wall height, ceilingWithoutBeams) at each
- * vertex, cut at the slope lines; each opening keeps a sill [0, sill] (a threshold face when the
- * sill is at 0: doors, passages) and a lintel [sill + height, top] (ruling V2-R13), both capped
- * by the top. The mesh is a closed solid but for its underside on the floor. Faces of two walls
- * meeting at a node may lie back to back (accepted by V2-R14). When the openings cannot be cut
- * (boolean failure), the wall is drawn whole.
+ * The openings that cut this wall: its own ones, and those of other walls whose cut ring overlaps
+ * its outline (ruling V2-R20: a door flush at a wall end also cuts the mitered end of the wall met
+ * there, as the 2D shape does, since subtractOpenings cuts the union of the walls).
  */
-export function buildWall(level: Level, wallId: Id, outline: Ring): MeshData {
+function cutsOf(wallId: Id, outline: Ring, cuts: OpeningCut[]): OpeningCut[] {
+  return cuts.filter(({ opening, ring }) => {
+    if (opening.wallId === wallId) return true;
+    if (!boxesOverlap(outline, ring)) return false;
+    try {
+      return intersection([{ outer: outline, holes: [] }], ring).reduce((s, p) => s + area(p.outer), 0) > MIN_OVERLAP;
+    } catch (e) {
+      if (!(e instanceof BooleanOpError)) throw e;
+      return false;
+    }
+  });
+}
+
+/**
+ * One wall (ruling V2-R14): its own outline (d.outlines, mitered at its nodes) cut through by its
+ * openings and by those of neighbouring walls overlapping it (V2-R20), extruded from the floor to
+ * min(wall height, ceilingWithoutBeams) at each vertex, cut at the slope lines; each opening keeps
+ * a sill [0, sill] (a threshold face when the sill is at 0: doors, passages) and a lintel
+ * [sill + height, top] (ruling V2-R13), both capped by the top. The mesh is a closed solid but for
+ * its underside on the floor. Faces of two walls meeting at a node may lie back to back (accepted
+ * by V2-R14). When the openings cannot be cut (boolean failure), the wall is drawn whole.
+ * `cuts` defaults to openingCuts(level).
+ */
+export function buildWall(level: Level, wallId: Id, outline: Ring, cuts: OpeningCut[] = openingCuts(level)): MeshData {
   const b = new MeshBuilder();
   const wall = level.walls[wallId];
   if (!wall || !isUsableRing(outline)) return b.build();
@@ -38,8 +82,9 @@ export function buildWall(level: Level, wallId: Id, outline: Ring): MeshData {
     const c = ceilingField(level, m);
     return (p) => Math.max(0, Math.min(wall.height, c(p)));
   };
-  const openings: Opening[] = Object.values(level.openings).filter((o) => o.wallId === wallId);
-  const cut = openings.length > 0 ? cutByOpenings(outline, openings.map((o) => openingCutRing(level, o))) : null;
+  const mine = cutsOf(wallId, outline, cuts);
+  const openings: Opening[] = mine.map((c) => c.opening);
+  const cut = mine.length > 0 ? cutByOpenings(outline, mine.map((c) => c.ring)) : null;
   const base = [level.height, wall.height, ...slopeEnds(level)];
   const columns: Column[] = [
     {
@@ -70,5 +115,6 @@ export function buildWall(level: Level, wallId: Id, outline: Ring): MeshData {
 
 /** One mesh per wall whose outline exists (walls with a missing node have none). */
 export function buildWalls(level: Level, outlines: Map<Id, Ring>): Array<{ wallId: Id; mesh: MeshData }> {
-  return [...outlines].filter(([id]) => level.walls[id]).map(([wallId, outline]) => ({ wallId, mesh: buildWall(level, wallId, outline) }));
+  const cuts = openingCuts(level);
+  return [...outlines].filter(([id]) => level.walls[id]).map(([wallId, outline]) => ({ wallId, mesh: buildWall(level, wallId, outline, cuts) }));
 }

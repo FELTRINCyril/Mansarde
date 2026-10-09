@@ -10,6 +10,7 @@ import { imageSize } from '@/storage/files';
 import { Banner } from './Banner';
 import { BackgroundServicesContext, type BackgroundServices } from './backgroundServices';
 import { CatalogPanel } from './CatalogPanel';
+import { EditorCenter } from './EditorCenter';
 import { ExportDialog } from './ExportDialog';
 import { Header } from './Header';
 import { levelsWithMissingImages, missingImageMessage } from './imageCheck';
@@ -132,7 +133,9 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
   const [dialog, setDialog] = useState<'settings' | 'export' | null>(null);
   const size = useRef<Size>({ width: 0, height: 0 });
   const onResize = useCallback((s: Size) => {
-    size.current = s;
+    // the plan hidden behind the 3D view measures 0 x 0: keep the size it had (the view center
+    // of the catalog placement and of an imported background stays the plan's)
+    if (s.width > 0 && s.height > 0) size.current = s;
   }, []);
   // the move mode of the tracing image ends by itself when the image gets locked, hidden or removed
   useEffect(() => watchBackgroundMode(useEditor), []);
@@ -174,9 +177,7 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
       <div className="editor-main">
         <Toolbar />
         <CatalogPanel onPlace={placeAtCenter} />
-        <main className="editor-center">
-          <PlanArea imageUrls={imageUrls} onResize={onResize} onExportProject={p.onExportProject} onClose={p.onClose} />
-        </main>
+        <EditorCenter plan={<PlanArea imageUrls={imageUrls} onResize={onResize} onExportProject={p.onExportProject} onClose={p.onClose} />} />
         <BackgroundServicesContext.Provider value={backgroundServices}>
           <PropertiesPanel />
         </BackgroundServicesContext.Provider>
