@@ -15,7 +15,7 @@ import { openingCutRing } from '@/core/geometry/openings';
 import { snapToWallForPose, supportElevation } from '@/core/geometry/pose';
 import { slopeFrame } from '@/core/geometry/slopes';
 import { snapObjectToWalls, snapPoint, type Guide } from '@/core/geometry/snap';
-import { add, dist, dot, len, lerp, normalize, perp, rad2deg, sub } from '@/core/geometry/vec';
+import { add, dist, dot, len, lerp, normalize, perp, rad2deg, scale, sub } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
 import { MIN_WALL_LENGTH, SNAP_PX } from '@/core/model/defaults';
 import { newId } from '@/core/model/ids';
@@ -65,10 +65,11 @@ interface Session {
   click: SelectionItem[] | null; // selection applied on a release without drag (null = keep)
   additive: boolean; // Shift at press: the rectangle adds to the selection
   baseSelection: SelectionItem[];
-  grab: Vec2; // opening, cupboard: (cursor - center) along the wall in x; resize: handle - cursor in the object frame
+  grab: Vec2; // opening: (cursor - center) along the wall in x; cupboard: along-wall part of cursor - center (world vector); resize: handle - cursor in the object frame
   last: Vec2; // last pointer position (screen px): where the typed distance field opens
   activeSide: string | null; // clearance chosen with Tab (side name, the list changes while dragging)
   typing: boolean; // the numeric field is open: pointer moves are ignored
+  refused: boolean; // the last preview of the drag was refused (shown in red): the release commits nothing
 }
 
 const GESTURE_LABELS: Record<Exclude<DragPlan['kind'], 'marquee'>, string> = {
@@ -249,7 +250,10 @@ export function createSelectTool(): Tool {
       const cb = level.cupboards[plan.id];
       if (!cb || !level.walls[cb.wallId]) return false;
       const f = wallFrame(level, cb.wallId);
-      s.grab = { x: dot(sub(s.start.world, f.start), f.dir) - cb.offset, y: 0 };
+      // the along-wall part of (cursor - center), as a world vector: projected on whatever wall the
+      // cupboard is dragged to (a wall drawn the other way, or across, keeps the cursor on the same
+      // spot of the cupboard)
+      s.grab = scale(f.dir, dot(sub(s.start.world, f.start), f.dir) - cb.offset);
     } else if (plan.kind === 'resize') {
       const o = level.objects[plan.id];
       if (!o) return false;
@@ -339,7 +343,8 @@ export function createSelectTool(): Tool {
   /**
    * A cupboard slides along the wall hovered by the cursor (another wall: set against the face on
    * the cursor side), else along its own wall, kept on the free stretch of its face
-   * (fitCupboardOnWall); a stretch too short for it is refused in red.
+   * (fitCupboardOnWall); a stretch too short for it is refused in red, and a release there
+   * restores the cupboard (s.refused). The grab offset is projected on the wall in use.
    */
   function dragCupboard(s: Session, id: Id, e: PointerInfo, c: ToolContext): void {
     const base = baseLevel(s, c.store);
@@ -350,8 +355,9 @@ export function createSelectTool(): Tool {
     const f = wallFrame(base, wallId);
     const v = sub(e.world, f.start);
     const side = wallId === cb.wallId ? cb.side : dot(v, f.normal) >= 0 ? 'left' : 'right';
-    const { offset, fits } = fitCupboardOnWall(base, wallId, side, cb.width, dot(v, f.dir) - s.grab.x, e.alt);
+    const { offset, fits } = fitCupboardOnWall(base, wallId, side, cb.width, dot(sub(v, s.grab), f.dir), e.alt);
     const ok = fits && st.updateGesture(moveCupboard(s.levelId, id, wallId, offset, side));
+    s.refused = !ok;
     if (!fits) st.setOverlay({ previewInvalid: true });
     const ghost: CupboardGhost = { kind: 'volume-cupboard', level: base, cupboard: { ...cb, wallId, offset, side }, valid: false };
     st.setOverlay({ ghost: ok ? null : ghost });
@@ -394,27 +400,28 @@ export function createSelectTool(): Tool {
   }
 
   /**
-   * Pose at the end of an object drag (spec 5.3): an 'onTop' object takes the elevation of its
-   * support under its center (supportElevation, 0 when none); a single 'wall' object moved alone
-   * is set against the nearest wall face (snapToWallForPose; not with Alt). Computed on the
-   * preview and appended to the gesture recipe, so that the drag stays one history entry.
+   * Pose of moved objects before their gesture is committed (spec 5.3): an 'onTop' object takes
+   * the elevation of its support under its center (supportElevation, 0 when none); with `wallSnap`
+   * (a single object dragged alone, without Alt) a 'wall' object is set against the nearest wall
+   * face (snapToWallForPose). Computed on the preview and appended to the gesture recipe, so that
+   * the move stays one history entry. Called at the end of a drag and when a typed distance is
+   * validated (no wall snap there: the typed distance is kept as typed).
    */
-  function settlePose(s: Session, plan: Extract<DragPlan, { kind: 'move' }>, e: PointerInfo, c: ToolContext): void {
+  function settlePose(levelId: Id, objectIds: Id[], wallSnap: boolean, c: ToolContext): void {
     const st = c.store.getState();
     const prev = st.gesture?.lastRecipe;
-    const level = levelOf(st.project, s.levelId);
+    const level = levelOf(st.project, levelId);
     if (!prev || !level || !st.project) return;
-    const single = objectsOnly(plan) && plan.objectIds.length === 1;
     const fixes: Recipe[] = [];
-    for (const id of plan.objectIds) {
+    for (const id of objectIds) {
       const o = level.objects[id];
       if (!o) continue;
       if (o.pose === 'onTop') {
         const elevation = supportElevation(level, id, o, st.project.customObjects);
-        if (elevation !== o.elevation) fixes.push(updateObject(s.levelId, id, { elevation }));
-      } else if (o.pose === 'wall' && single && !e.alt) {
+        if (elevation !== o.elevation) fixes.push(updateObject(levelId, id, { elevation }));
+      } else if (o.pose === 'wall' && wallSnap) {
         const t = snapToWallForPose(o, level);
-        if (t && (t.x !== o.x || t.y !== o.y || t.rotation !== o.rotation)) fixes.push(setObjectTransform(s.levelId, id, t));
+        if (t && (t.x !== o.x || t.y !== o.y || t.rotation !== o.rotation)) fixes.push(setObjectTransform(levelId, id, t));
       }
     }
     if (fixes.length === 0) return;
@@ -638,6 +645,7 @@ export function createSelectTool(): Tool {
         last: e.screen,
         activeSide: null,
         typing: false,
+        refused: false,
       };
       session = s;
 
@@ -647,7 +655,8 @@ export function createSelectTool(): Tool {
         s.plan = handle.kind === 'rotate' ? { kind: 'rotate', id: target.id } : { kind: 'resize', id: target.id, sx: handle.sx, sy: handle.sy };
         return;
       }
-      const vh = hitVolumeHandle(volumeHandles(st.selection, level), e.world, px);
+      // Shift + press edits the selection, even on a handle
+      const vh = e.shift ? null : hitVolumeHandle(volumeHandles(st.selection, level), e.world, px);
       if (vh) {
         s.plan = { kind: 'volumeHandle', target: vh.target, id: vh.id, role: vh.role };
         return;
@@ -709,8 +718,13 @@ export function createSelectTool(): Tool {
           st.setSelection(s.additive ? union(s.baseSelection, hits) : hits);
         }
       } else {
-        if (s.plan.kind === 'move' && s.plan.objectIds.length > 0) settlePose(s, s.plan, e, c);
-        c.store.getState().commitGesture();
+        const plan = s.plan;
+        if (plan.kind === 'move' && plan.objectIds.length > 0) {
+          settlePose(s.levelId, plan.objectIds, objectsOnly(plan) && plan.objectIds.length === 1 && !e.alt, c);
+        }
+        // released on a refused position (red preview): the element stays where it was
+        if (plan.kind === 'cupboard' && s.refused) c.store.getState().cancelGesture();
+        else c.store.getState().commitGesture();
       }
       clearTransient(c.store);
     },
@@ -763,6 +777,7 @@ export function createSelectTool(): Tool {
       }
       const side = t.holder.activeSide;
       session = null;
+      if (t.target.kind === 'object') settlePose(t.target.levelId, [t.target.id], false, c);
       c.store.getState().commitGesture();
       keyboard = { target: t.target, activeSide: side, typing: false };
       showKeyboardMeasure(c);

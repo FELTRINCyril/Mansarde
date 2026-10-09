@@ -4,7 +4,8 @@ import { addBeam } from '@/core/commands/beams';
 import { addCupboard } from '@/core/commands/cupboards';
 import { addObject } from '@/core/commands/objects';
 import { addSlope } from '@/core/commands/slopes';
-import { addRectRoom } from '@/core/commands/walls';
+import { addRectRoom, addWallChain } from '@/core/commands/walls';
+import { cupboardFootprint } from '@/core/geometry/cupboards';
 import { createBeam, createCupboard, createObjectFromSize, createSlope } from '@/core/model/factory';
 import type { Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { objectFromRef, placeObjectRecipe } from '@/editor/placeObject';
@@ -48,6 +49,9 @@ function drag(tool: Tool, ctx: ToolContext, a: Vec2, steps: Vec2[], mods: Partia
   const end = steps[steps.length - 1] ?? a;
   tool.onPointerUp!(at(end.x, end.y, mods), ctx);
 }
+
+const key = (k: string, mods: Partial<KeyboardEvent> = {}): KeyboardEvent =>
+  ({ key: k, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, repeat: false, defaultPrevented: false, target: null, ...mods }) as unknown as KeyboardEvent;
 
 const level = (store: EditorStore): Level => store.getState().project!.levels[0]!;
 const entries = (store: EditorStore) => store.getState().history.past.length;
@@ -247,5 +251,92 @@ describe('pose at the drop (spec 5.3)', () => {
     ]);
     drag(tool, ctx, { x: 200, y: 150 }, [{ x: 200, y: 200 }]);
     expect(level(store).objects[tv.id]).toMatchObject({ y: 200, elevation: 50 });
+  });
+});
+
+describe('fix round 1', () => {
+  const tvOnUnit = () => {
+    const env = setup();
+    const unit = catalog(env.store, 'tv-unit', 200, 150);
+    exec(env.store, addObject(env.levelId, unit));
+    return env;
+  };
+
+  it('a typed distance during a drag poses the object too (TV on its unit: elevation 50)', () => {
+    const { store, ctx, tool, levelId } = tvOnUnit();
+    const tv = catalog(store, 'tv', 100, 250);
+    exec(store, addObject(levelId, tv));
+    const n = entries(store);
+    tool.onPointerDown!(at(100, 250), ctx);
+    tool.onPointerMove!(at(150, 200), ctx);
+    tool.onPointerMove!(at(205, 152), ctx);
+    expect(tool.onKeyDown!(key('Tab'), ctx)).toBe(true);
+    expect(tool.onKeyDown!(key('1'), ctx)).toBe(true);
+    expect(store.getState().overlay.numericInput).not.toBeNull();
+    // any side typed 140 keeps the TV over the unit (x 120..280, y 127.5..172.5)
+    tool.onNumericSubmit!(140, ctx);
+    const o = level(store).objects[tv.id]!;
+    expect(o.x).toBeGreaterThan(120);
+    expect(o.x).toBeLessThan(280);
+    expect(o.elevation).toBe(50);
+    expect(entries(store)).toBe(n + 1);
+  });
+
+  it('a typed distance without drag (Tab on the selected object) poses it too', () => {
+    const { store, ctx, tool, levelId } = tvOnUnit();
+    const tv = catalog(store, 'tv', 205, 152);
+    exec(store, addObject(levelId, tv)); // added at elevation 0, not posed
+    expect(level(store).objects[tv.id]!.elevation).toBe(0);
+    store.getState().setSelection([{ kind: 'object', id: tv.id }]);
+    expect(tool.onKeyDown!(key('Tab'), ctx)).toBe(true);
+    expect(tool.onKeyDown!(key('1'), ctx)).toBe(true);
+    tool.onNumericSubmit!(140, ctx);
+    expect(level(store).objects[tv.id]!.elevation).toBe(50);
+  });
+
+  it('a cupboard released on a refused position goes back where it was, nothing in the history', () => {
+    const { store, levelId, ctx, tool } = setup();
+    // a lone wall of 80, too short for the cupboard
+    exec(store, addWallChain(levelId, [{ kind: 'free', x: 500, y: 100 }, { kind: 'free', x: 580, y: 100 }], 20, 250));
+    const c = createCupboard(findWall(level(store), 0, 0, 400, 0), 200, 'left');
+    exec(store, addCupboard(levelId, c));
+    click(tool, ctx, { x: 200, y: 40 });
+    const n = entries(store);
+    tool.onPointerDown!(at(200, 40), ctx);
+    tool.onPointerMove!(at(150, 40), ctx); // valid: offset 150
+    expect(level(store).cupboards[c.id]!.offset).toBe(150);
+    tool.onPointerMove!(at(540, 98), ctx); // over the short wall: refused, red
+    expect(store.getState().overlay.ghost).toMatchObject({ kind: 'volume-cupboard', valid: false });
+    tool.onPointerUp!(at(540, 98), ctx);
+    expect(level(store).cupboards[c.id]).toMatchObject({ offset: 200 });
+    expect(entries(store)).toBe(n);
+  });
+
+  it('on a wall drawn the other way, the cupboard keeps the grabbed spot under the cursor', () => {
+    const { store, levelId, ctx, tool } = setup();
+    const lv = level(store);
+    const bottom = findWall(lv, 0, 300, 400, 300);
+    // precondition: the bottom wall runs from x = 400 to x = 0 (opposite to the top wall)
+    expect(lv.nodes[lv.walls[bottom]!.startNodeId]!.x).toBe(400);
+    const c = createCupboard(findWall(lv, 0, 0, 400, 0), 200, 'left');
+    exec(store, addCupboard(levelId, c));
+    click(tool, ctx, { x: 200, y: 40 });
+    // grabbed 30 cm right of its center, released over the bottom wall at x = 300
+    drag(tool, ctx, { x: 230, y: 40 }, [{ x: 260, y: 200 }, { x: 300, y: 295 }]);
+    const moved = level(store).cupboards[c.id]!;
+    expect(moved.wallId).toBe(bottom);
+    const fp = cupboardFootprint(level(store), moved);
+    const centerX = (fp[0]!.x + fp[1]!.x) / 2;
+    expect(centerX).toBeCloseTo(270, 6);
+  });
+
+  it('Shift + press on a slope handle edits the selection, the slope does not move', () => {
+    const { store, levelId, ctx, tool } = setup();
+    const s = createSlope({ x: 100, y: 100 }, { x: 300, y: 100 }, 'left', 60, 250, 150);
+    exec(store, addSlope(levelId, s));
+    click(tool, ctx, { x: 200, y: 100 });
+    drag(tool, ctx, { x: 100, y: 100 }, [{ x: 80, y: 120 }], { shift: true });
+    expect(level(store).slopes[s.id]!.a).toEqual({ x: 100, y: 100 });
+    expect(store.getState().selection).toEqual([]);
   });
 });

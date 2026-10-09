@@ -203,8 +203,11 @@ export function createSlopeTool(): Tool {
       }
     },
 
-    onCancel() {
-      // a click is complete at its press: nothing to abandon (Escape drops the slope in progress)
+    onCancel(c) {
+      // the release of the third click was lost (pointercancel, capture lost, window blur): the
+      // heights field opens anyway, the tool never stays without it. Otherwise a click is complete
+      // at its press: nothing to abandon (Escape drops the slope in progress)
+      if (state.step === 'heights' && !state.open) openField(c);
     },
 
     onDeactivate(c) {
