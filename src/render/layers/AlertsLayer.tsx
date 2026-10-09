@@ -34,16 +34,21 @@ function alertRing(key: string, level: Level, volumes: DerivedVolumes, customObj
 
 /**
  * Check alerts (spec 7.3, screen only): a red (error) or orange (warning) outline around the
- * footprint of every element in alert. Errors are drawn last, over the warnings.
+ * footprint of every element in alert. Errors are drawn last, over the warnings. The selection is
+ * drawn over this layer on the same outline: for a selected element (`selected`, keys like the
+ * alerts) the alert line is widened by the selection line plus its own width, so that it still
+ * shows on both sides of the selection line.
  */
 export function AlertsLayer({
   alerts,
+  selected,
   level,
   volumes,
   customObjects,
   lineUnit,
 }: {
   alerts: ReadonlyMap<string, CheckSeverity>;
+  selected: ReadonlySet<string>;
   level: Level;
   volumes: DerivedVolumes;
   customObjects: Record<Id, CustomObjectDef>;
@@ -64,7 +69,7 @@ export function AlertsLayer({
               data-severity={severity}
               d={ringsPath([ring])}
               stroke={severity === 'error' ? STYLE.alertError : STYLE.alertWarning}
-              strokeWidth={STYLE.alertWidth * lineUnit}
+              strokeWidth={(selected.has(key) ? 2 * STYLE.alertWidth + STYLE.selectionWidth : STYLE.alertWidth) * lineUnit}
             />
           )
         );

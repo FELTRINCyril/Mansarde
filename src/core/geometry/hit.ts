@@ -1,10 +1,11 @@
 import { SNAP_PX } from '../model/defaults';
-import type { CustomObjectDef, Id, Level, Opening, Ring, Vec2 } from '../model/types';
+import type { CustomObjectDef, Id, Level, Opening, Ring, Slope, Vec2 } from '../model/types';
 import { dimLineEnds, manualDimLine } from './autoDimensions';
 import { deriveVolumes, type DerivedLevel } from './derived';
 import { objectFootprint, objectShape } from './objects';
 import { openingCutRing, openingFrame } from './openings';
 import { pointInPolygon, pointInRing } from './polygon';
+import { slopeFrame } from './slopes';
 import { add, dist, projectOnSegment, scale, sub } from './vec';
 
 export type HitKind = 'opening' | 'object' | 'node' | 'wall' | 'dimension' | 'room' | 'slope' | 'beam' | 'cupboard';
@@ -34,6 +35,18 @@ function lastContaining(rings: Map<Id, Ring>, p: Vec2): Id | null {
   return found;
 }
 
+/**
+ * Distance from p to the start line or the end line of the slope, whichever is nearer (the handles
+ * of a slope lie on these lines). A click inside the band selects the room (ruling V2-R23).
+ * Infinity for a degenerate slope.
+ */
+function slopeLineDistance(s: Slope, p: Vec2): number {
+  const f = slopeFrame(s);
+  if (!(f.length > 0 && s.depth > 0)) return Infinity; // degenerate: not drawn, never hit
+  const n = scale(f.normal, s.depth);
+  return Math.min(projectOnSegment(p, s.a, s.b).distance, projectOnSegment(p, add(s.a, n), add(s.b, n)).distance);
+}
+
 /** Wall whose outline contains p; inside the wall shape but in no outline (tiny joint notch), the wall with the nearest axis. */
 function hitWall(level: Level, d: DerivedLevel, p: Vec2): Id | null {
   for (const [id, ring] of d.outlines) if (pointInRing(p, ring)) return id;
@@ -49,12 +62,13 @@ function hitWall(level: Level, d: DerivedLevel, p: Vec2): Id | null {
 
 /**
  * Element under the point p (world cm). Priority: opening (inside its cut ring) > wall node
- * (closer than SNAP_PX screen pixels) > cupboard (inside its footprint) > object (topmost = last
- * in record order, inside its footprint) > beam (inside its footprint) > manual dimension (closer
- * than the tolerance to its drawn line) > wall (inside its outline) > slope (inside its band, from
- * the start line to the end line) > room (inside its ring and outside its islands). Among
- * cupboards, beams or slopes, the last in record order wins (drawn on top). customObjects gives
- * the footprint shape of custom objects.
+ * (closer than SNAP_PX screen pixels) > object (topmost = last in record order, inside its
+ * footprint) > cupboard (inside its footprint; drawn under the objects, ruling V2-R27) > beam
+ * (inside its footprint) > manual dimension (closer than the tolerance to its drawn line) > wall
+ * (inside its outline) > slope (closer than the tolerance to its start or end line, ruling
+ * V2-R23) > room (inside its ring and outside its islands). Among cupboards or beams, the last in
+ * record order wins (drawn on top); among slopes, the nearest line. customObjects gives the
+ * footprint shape of custom objects.
  */
 export function hitTest(
   level: Level,
@@ -71,15 +85,15 @@ export function hitTest(
   const node = nearest(Object.values(level.nodes), (n) => dist(p, n), tol);
   if (node) return { kind: 'node', id: node.id };
 
-  const volumes = deriveVolumes(level);
-  const cupboard = lastContaining(volumes.cupboardFootprints, p);
-  if (cupboard) return { kind: 'cupboard', id: cupboard };
-
   const objects = Object.values(level.objects);
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i]!;
     if (pointInRing(p, objectFootprint(o, objectShape(o, customObjects)))) return { kind: 'object', id: o.id };
   }
+
+  const volumes = deriveVolumes(level);
+  const cupboard = lastContaining(volumes.cupboardFootprints, p);
+  if (cupboard) return { kind: 'cupboard', id: cupboard };
 
   const beam = lastContaining(volumes.beamFootprints, p);
   if (beam) return { kind: 'beam', id: beam };
@@ -99,8 +113,8 @@ export function hitTest(
   const wallId = hitWall(level, d, p);
   if (wallId) return { kind: 'wall', id: wallId };
 
-  const slope = lastContaining(volumes.slopeBands, p);
-  if (slope) return { kind: 'slope', id: slope };
+  const slope = nearest(Object.values(level.slopes).reverse(), (s) => slopeLineDistance(s, p), tol);
+  if (slope) return { kind: 'slope', id: slope.id };
 
   const room = d.rooms.find((r) => pointInRing(p, r.ring) && !r.islands.some((i) => pointInRing(p, i)));
   return room ? { kind: 'room', id: room.key } : null;

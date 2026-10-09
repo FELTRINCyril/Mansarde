@@ -62,7 +62,7 @@ export const STYLE = {
   beamTextMaskOpacity: 0.85,
 
   // cupboards
-  cupboardDoorInset: 2, // cm: door panels just inside the front face
+  cupboardDoorInset: 2, // cm: first track of sliding doors, just behind the front face
   cupboardTrackGap: 3, // cm: second track of sliding doors behind the first
   cupboardHandleWidth: 2,
   clearanceFill: '#f3b26b',

@@ -171,7 +171,7 @@ test('background image (data URL, opacity) in the pdf and the png', async ({ pag
   expect(out.offImage).toEqual([255, 255, 255, 255]);
 });
 
-test('volumes: slope (gradient), beam and cupboard in the pdf and the png, no alert drawn', async ({ page }, testInfo) => {
+test('volumes: a level with a slope, a beam and a cupboard exports to pdf (slope as an axial shading) and png', async ({ page }, testInfo) => {
   const out = await page.evaluate(async (m) => {
     const { exportPdf }: PdfModule = await import(m.pdf);
     const { exportPng }: PngModule = await import(m.png);

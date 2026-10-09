@@ -58,18 +58,23 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
   const derived = deriveLevel(level);
   const volumes = deriveVolumes(level);
   const screen = p.mode === 'screen';
-  // room names are drawn above the slopes and beams, the furniture and cupboards above the slopes:
-  // their labels keep clear of them
+  // room names are drawn above the slopes and beams, the furniture (rugs aside) and cupboards
+  // above the slopes: the labels of slopes and beams keep clear of them
   const roomNames = derived.rooms.map((r) => roomLabelBox(r, lineUnit));
-  const overSlopes =
-    Object.keys(level.slopes).length === 0
-      ? []
-      : [
-          ...roomNames,
-          ...Object.values(level.objects).map((o) => bbox(objectCorners(o))!),
-          ...[...volumes.cupboardFootprints.values()].map((r) => bbox(r)!),
-        ];
+  const overSlopes = {
+    hiding: roomNames,
+    covering:
+      Object.keys(level.slopes).length === 0
+        ? []
+        : [
+            ...Object.values(level.objects)
+              .filter((o) => o.pose !== 'covering')
+              .map((o) => bbox(objectCorners(o))!),
+            ...[...volumes.cupboardFootprints.values()].map((r) => bbox(r)!),
+          ],
+  };
   const selectedCupboards = screen && p.selection ? new Set(p.selection.filter((i) => i.kind === 'cupboard').map((i) => i.id)) : NO_IDS;
+  const selectedKeys = screen && p.selection ? new Set(p.selection.map((i) => `${i.kind}:${i.id}`)) : NO_IDS;
   const bg = level.background;
   const imageShown = !!bg && bg.visible && !!p.imageUrls[bg.imageId];
   return (
@@ -95,7 +100,7 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
       <DimensionsLayer level={level} derived={derived} dimMode={p.dimMode} lineUnit={lineUnit} />
       <RoomLabelsLayer rooms={derived.rooms} lineUnit={lineUnit} />
       {screen && p.alerts && (
-        <AlertsLayer alerts={p.alerts} level={level} volumes={volumes} customObjects={p.project.customObjects} lineUnit={lineUnit} />
+        <AlertsLayer alerts={p.alerts} selected={selectedKeys} level={level} volumes={volumes} customObjects={p.project.customObjects} lineUnit={lineUnit} />
       )}
       {screen && p.selection && (
         <SelectionLayer selection={p.selection} level={level} derived={derived} customObjects={p.project.customObjects} lineUnit={lineUnit} />

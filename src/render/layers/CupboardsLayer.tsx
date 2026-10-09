@@ -13,51 +13,68 @@ function Seg({ p, q, kind, width, dashed }: { p: Vec2; q: Vec2; kind: string; wi
 /** The point at distance `inset` behind the front edge point p (towards the wall). */
 const behind = (f: CupboardFrame, p: Vec2, inset: number): Vec2 => sub(p, scale(f.outward, inset));
 
-/** Door panels, swing arcs (hinged) or two tracks (sliding), and handles. */
+/** Gap left between two hinged door panels (cm), at most a tenth of a door. */
+const DOOR_GAP = 1;
+/** How far a handle stands out of the front face (cm). */
+const HANDLE_REACH = 3;
+
+/**
+ * Door panels, swing arcs (hinged) or two tracks (sliding), and handles. Hinged panels lie on the
+ * front face with a small gap between them; each arc starts at the free end of its panel and is
+ * centered on its hinge. Sliding panels run on two tracks just behind the front face. Handles are
+ * short pulls standing out of the front face: by the free end of a hinged door, mid-panel on a
+ * sliding one.
+ */
 function Doors({ level, c, f, lineUnit }: { level: Level; c: Cupboard; f: CupboardFrame; lineUnit: number }): JSX.Element {
   const doors = cupboardDoors(level, c);
   const thin = STYLE.objectLine * lineUnit;
   const inset = Math.min(STYLE.cupboardDoorInset, f.depth / 4);
   const handleWidth = STYLE.cupboardHandleWidth * lineUnit;
+  const pull = (at: Vec2, key: string): JSX.Element => (
+    <Seg key={key} kind="cupboard-handle" p={at} q={add(at, scale(f.outward, HANDLE_REACH))} width={handleWidth} />
+  );
   return (
     <>
       {doors.map((d, i) => {
         const w = dist(d.from, d.to);
-        // hingeAt is a copy of `from` or of `to` (cupboardDoors)
-        const hingeAtFrom = d.hingeAt.x === d.from.x && d.hingeAt.y === d.from.y;
-        const toFree = normalize(sub(hingeAtFrom ? d.to : d.from, d.hingeAt));
-        const handleLen = Math.min(12, w / 3);
+        const first = i === 0;
+        const last = i === doors.length - 1;
         if (c.doorType === 'sliding') {
           // alternate tracks, each panel overlapping its neighbours a little
           const track = inset + (i % 2) * Math.min(STYLE.cupboardTrackGap, f.depth / 4);
           const overlap = Math.min(w * 0.1, 3);
-          const from = sub(d.from, scale(f.dir, i > 0 ? overlap : 0));
-          const to = add(d.to, scale(f.dir, i < doors.length - 1 ? overlap : 0));
-          const mid = scale(add(d.from, d.to), 0.5);
-          const h = behind(f, mid, track + Math.min(3, f.depth / 6));
+          const from = sub(d.from, scale(f.dir, first ? 0 : overlap));
+          const to = add(d.to, scale(f.dir, last ? 0 : overlap));
           return (
             <g key={i}>
               <Seg kind="cupboard-door" p={behind(f, from, track)} q={behind(f, to, track)} width={STYLE.leafWidth * lineUnit} />
-              <Seg kind="cupboard-handle" p={sub(h, scale(f.dir, handleLen / 2))} q={add(h, scale(f.dir, handleLen / 2))} width={handleWidth} />
+              {pull(scale(add(d.from, d.to), 0.5), 'pull')}
             </g>
           );
         }
-        // hinged: the closed panel, the dashed quarter circle of its free end, the handle by the free end
-        const open = add(d.hingeAt, scale(f.outward, w));
-        const free = add(d.hingeAt, scale(toFree, w));
-        const sweep = cross(sub(free, d.hingeAt), sub(open, d.hingeAt)) > 0 ? 1 : 0;
-        const r = num(w);
-        const h = behind(f, sub(free, scale(toFree, Math.min(8, w / 4))), inset + Math.min(3, f.depth / 6));
+        // hinged: the panel shortened by half a gap at each end shared with another door
+        const gap = Math.min(DOOR_GAP, w / 10) / 2;
+        const from = add(d.from, scale(f.dir, first ? 0 : gap));
+        const to = sub(d.to, scale(f.dir, last ? 0 : gap));
+        // hingeAt is a copy of `from` or of `to` (cupboardDoors)
+        const hingeAtFrom = d.hingeAt.x === d.from.x && d.hingeAt.y === d.from.y;
+        const hinge = hingeAtFrom ? from : to;
+        const free = hingeAtFrom ? to : from;
+        const len = dist(from, to);
+        const toHinge = normalize(sub(hinge, free));
+        const open = add(hinge, scale(f.outward, len));
+        const sweep = cross(sub(free, hinge), sub(open, hinge)) > 0 ? 1 : 0;
+        const r = num(len);
         return (
           <g key={i}>
-            <Seg kind="cupboard-door" p={behind(f, d.from, inset)} q={behind(f, d.to, inset)} width={STYLE.leafWidth * lineUnit} />
+            <Seg kind="cupboard-door" p={from} q={to} width={STYLE.leafWidth * lineUnit} />
             <path
               data-kind="cupboard-arc"
               d={`M${num(free.x)} ${num(free.y)}A${r} ${r} 0 0 ${sweep} ${num(open.x)} ${num(open.y)}`}
               strokeWidth={thin * STYLE.arcWidth}
               strokeDasharray={dashArray(lineUnit)}
             />
-            <Seg kind="cupboard-handle" p={sub(h, scale(toFree, handleLen / 2))} q={add(h, scale(toFree, handleLen / 2))} width={handleWidth} />
+            {pull(add(free, scale(toHinge, Math.min(8, len / 4))), 'pull')}
           </g>
         );
       })}

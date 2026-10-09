@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createBeam, createCupboard, createObjectFromSize, createOpening, createSlope } from '@/core/model/factory';
 import type { Beam, Cupboard, Project } from '@/core/model/types';
+import { deriveLevel } from '@/core/geometry/derived';
 import { labelAlong } from '@/render/labelAlong';
+import { roomLabelBox } from '@/render/roomLabelLayout';
 import { PlanSvg, type PlanSvgProps } from '@/render/PlanSvg';
 import { findWall, rectRoom } from '../core/fixtures';
 import { lvl, projectFrom } from '../core/helpers';
@@ -104,6 +106,58 @@ describe('PlanSvg volumes', () => {
     expect(at(render(p))).toBe('137');
   });
 
+  it('slope label: never under a room name, even when furniture leaves no clear spot (reviewer case)', () => {
+    // a 300 x 250 room "Bureau" over a 300 x 200 room, a diagonal slope and beam, cupboards, a desk and a wardrobe
+    const p = projectFrom([...rectRoom(-10, -10, 310, 260), [310, 260, 310, 460], [310, 460, -10, 460], [-10, 460, -10, 260]], (level) => {
+      const s = createSlope({ x: 0, y: 150 }, { x: 150, y: 0 }, 'left', 180, 250, 140);
+      s.id = 'slope';
+      level.slopes[s.id] = s;
+      const b = createBeam({ x: 20, y: 240 }, { x: 290, y: 30 });
+      level.beams[b.id] = b;
+      const box = (id: string, x: number, y: number, width: number, depth: number, height: number) =>
+        (level.objects[id] = createObjectFromSize({ kind: 'catalog', catalogId: 'generic-rect' }, x, y, { width, depth, height }, id, '#999', { id }));
+      const between = findWall(level, 310, 260, -10, 260);
+      for (const [id, offset, side, width] of [['c1', 80, 'right', 150], ['c2', 240, 'left', 130]] as const) {
+        level.cupboards[id] = createCupboard(between, offset, side, { id, width, doorCount: 3 });
+      }
+      box('desk', 200, 120, 120, 60, 75);
+      box('wardrobe', 60, 60, 80, 50, 210);
+      level.roomLabels.push({ id: 'l1', name: 'Bureau', anchor: { x: 150, y: 125 } });
+      level.roomLabels.push({ id: 'l2', name: 'Salle de bain', anchor: { x: 150, y: 360 } });
+    });
+    const level = lvl(p);
+    const room = deriveLevel(level).rooms.find((r) => r.name === 'Bureau')!;
+    for (const lineUnit of [1, 0.5]) {
+      const name = roomLabelBox(room, lineUnit);
+      const slope = group(render(p, { lineUnit }), 'slope', 'slope');
+      const labels = [...slope.matchAll(/<text x="([^"]+)" y="([^"]+)"[^>]*>([^<]+)<\/text>/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]), text: m[3] }));
+      expect(labels.map((l) => l.text)).toContain('2,00 m');
+      for (const l of labels) {
+        const inside = l.x > name.minX && l.x < name.maxX && l.y > name.minY && l.y < name.maxY;
+        expect(inside, `${l.text} at (${l.x}, ${l.y}), lineUnit ${lineUnit}`).toBe(false);
+      }
+    }
+  });
+
+  it('slope label: a rug (covering) is not an obstacle', () => {
+    const p = chambre();
+    lvl(p).objects['rug'] = createObjectFromSize({ kind: 'catalog', catalogId: 'rug-rect' }, 287, 200, { width: 60, depth: 40, height: 1 }, 'Tapis', '#999', {
+      id: 'rug',
+      pose: 'covering',
+    });
+    expect(/<text x="287.22" y="([^"]+)"[^>]*>2,00 m<\/text>/.exec(group(render(p), 'slope', 'slope'))?.[1]).toBe('200');
+  });
+
+  it('slope gradient: darker towards the lower ceiling, also when the ceiling rises', () => {
+    const p = chambre();
+    const s = lvl(p).slopes['slope']!;
+    s.heightStart = 150;
+    s.heightEnd = 240;
+    const grad = group(group(render(p), 'slope', 'slope'), 'slope-gradient', undefined, 'linearGradient');
+    expect(grad).toMatch(/<stop offset="0" stop-color="#2438a0" stop-opacity="0.18"/);
+    expect(grad).toMatch(/<stop offset="1" stop-color="#2438a0" stop-opacity="0"/);
+  });
+
   it('beam: dashed outline and the lowest underside along it', () => {
     const beam = group(render(chambre()), 'beam', 'beam');
     expect(beam).toMatch(/stroke-dasharray="[^"]+"/);
@@ -145,6 +199,27 @@ describe('PlanSvg volumes', () => {
     expect(count(c, 'data-kind="cupboard-handle"')).toBe(2);
     expect(count(c, 'data-kind="cupboard-door"')).toBe(2);
     expect(c).not.toContain('data-kind="cupboard-track"');
+  });
+
+  it('hinged doors: panels on the front face with a gap between them, arcs from the panel ends, handles on the front face', () => {
+    const c = group(render(chambre()), 'cupboard', 'cupboard');
+    const segs = (kind: string) =>
+      [...c.matchAll(new RegExp(`data-kind="${kind}" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"`, 'g'))].map((m) => m.slice(1, 5).map(Number));
+    // front face x = 340; door 0 hinged at y = 40, door 1 at y = 160 (pair opening from its outer sides)
+    expect(segs('cupboard-door')).toEqual([
+      [340, 40, 340, 99.5],
+      [340, 100.5, 340, 160],
+    ]);
+    const arcs = [...c.matchAll(/data-kind="cupboard-arc" d="M([^ ]+) ([^A]+)A([^ ]+) /g)].map((m) => m.slice(1, 4).map(Number));
+    expect(arcs).toEqual([
+      [340, 99.5, 59.5],
+      [340, 100.5, 59.5],
+    ]);
+    // a short pull out of the front face, near the free end of each door
+    expect(segs('cupboard-handle')).toEqual([
+      [340, 91.5, 337, 91.5],
+      [340, 108.5, 337, 108.5],
+    ]);
   });
 
   it('sliding cupboard: two offset door lines, no arc', () => {
@@ -192,6 +267,16 @@ describe('PlanSvg volumes', () => {
     expect(cupboard).toContain('stroke="#e08a1e"');
     expect(render(p, { alerts, mode: 'print' })).not.toContain('data-kind="alert"');
     expect(render(p)).not.toContain('data-kind="alert"');
+  });
+
+  it('a selected element in alert keeps its red outline visible on both sides of the selection line', () => {
+    const p = chambre();
+    const alerts = new Map([['object:box', 'error' as const]]);
+    const markup = render(p, { alerts, selection: [{ kind: 'object', id: 'box' }], lineUnit: 2 });
+    const box = group(markup, 'alert', 'object:box', 'path');
+    // (2.2 + 2 + 2.2) x lineUnit: 2.2 px of red on each side of the 2 px selection line drawn over it
+    expect(box).toContain('stroke-width="12.8"');
+    expect(markup.indexOf('data-kind="alerts"')).toBeLessThan(markup.indexOf('data-kind="selection"'));
   });
 
   it('an alert on an opening outlines its cut', () => {
@@ -245,16 +330,22 @@ describe('PlanSvg volumes', () => {
 
 describe('labelAlong', () => {
   const box = { minX: 90, minY: -10, maxX: 110, maxY: 10 };
+  const line = [{ x: 0, y: 0 }, { x: 200, y: 0 }] as const;
   it('the middle of the segment when it is clear', () => {
-    expect(labelAlong({ x: 0, y: 0 }, { x: 200, y: 0 }, 20, 10, 0, [])).toEqual({ x: 100, y: 0 });
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [] })).toEqual({ x: 100, y: 0 });
   });
   it('further along when the middle is taken, the turned size counted', () => {
-    expect(labelAlong({ x: 0, y: 0 }, { x: 200, y: 0 }, 20, 10, 0, [box])).toEqual({ x: 70, y: 0 });
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [box] })).toEqual({ x: 70, y: 0 });
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [], covering: [box] })).toEqual({ x: 70, y: 0 });
     // turned by 90 degrees, 40 long: half extent 20 along y, 5 along x
-    expect(labelAlong({ x: 100, y: -100 }, { x: 100, y: 100 }, 40, 10, 90, [box])).toEqual({ x: 100, y: -30 });
+    expect(labelAlong({ x: 100, y: -100 }, { x: 100, y: 100 }, 40, 10, 90, { hiding: [box] })).toEqual({ x: 100, y: -30 });
   });
-  it('the middle when nothing is clear', () => {
+  it('when nothing is clear of both, the first point clear of the hiding obstacles', () => {
+    const furniture = { minX: -1000, minY: -10, maxX: 1000, maxY: 10 };
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [box], covering: [furniture] })).toEqual({ x: 70, y: 0 });
+  });
+  it('the middle when nothing is clear of the hiding obstacles', () => {
     const wide = { minX: -1000, minY: -10, maxX: 1000, maxY: 10 };
-    expect(labelAlong({ x: 0, y: 0 }, { x: 200, y: 0 }, 20, 10, 0, [wide])).toEqual({ x: 100, y: 0 });
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [wide] })).toEqual({ x: 100, y: 0 });
   });
 });

@@ -36,16 +36,30 @@ function addBox(level: Level, id: string, x: number, y: number, width: number, d
 const hit = (level: Level, x: number, y: number) => hitTest(level, deriveLevel(level), { x, y }, 1, noCustom);
 
 describe('hitTest with volumes', () => {
-  it('a click in the cupboard footprint hits the cupboard, even over an object', () => {
+  it('a click in the cupboard footprint hits the cupboard; an object over it wins (drawing order, V2-R27)', () => {
     const level = setup();
     expect(hit(level, 370, 100)).toEqual({ kind: 'cupboard', id: 'cupboard' });
     addBox(level, 'box', 370, 100, 40, 40); // overlaps the cupboard
-    expect(hit(level, 370, 100)).toEqual({ kind: 'cupboard', id: 'cupboard' });
-    expect(hit(level, 370, 130)).toEqual({ kind: 'cupboard', id: 'cupboard' });
+    expect(hit(level, 370, 100)).toEqual({ kind: 'object', id: 'box' });
+    expect(hit(level, 370, 140)).toEqual({ kind: 'cupboard', id: 'cupboard' });
   });
 
-  it('just in front of the cupboard: the slope band, not the cupboard', () => {
-    expect(hit(setup(), 335, 100)).toEqual({ kind: 'slope', id: 'slope' });
+  it('a lamp standing on a 90 cm fixed cupboard is hit; the cupboard elsewhere', () => {
+    const level = setup();
+    const c = level.cupboards['cupboard']!;
+    c.heightMode = 'fixed';
+    c.height = 90;
+    level.objects['lamp'] = createObjectFromSize({ kind: 'catalog', catalogId: 'bedside-lamp' }, 370, 100, { width: 25, depth: 25, height: 45 }, 'Lampe', '#999', {
+      id: 'lamp',
+      pose: 'onTop',
+      elevation: 90,
+    });
+    expect(hit(level, 370, 100)).toEqual({ kind: 'object', id: 'lamp' });
+    expect(hit(level, 370, 60)).toEqual({ kind: 'cupboard', id: 'cupboard' });
+  });
+
+  it('just in front of the cupboard, inside the sloped area: the room (V2-R23)', () => {
+    expect(hit(setup(), 335, 100)?.kind).toBe('room');
   });
 
   it('a click in the beam footprint hits the beam; an object over it wins', () => {
@@ -55,23 +69,29 @@ describe('hitTest with volumes', () => {
     expect(hit(level, 188, 200)).toEqual({ kind: 'object', id: 'box' });
   });
 
-  it('a click in the slope band hits the slope; outside it, the room; in a wall, the wall', () => {
+  it('the slope is hit near its start or end line only; the middle of the sloped area is the room (V2-R23)', () => {
     const level = setup();
-    expect(hit(level, 300, 300)).toEqual({ kind: 'slope', id: 'slope' });
+    expect(hit(level, 300, 300)?.kind).toBe('room'); // middle of the band
+    expect(hit(level, 199, 300)).toEqual({ kind: 'slope', id: 'slope' }); // 2 cm from the start line
+    expect(hit(level, 397, 300)).toEqual({ kind: 'slope', id: 'slope' }); // 3 cm from the end line
+    expect(hit(level, 196.5, 300)).toEqual({ kind: 'beam', id: 'beam' }); // the beam is drawn over it
+    expect(hit(level, 206, 300)?.kind).toBe('room'); // beyond the tolerance (SNAP_PX at 1 px/cm)
+    // at 4 px per cm the tolerance shrinks to a quarter
+    expect(hitTest(level, deriveLevel(level), { x: 199.5, y: 300 }, 4, noCustom)?.kind).toBe('room');
     expect(hit(level, 100, 300)?.kind).toBe('room');
     expect(hit(level, 300, 405)).toEqual({ kind: 'wall', id: findWall(level, 410, 410, -10, 410) });
   });
 
-  it('an object in the slope band wins over the slope', () => {
+  it('an object over a slope line wins over the slope', () => {
     const level = setup();
-    addBox(level, 'box', 300, 300, 40, 40);
-    expect(hit(level, 300, 300)).toEqual({ kind: 'object', id: 'box' });
+    addBox(level, 'box', 210, 300, 40, 40);
+    expect(hit(level, 199, 300)).toEqual({ kind: 'object', id: 'box' });
   });
 
   it('the cupboard on a missing wall (broken file) is never hit and never throws', () => {
     const level = setup();
     level.cupboards['cupboard']!.wallId = 'missing';
-    expect(hit(level, 370, 100)).toEqual({ kind: 'slope', id: 'slope' });
+    expect(hit(level, 370, 100)?.kind).toBe('room');
   });
 });
 

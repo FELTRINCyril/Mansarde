@@ -20,7 +20,7 @@ function BeamLabel({ beam, height, lineUnit, obstacles }: { beam: Beam; height: 
   const pad = 0.2 * fontSize;
   const w = textWidth(text, fontSize) + 2 * pad;
   const h = CAP_HEIGHT * fontSize + 2 * pad;
-  const at = labelAlong(beam.a, beam.b, w, h, angle, obstacles);
+  const at = labelAlong(beam.a, beam.b, w, h, angle, { hiding: obstacles });
   return (
     <g data-kind="beam-label" transform={`translate(${num(at.x)} ${num(at.y)}) rotate(${angle})`}>
       <rect
