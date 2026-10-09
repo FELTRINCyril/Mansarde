@@ -32,7 +32,7 @@ const MIN_ROOM_AREA = 1;
 const snapshot = (draft: Draft<Project>, levelId: Id): Level => current(getLevel(draft, levelId)) as Level;
 
 /** The walls of the 'min' or 'max' side across the axis, and its unit normal pointing away from the room. */
-function sideToMove(rect: RectRoom, u: Vec2, moveSide: 'min' | 'max'): { wallIds: Id[]; normal: Vec2 } {
+export function sideToMove(rect: RectRoom, u: Vec2, moveSide: 'min' | 'max'): { wallIds: Id[]; normal: Vec2 } {
   const edges = [0, 1, 2, 3].map((edge) => rect.faces.filter((f) => f.edge === edge));
   const across = edges.filter((faces) => Math.abs(dot(normalize(sub(faces[0]!.b, faces[0]!.a)), u)) < 0.5);
   across.sort((p, q) => dot(p[0]!.a, u) - dot(q[0]!.a, u));
@@ -114,7 +114,7 @@ function segmentDistance(a: Vec2, b: Vec2, c: Vec2, d: Vec2): number {
 }
 
 /** Whether a ring edge of the room runs along (or touches) one of the faces of the wall. */
-function roomTouchesWall(room: Room, level: Level, wallId: Id): boolean {
+export function roomTouchesWall(room: Room, level: Level, wallId: Id): boolean {
   const f = wallFrame(level, wallId);
   const reach = level.walls[wallId]!.thickness / 2 + TOUCH_TOLERANCE;
   return ringEdges(room.ring).some(([p, q]) => segmentDistance(p, q, f.start, f.end) <= reach);

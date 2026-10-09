@@ -19,10 +19,9 @@ const NO_ALERTS: Scene3DInput['alerts'] = new Map();
 /** One severity map per checks array (computeChecks memoizes by level): a stable input while nothing changes. */
 const severities = new WeakMap<Check[], Scene3DInput['alerts']>();
 
-/** Worst severity per element of the checks of the level (tinted in 3D), none when the alerts are hidden. */
+/** Worst severity per element of the checks of the level (tinted in 3D), none when the alerts are hidden ("Masquer les alertes"). */
 function alertsOf(s: EditorState, level: NonNullable<ReturnType<typeof activeLevel>>): Scene3DInput['alerts'] {
-  // display.hideAlerts ("Masquer les alertes") comes with task 8
-  if ((s.display as { hideAlerts?: boolean }).hideAlerts || !s.project) return NO_ALERTS;
+  if (s.display.hideAlerts || !s.project) return NO_ALERTS;
   const checks = computeChecks(level, deriveLevel(level), s.project.customObjects);
   if (checks.length === 0) return NO_ALERTS;
   let m = severities.get(checks);
@@ -97,7 +96,7 @@ function Scene3DHost(): JSX.Element {
       .then((mod) => {
         if (cancelled) return;
         try {
-          s = mod.createScene3D(el, { onSelect: (item) => useEditor.getState().setSelection(item ? [item] : []) });
+          s = mod.createScene3D(el, { onSelect: (item) => useEditor.getState().setSelection(item ? [item] : []), onError: fail });
         } catch (e) {
           if (e instanceof Error && e.message === 'webgl') {
             setStatus('unavailable');
@@ -125,7 +124,13 @@ function Scene3DHost(): JSX.Element {
         live.resize();
         push(useEditor.getState());
         unsubscribe = useEditor.subscribe(push);
-        ro = new ResizeObserver(() => live.resize());
+        ro = new ResizeObserver(() => {
+          try {
+            live.resize();
+          } catch (e) {
+            fail(e);
+          }
+        });
         ro.observe(el);
         setStatus('ready');
       })
@@ -152,7 +157,19 @@ function Scene3DHost(): JSX.Element {
         <div className="scene3d-bar">
           <div className="segmented" role="group" aria-label="Vues prédéfinies">
             {PRESETS.map(([p, label]) => (
-              <button key={p} type="button" className="segmented-item" data-testid={`preset-${p}`} onClick={() => scene.current?.setPreset(p)}>
+              <button
+                key={p}
+                type="button"
+                className="segmented-item"
+                data-testid={`preset-${p}`}
+                onClick={() => {
+                  try {
+                    scene.current?.setPreset(p);
+                  } catch (e) {
+                    setCrash(e instanceof Error ? e : new Error(String(e)));
+                  }
+                }}
+              >
                 {label}
               </button>
             ))}
@@ -175,20 +192,30 @@ function Scene3DHost(): JSX.Element {
   );
 }
 
-function Scene3DError(p: { error: Error }): JSX.Element {
+function Scene3DError(p: { error: Error; onRetry(): void }): JSX.Element {
   return (
     <div className="plan-error" role="alert" data-testid="scene3d-error">
-      <p className="plan-error-title">La vue 3D ne peut pas être affichée.</p>
+      <p className="plan-error-title">La vue 3D a rencontré un problème.</p>
       <p className="hint">Détail technique : {p.error.message}</p>
+      <div className="plan-error-actions">
+        <button type="button" className="btn btn-primary" data-testid="scene3d-retry" onClick={p.onRetry}>
+          Réessayer
+        </button>
+      </div>
     </div>
   );
 }
 
-/** The 3D view behind its own error boundary (spec 10), retried when the active level changes (an undo). */
+/**
+ * The 3D view behind its own error boundary (spec 10): any failure (render, update, render loop,
+ * lost WebGL context) shows "La vue 3D a rencontré un problème." with a retry button, and the view
+ * is retried by itself when the active level changes (an undo).
+ */
 export function Plan3DView(): JSX.Element {
   const level = useEditor(activeLevel);
+  const [attempt, setAttempt] = useState(0);
   return (
-    <ErrorBoundary resetKey={level} fallback={(error) => <Scene3DError error={error} />}>
+    <ErrorBoundary key={attempt} resetKey={level} fallback={(error) => <Scene3DError error={error} onRetry={() => setAttempt((n) => n + 1)} />}>
       <Scene3DHost />
     </ErrorBoundary>
   );

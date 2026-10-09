@@ -1,7 +1,10 @@
 import type { Recipe } from '@/core/commands/apply';
+import { moveBeams, updateBeam } from '@/core/commands/beams';
+import { moveCupboard } from '@/core/commands/cupboards';
 import { setDimensionOffset } from '@/core/commands/dimensions';
 import { moveObjects, setObjectTransform, updateObject } from '@/core/commands/objects';
 import { moveOpening } from '@/core/commands/openings';
+import { moveSlopes, updateSlope } from '@/core/commands/slopes';
 import { setRoomInteriorSize } from '@/core/commands/roomSize';
 import { joinNodeToWall, mergeNode, moveNodes, moveWalls } from '@/core/commands/walls';
 import { manualDimLine, type DimLine } from '@/core/geometry/autoDimensions';
@@ -9,23 +12,29 @@ import { wallFaceInterval } from '@/core/geometry/clearances';
 import { deriveLevel } from '@/core/geometry/derived';
 import { hitTest, hitTestRect } from '@/core/geometry/hit';
 import { openingCutRing } from '@/core/geometry/openings';
-import { snapObjectToWalls, snapPoint } from '@/core/geometry/snap';
+import { snapToWallForPose, supportElevation } from '@/core/geometry/pose';
+import { slopeFrame } from '@/core/geometry/slopes';
+import { snapObjectToWalls, snapPoint, type Guide } from '@/core/geometry/snap';
 import { add, dist, dot, len, lerp, normalize, perp, rad2deg, sub } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
-import { SNAP_PX } from '@/core/model/defaults';
+import { MIN_WALL_LENGTH, SNAP_PX } from '@/core/model/defaults';
 import { newId } from '@/core/model/ids';
 import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { formatNumber } from '@/ui/numeric';
-import { handleTarget, hitHandle, objectLocalToWorld, worldToObjectLocal } from '../handles';
+import { handleTarget, hitHandle, hitVolumeHandle, objectLocalToWorld, volumeHandles, worldToObjectLocal, type VolumeHandle } from '../handles';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import { roomDimensionAt } from '../roomDimensions';
 import type { SelectionItem } from '../selection';
 import { activeLevel, type EditorState, type EditorStore } from '../store';
 import { worldToScreen } from '../view';
+import { beamLengthDim } from './beamTool';
+import { fitCupboardOnWall } from './cupboardTool';
+import { slopeDepthDim } from './slopeTool';
 import { ERR_NO_ROOM, measureObject, measureOpening, measureTarget, nextSide, typedPlacement, type MeasureTarget } from './clearanceDims';
 import { undoKeyOf } from './drawing';
 import { hoveredWall } from './hover';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
+import { snapVolumePoint, type CupboardGhost } from './volumeTools';
 
 /** A press becomes a drag once the pointer has moved this far (screen px). */
 export const DRAG_THRESHOLD_PX = 3;
@@ -39,9 +48,11 @@ type Sign = -1 | 0 | 1;
 /** What a press turns into once the pointer moves. */
 type DragPlan =
   | { kind: 'marquee' }
-  | { kind: 'move'; objectIds: Id[]; wallIds: Id[] }
+  | { kind: 'move'; objectIds: Id[]; wallIds: Id[]; slopeIds: Id[]; beamIds: Id[] }
   | { kind: 'node'; nodeId: Id }
   | { kind: 'opening'; id: Id }
+  | { kind: 'cupboard'; id: Id }
+  | { kind: 'volumeHandle'; target: VolumeHandle['target']; id: Id; role: VolumeHandle['role'] }
   | { kind: 'dimension'; id: Id }
   | { kind: 'rotate'; id: Id }
   | { kind: 'resize'; id: Id; sx: Sign; sy: Sign };
@@ -54,7 +65,7 @@ interface Session {
   click: SelectionItem[] | null; // selection applied on a release without drag (null = keep)
   additive: boolean; // Shift at press: the rectangle adds to the selection
   baseSelection: SelectionItem[];
-  grab: Vec2; // opening: (cursor - center) along the wall in x; resize: handle - cursor in the object frame
+  grab: Vec2; // opening, cupboard: (cursor - center) along the wall in x; resize: handle - cursor in the object frame
   last: Vec2; // last pointer position (screen px): where the typed distance field opens
   activeSide: string | null; // clearance chosen with Tab (side name, the list changes while dragging)
   typing: boolean; // the numeric field is open: pointer moves are ignored
@@ -64,10 +75,15 @@ const GESTURE_LABELS: Record<Exclude<DragPlan['kind'], 'marquee'>, string> = {
   move: 'Déplacer',
   node: 'Déplacer la jonction',
   opening: "Déplacer l'ouverture",
+  cupboard: 'Déplacer le placard',
+  volumeHandle: 'Modifier la pente', // see gestureLabel
   dimension: 'Décaler la cote',
   rotate: "Pivoter l'objet",
   resize: "Redimensionner l'objet",
 };
+
+const gestureLabel = (plan: Exclude<DragPlan, { kind: 'marquee' }>): string =>
+  plan.kind === 'volumeHandle' && plan.target === 'beam' ? 'Modifier la poutre' : GESTURE_LABELS[plan.kind];
 
 const sameItem = (a: SelectionItem, b: SelectionItem): boolean => a.kind === b.kind && a.id === b.id;
 const contains = (sel: SelectionItem[], item: SelectionItem): boolean => sel.some((i) => sameItem(i, item));
@@ -84,15 +100,23 @@ function planFor(item: SelectionItem, sel: SelectionItem[]): DragPlan | null {
       return { kind: 'node', nodeId: item.id };
     case 'object':
     case 'wall':
-      return { kind: 'move', objectIds: idsOf(sel, 'object'), wallIds: idsOf(sel, 'wall') };
+    case 'slope':
+    case 'beam':
+      return { kind: 'move', objectIds: idsOf(sel, 'object'), wallIds: idsOf(sel, 'wall'), slopeIds: idsOf(sel, 'slope'), beamIds: idsOf(sel, 'beam') };
     case 'opening':
       return { kind: 'opening', id: item.id };
+    case 'cupboard':
+      return { kind: 'cupboard', id: item.id };
     case 'dimension':
       return { kind: 'dimension', id: item.id };
     default:
       return null;
   }
 }
+
+/** Only objects moved: free delta, wall snapping of a single object, clearances. */
+const objectsOnly = (plan: Extract<DragPlan, { kind: 'move' }>): boolean =>
+  plan.wallIds.length === 0 && plan.slopeIds.length === 0 && plan.beamIds.length === 0;
 
 const levelOf = (project: { levels: Level[] } | null | undefined, id: Id): Level | undefined => project?.levels.find((l) => l.id === id);
 
@@ -113,7 +137,7 @@ function openingDims(level: Level, id: Id): DimLine[] {
 function sessionTarget(s: Session): MeasureTarget | null {
   const plan = s.plan;
   if (plan?.kind === 'opening') return { kind: 'opening', levelId: s.levelId, id: plan.id };
-  if (plan?.kind === 'move' && plan.wallIds.length === 0 && plan.objectIds.length === 1) {
+  if (plan?.kind === 'move' && objectsOnly(plan) && plan.objectIds.length === 1) {
     return { kind: 'object', levelId: s.levelId, id: plan.objectIds[0]! };
   }
   return null;
@@ -151,6 +175,11 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  * - a manual dimension changes its offset (setDimensionOffset);
  * - the handles of a single selected object rotate it (15 degree steps, free with Alt) or resize it
  *   (opposite side fixed, MIN_OBJECT_SIZE minimum).
+ * - slopes and beams of the selection move with the objects and walls (moveSlopes / moveBeams, grid
+ *   steps); the handles of a single selected slope (ends of its start line, middle of its end line)
+ *   or beam (ends) reshape it (dragVolumeHandle);
+ * - a cupboard slides along its wall or onto a hovered wall (dragCupboard);
+ * - at the release of an object drag, onTop and wall objects are posed (settlePose, spec 5.3).
  * A double-click on an interior dimension of a rectangular room opens the numeric field with its
  * value, the typed value resizes the room (setRoomInteriorSize, right / bottom side moves; a
  * refusal is toasted and the value given back in red); a double-click elsewhere in a room opens
@@ -216,13 +245,18 @@ export function createSelectTool(): Tool {
       if (!o || !level.walls[o.wallId]) return false;
       const f = wallFrame(level, o.wallId);
       s.grab = { x: dot(sub(s.start.world, f.start), f.dir) - o.offset, y: 0 };
+    } else if (plan.kind === 'cupboard') {
+      const cb = level.cupboards[plan.id];
+      if (!cb || !level.walls[cb.wallId]) return false;
+      const f = wallFrame(level, cb.wallId);
+      s.grab = { x: dot(sub(s.start.world, f.start), f.dir) - cb.offset, y: 0 };
     } else if (plan.kind === 'resize') {
       const o = level.objects[plan.id];
       if (!o) return false;
       const handle = { x: (plan.sx * o.width) / 2, y: (plan.sy * o.depth) / 2 };
       s.grab = sub(handle, worldToObjectLocal(o, s.start.world));
     }
-    st.beginGesture(GESTURE_LABELS[plan.kind]);
+    st.beginGesture(gestureLabel(plan));
     return true;
   }
 
@@ -233,13 +267,16 @@ export function createSelectTool(): Tool {
     const raw = sub(e.world, s.start.world);
     const snap = !e.alt;
     const step = st.project?.settings.gridStep ?? 0;
-    const delta = plan.wallIds.length > 0 && snap ? { x: roundTo(raw.x, step), y: roundTo(raw.y, step) } : raw;
+    // walls, slopes and beams move by whole grid steps
+    const delta = !objectsOnly(plan) && snap ? { x: roundTo(raw.x, step), y: roundTo(raw.y, step) } : raw;
     const { levelId } = s;
     let recipe: Recipe = (draft) => {
       if (plan.objectIds.length > 0) moveObjects(levelId, plan.objectIds, delta)(draft);
       if (plan.wallIds.length > 0) moveWalls(levelId, plan.wallIds, delta)(draft);
+      if (plan.slopeIds.length > 0) moveSlopes(levelId, plan.slopeIds, delta)(draft);
+      if (plan.beamIds.length > 0) moveBeams(levelId, plan.beamIds, delta)(draft);
     };
-    const single = plan.wallIds.length === 0 && plan.objectIds.length === 1 ? base.objects[plan.objectIds[0]!] : undefined;
+    const single = objectsOnly(plan) && plan.objectIds.length === 1 ? base.objects[plan.objectIds[0]!] : undefined;
     if (single && snap) {
       const moved = { ...single, x: single.x + delta.x, y: single.y + delta.y };
       const sn = snapObjectToWalls(moved, base, c.pxPerCm());
@@ -299,6 +336,94 @@ export function createSelectTool(): Tool {
     );
   }
 
+  /**
+   * A cupboard slides along the wall hovered by the cursor (another wall: set against the face on
+   * the cursor side), else along its own wall, kept on the free stretch of its face
+   * (fitCupboardOnWall); a stretch too short for it is refused in red.
+   */
+  function dragCupboard(s: Session, id: Id, e: PointerInfo, c: ToolContext): void {
+    const base = baseLevel(s, c.store);
+    const cb = base?.cupboards[id];
+    if (!base || !cb || !base.walls[cb.wallId]) return;
+    const st = c.store.getState();
+    const wallId = hoveredWall(base, e.world, SNAP_PX / c.pxPerCm()) ?? cb.wallId;
+    const f = wallFrame(base, wallId);
+    const v = sub(e.world, f.start);
+    const side = wallId === cb.wallId ? cb.side : dot(v, f.normal) >= 0 ? 'left' : 'right';
+    const { offset, fits } = fitCupboardOnWall(base, wallId, side, cb.width, dot(v, f.dir) - s.grab.x, e.alt);
+    const ok = fits && st.updateGesture(moveCupboard(s.levelId, id, wallId, offset, side));
+    if (!fits) st.setOverlay({ previewInvalid: true });
+    const ghost: CupboardGhost = { kind: 'volume-cupboard', level: base, cupboard: { ...cb, wallId, offset, side }, valid: false };
+    st.setOverlay({ ghost: ok ? null : ghost });
+  }
+
+  /**
+   * Handles of a slope (ends of the start line, snapped like the slope tool; middle of the end
+   * line: depth, 1 cm steps, at least MIN_WALL_LENGTH) and of a beam (ends of its axis, snapped).
+   * Alt: free. The dynamic dimension shows the length or the depth.
+   */
+  function dragVolumeHandle(s: Session, plan: Extract<DragPlan, { kind: 'volumeHandle' }>, e: PointerInfo, c: ToolContext): void {
+    const base = baseLevel(s, c.store);
+    if (!base) return;
+    const st = c.store.getState();
+    const delta = sub(e.world, s.start.world);
+    const env = { pxPerCm: c.pxPerCm(), gridStep: st.project?.settings.gridStep ?? 0, enabled: !e.alt };
+    const item = plan.target === 'slope' ? base.slopes[plan.id] : base.beams[plan.id];
+    if (!item) return;
+    let dims: DimLine[] = [];
+    let guides: Guide[] = [];
+    if (plan.role === 'depth' && plan.target === 'slope') {
+      const sl = base.slopes[plan.id]!;
+      const f = slopeFrame(sl);
+      const d = sl.depth + dot(delta, f.normal);
+      const depth = Math.max(MIN_WALL_LENGTH, e.alt ? d : Math.round(d));
+      st.updateGesture(updateSlope(s.levelId, plan.id, { depth }));
+      dims = [slopeDepthDim({ ...sl, depth })];
+    } else if (plan.role !== 'depth') {
+      const other = plan.role === 'a' ? item.b : item.a;
+      const p = snapVolumePoint(base, add(item[plan.role], delta), { ...env, from: other });
+      const patch = { [plan.role]: p.point };
+      st.updateGesture(plan.target === 'slope' ? updateSlope(s.levelId, plan.id, patch) : updateBeam(s.levelId, plan.id, patch));
+      guides = p.guides;
+      dims =
+        plan.target === 'beam'
+          ? [beamLengthDim(other, p.point, base.beams[plan.id]!.width)]
+          : [{ a: other, b: p.point, offset: 0, value: dist(other, p.point), kind: 'dynamic' }];
+    }
+    st.setOverlay({ dynamicDims: dims, guides });
+  }
+
+  /**
+   * Pose at the end of an object drag (spec 5.3): an 'onTop' object takes the elevation of its
+   * support under its center (supportElevation, 0 when none); a single 'wall' object moved alone
+   * is set against the nearest wall face (snapToWallForPose; not with Alt). Computed on the
+   * preview and appended to the gesture recipe, so that the drag stays one history entry.
+   */
+  function settlePose(s: Session, plan: Extract<DragPlan, { kind: 'move' }>, e: PointerInfo, c: ToolContext): void {
+    const st = c.store.getState();
+    const prev = st.gesture?.lastRecipe;
+    const level = levelOf(st.project, s.levelId);
+    if (!prev || !level || !st.project) return;
+    const single = objectsOnly(plan) && plan.objectIds.length === 1;
+    const fixes: Recipe[] = [];
+    for (const id of plan.objectIds) {
+      const o = level.objects[id];
+      if (!o) continue;
+      if (o.pose === 'onTop') {
+        const elevation = supportElevation(level, id, o, st.project.customObjects);
+        if (elevation !== o.elevation) fixes.push(updateObject(s.levelId, id, { elevation }));
+      } else if (o.pose === 'wall' && single && !e.alt) {
+        const t = snapToWallForPose(o, level);
+        if (t && (t.x !== o.x || t.y !== o.y || t.rotation !== o.rotation)) fixes.push(setObjectTransform(s.levelId, id, t));
+      }
+    }
+    if (fixes.length === 0) return;
+    st.updateGesture((draft) => {
+      prev(draft);
+      for (const fix of fixes) fix(draft);
+    });
+  }
+
   function dragDimension(s: Session, id: Id, e: PointerInfo, c: ToolContext): void {
     const base = baseLevel(s, c.store);
     const dim = base?.dimensions[id];
@@ -351,6 +476,10 @@ export function createSelectTool(): Tool {
         return dragNode(s, plan.nodeId, e, c);
       case 'opening':
         return dragOpening(s, plan.id, e, c);
+      case 'cupboard':
+        return dragCupboard(s, plan.id, e, c);
+      case 'volumeHandle':
+        return dragVolumeHandle(s, plan, e, c);
       case 'dimension':
         return dragDimension(s, plan.id, e, c);
       case 'rotate':
@@ -518,6 +647,11 @@ export function createSelectTool(): Tool {
         s.plan = handle.kind === 'rotate' ? { kind: 'rotate', id: target.id } : { kind: 'resize', id: target.id, sx: handle.sx, sy: handle.sy };
         return;
       }
+      const vh = hitVolumeHandle(volumeHandles(st.selection, level), e.world, px);
+      if (vh) {
+        s.plan = { kind: 'volumeHandle', target: vh.target, id: vh.id, role: vh.role };
+        return;
+      }
 
       const hit = hitTest(level, deriveLevel(level), e.world, px, st.project.customObjects);
       const item: SelectionItem | null = hit && { kind: hit.kind, id: hit.id };
@@ -575,7 +709,8 @@ export function createSelectTool(): Tool {
           st.setSelection(s.additive ? union(s.baseSelection, hits) : hits);
         }
       } else {
-        st.commitGesture();
+        if (s.plan.kind === 'move' && s.plan.objectIds.length > 0) settlePose(s, s.plan, e, c);
+        c.store.getState().commitGesture();
       }
       clearTransient(c.store);
     },

@@ -171,16 +171,8 @@ test('visual: 3D view of the attic room (compare with plan-chambre 03-3d-overvie
   await page.getByTestId('view-3d').click();
   const canvas = page.getByTestId('scene3d-canvas');
   await expect(canvas).toBeVisible();
-  /** Waits for the camera animation and the damping to end (no new frame for 600 ms). */
-  const still = async () => {
-    let last = -1;
-    for (let i = 0; i < 40; i++) {
-      const frames = await page.evaluate(() => window.__planMaison3D!.frames);
-      if (frames === last) return;
-      last = frames;
-      await page.waitForTimeout(600);
-    }
-  };
+  /** Waits for the camera animation and the damping to end (scene3dStats.idle). */
+  const still = () => expect.poll(() => page.evaluate(() => window.__planMaison3D!.idle), { timeout: 60_000 }).toBe(true);
   await still();
   await page.screenshot({ path: shot('12-3d-editor') });
   await canvas.screenshot({ path: shot('13-3d-overview') });
@@ -208,6 +200,30 @@ test('visual: 3D view of the attic room (compare with plan-chambre 03-3d-overvie
   await page.getByTestId('preset-room').click();
   await still();
   await canvas.screenshot({ path: shot('17-3d-room') });
+  // the same room on an upper floor (review C1: presets at the level elevation)
+  await page.evaluate(async () => {
+    const { addLevel } = await import(/* @vite-ignore */ '/src/core/commands/levels.ts' as string);
+    const s = window.__planMaison!.store.getState();
+    const out = { levelId: '' };
+    s.execute('Niveau', addLevel(s.activeLevelId!, 'above', 'Étage', out));
+    window.__planMaison!.store.getState().setActiveLevel(out.levelId);
+  });
+  await buildAttic(page);
+  await page.evaluate(async () => {
+    const { deriveLevel } = await import(/* @vite-ignore */ '/src/core/geometry/derived.ts' as string);
+    const s = window.__planMaison!.store.getState();
+    const level = s.project!.levels.find((l) => l.id === s.activeLevelId)!;
+    s.setSelection([{ kind: 'room', id: deriveLevel(level).rooms[0].key }]);
+  });
+  for (const [p, name] of [['overview', '18-upper-overview'], ['top', '19-upper-top'], ['room', '20-upper-room']] as const) {
+    await page.getByTestId(`preset-${p}`).click();
+    await still();
+    await canvas.screenshot({ path: shot(name) });
+  }
+  await page.getByText('Afficher les niveaux inférieurs').click();
+  await page.getByTestId('preset-overview').click();
+  await still();
+  await canvas.screenshot({ path: shot('21-upper-overview-lower') });
 });
 
 /** Puts catalog objects on the active level: [catalog id, x, y, rotation, overrides]. */
@@ -233,15 +249,9 @@ async function furnish(page: Page, items: Array<[string, number, number, number,
   }, items);
 }
 
-/** Waits for the camera animation and the damping to end (no new frame for 600 ms). */
+/** Waits for the camera animation and the damping to end (scene3dStats.idle). */
 async function still3d(page: Page) {
-  let last = -1;
-  for (let i = 0; i < 40; i++) {
-    const frames = await page.evaluate(() => window.__planMaison3D!.frames);
-    if (frames === last) return;
-    last = frames;
-    await page.waitForTimeout(600);
-  }
+  await expect.poll(() => page.evaluate(() => window.__planMaison3D!.idle), { timeout: 60_000 }).toBe(true);
 }
 
 test('visual: furniture in 3D (compare with plan-chambre 03-3d-overview and 06-3d-from-bed)', async ({ page }) => {
@@ -270,9 +280,9 @@ test('visual: furniture in 3D (compare with plan-chambre 03-3d-overview and 06-3
   await expect(canvas).toBeVisible({ timeout: 30_000 });
   await still3d(page);
   // with its alerts (bed and TV in front of the cupboards, as plan-chambre's), then without them
-  // to compare the colors (display.hideAlerts comes with task 8)
+  // ("Masquer les alertes") to compare the colors
   await page.screenshot({ path: shot('21-furniture-overview-alerts') });
-  await page.evaluate(() => window.__planMaison!.store.getState().setDisplay({ hideAlerts: true } as never));
+  await page.evaluate(() => window.__planMaison!.store.getState().setDisplay({ hideAlerts: true }));
   await still3d(page);
   await page.screenshot({ path: shot('21-furniture-overview') });
   await page.getByTestId('preset-top').click();
@@ -313,7 +323,7 @@ test('visual: every catalog object in 3D (showroom)', async ({ page }) => {
       const { addRectRoomInterior } = await import(/* @vite-ignore */ '/src/core/commands/walls.ts' as string);
       const s = window.__planMaison!.store.getState();
       s.execute('Pièce', addRectRoomInterior(s.activeLevelId!, { x: 0, y: 0 }, { x: 860, y: 640 }, 20, 300));
-      s.setDisplay({ hideAlerts: true } as never);
+      s.setDisplay({ hideAlerts: true });
     });
     const items: Array<[string, number, number, number, Record<string, unknown>?]> = [];
     ids.slice(k * 12, k * 12 + 12).forEach((id, i) => items.push([id, 120 + (i % 4) * 205, 120 + Math.floor(i / 4) * 200, 0]));

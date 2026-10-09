@@ -108,8 +108,16 @@ function faceLimit(wall: WallFrame, halfThickness: number, edges: [Vec2, Vec2][]
  * walls met at the ends bound the free stretches, and so does any wall crossing or abutting this
  * one in between. Returns the free stretch containing `at`, else the nearest one ([at, at] when
  * there is none). An isolated wall gives [0, length]. Used to keep openings clear of the walls.
+ * With `side`, only that face counts (left = +normal, as Cupboard.side): a cupboard set against one
+ * face is not stopped by a wall abutting the other face.
  */
-export function wallFaceInterval(level: Level, wallId: string, at?: number, d: DerivedLevel = deriveLevel(level)): [number, number] {
+export function wallFaceInterval(
+  level: Level,
+  wallId: string,
+  at?: number,
+  d: DerivedLevel = deriveLevel(level),
+  side?: 'left' | 'right',
+): [number, number] {
   const wall = wallFrame(level, wallId);
   const half = (level.walls[wallId]?.thickness ?? 0) / 2;
   const L = wall.length;
@@ -117,10 +125,11 @@ export function wallFaceInterval(level: Level, wallId: string, at?: number, d: D
   const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
   const probe = (side: number, s: number) => add(add(wall.start, scale(wall.dir, s)), scale(wall.normal, side * (half + FACE_PROBE)));
   const cuts = [0, L];
-  for (const side of [-1, 1]) {
-    const face = add(wall.start, scale(wall.normal, side * half));
+  const sides = side === undefined ? [-1, 1] : [side === 'left' ? 1 : -1];
+  for (const sign of sides) {
+    const face = add(wall.start, scale(wall.normal, sign * half));
     for (const [c, e] of edges) {
-      if (!segmentIntersection(probe(side, 0), probe(side, L), c, e)) continue;
+      if (!segmentIntersection(probe(sign, 0), probe(sign, L), c, e)) continue;
       const exact = lineIntersection(face, wall.dir, c, sub(e, c));
       if (exact) cuts.push(Math.min(L, Math.max(0, dot(sub(exact, wall.start), wall.dir))));
     }
@@ -132,7 +141,7 @@ export function wallFaceInterval(level: Level, wallId: string, at?: number, d: D
     const [a, b] = [cuts[i]!, cuts[i + 1]!];
     if (b - a < EPS) continue;
     const m = (a + b) / 2;
-    if (inWall(probe(-1, m)) || inWall(probe(1, m))) continue;
+    if (sides.some((sign) => inWall(probe(sign, m)))) continue;
     const last = free[free.length - 1];
     if (last && Math.abs(last[1] - a) < EPS) last[1] = b;
     else free.push([a, b]);

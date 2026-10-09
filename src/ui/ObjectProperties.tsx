@@ -2,11 +2,12 @@ import { useEffect, useRef, type JSX } from 'react';
 import { setObjectTransform, updateObject } from '@/core/commands/objects';
 import { addCustomObject } from '@/core/commands/project';
 import { objectShape } from '@/core/geometry/objects';
+import { supportElevation } from '@/core/geometry/pose';
 import { newId } from '@/core/model/ids';
-import type { CustomObjectDef, Level, PlacedObject } from '@/core/model/types';
+import type { CustomObjectDef, Level, ObjectPose, PlacedObject } from '@/core/model/types';
 import { useEditor } from '@/editor/store';
 import { getCatalogEntry } from '@/catalog/catalog';
-import { ReadOnly, Section } from './fields';
+import { Choice, ReadOnly, Section } from './fields';
 import { run } from './run';
 import { NumericInput, TextField } from './NumericInput';
 
@@ -32,6 +33,13 @@ export function ColorField(p: { label: string; value: string; onCommit(v: string
 
 const NO_CUSTOM: Record<string, CustomObjectDef> = {};
 const SHAPE_NAMES = { rect: 'Rectangle', circle: 'Cercle', lshape: 'Forme en L' } as const;
+const POSES: Array<[ObjectPose, string]> = [
+  ['floor', 'Au sol'],
+  ['covering', 'Revêtement'],
+  ['onTop', 'Posé sur un meuble'],
+  ['tuckable', 'Rangé dessous'],
+  ['wall', 'Mural'],
+];
 
 export function ObjectProperties({ level, id }: { level: Level; id: string }): JSX.Element | null {
   const customObjects = useEditor((s) => s.project?.customObjects ?? NO_CUSTOM);
@@ -44,6 +52,15 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
       ? (getCatalogEntry(o.source.catalogId)?.name ?? 'Objet')
       : (customObjects[o.source.customObjectId]?.name ?? 'Mes objets');
   const savable = shape !== 'symbol' && o.source.kind === 'catalog';
+
+  /**
+   * Pose menu (spec 7.2). Choosing "Posé sur un meuble" also lifts the object onto the furniture
+   * under its center, as a drop does (spec 5.3); without one its laying height is kept.
+   */
+  const setPose = (pose: ObjectPose) => {
+    const support = pose === 'onTop' ? supportElevation(level, id, { x: o.x, y: o.y }, customObjects) : 0;
+    update(support > 0 ? { pose, elevation: support } : { pose });
+  };
 
   const saveAsCustom = () => {
     if (shape === 'symbol') return;
@@ -73,6 +90,7 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
         testId="object-model"
       />
       <TextField label="Nom" value={o.name} testId="object-name" onCommit={(name) => update({ name })} />
+      <Choice label="Pose" wide value={o.pose} options={POSES} testId="object-pose" onChange={setPose} />
       <NumericInput label="Largeur" valueCm={o.width} testId="object-width" onCommit={(width) => update({ width })} />
       <NumericInput label="Profondeur" valueCm={o.depth} testId="object-depth" onCommit={(depth) => update({ depth })} />
       <NumericInput label="Hauteur" valueCm={o.height} testId="object-height" onCommit={(height) => update({ height })} />

@@ -9,7 +9,9 @@ import type { NumericKind } from '@/ui/numeric';
 import { pruneSelection, type SelectionItem } from './selection';
 import { DEFAULT_VIEW, isValidView, type View } from './view';
 
-export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate' | 'moveBackground';
+export type ToolId =
+  | 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate' | 'moveBackground'
+  | 'slope' | 'beam' | 'cupboard';
 
 /**
  * Reference line of the wall tool (spec 6): the clicked line is the wall axis, or its left / right
@@ -57,18 +59,21 @@ export type ViewMode = 'plan' | '3d' | 'split';
 /**
  * Display options of the editor, kept while the session lasts (across projects): plan dimensions,
  * lower level, grid; the view layout and the share of the plan in 'split' (0.2 .. 0.8); the options
- * of the 3D view (object names, all walls hidden, lower levels shown).
+ * of the 3D view (object names, all walls hidden, lower levels shown); the check alerts (spec 7.4):
+ * outlines hidden on the plan ("Masquer les alertes"), checks panel expanded.
  */
 export interface Display {
   dimMode: 'all' | 'manual' | 'none'; showLowerLevel: boolean; showGrid: boolean;
   view: ViewMode; splitRatio: number;
   labels3d: boolean; hideWalls3d: boolean; lowerLevels3d: boolean;
+  hideAlerts: boolean; checksOpen: boolean;
 }
 
 export const DEFAULT_DISPLAY: Display = {
   dimMode: 'all', showLowerLevel: true, showGrid: true,
   view: 'plan', splitRatio: 0.5,
   labels3d: true, hideWalls3d: false, lowerLevels3d: false,
+  hideAlerts: false, checksOpen: false,
 };
 
 export interface EditorState {

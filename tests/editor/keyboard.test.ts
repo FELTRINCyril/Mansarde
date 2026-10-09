@@ -181,9 +181,9 @@ describe('keyboard guard (Review Focus 1)', () => {
 });
 
 describe('handleGlobalKey', () => {
-  it('switches tools with V M R P F C', () => {
+  it('switches tools with V M R P F C T B K', () => {
     const { store, ctx } = setup();
-    const expected: Array<[string, string]> = [['m', 'wall'], ['r', 'rect'], ['p', 'door'], ['f', 'window'], ['c', 'dimension'], ['V', 'select']];
+    const expected: Array<[string, string]> = [['m', 'wall'], ['r', 'rect'], ['p', 'door'], ['f', 'window'], ['c', 'dimension'], ['t', 'slope'], ['b', 'beam'], ['k', 'cupboard'], ['V', 'select']];
     for (const [k, tool] of expected) {
       expect(handleGlobalKey(key({ key: k }), store, ctx)).toBe(true);
       expect(store.getState().tool).toBe(tool);

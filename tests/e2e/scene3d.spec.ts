@@ -24,20 +24,14 @@ function watchErrors(page: Page): string[] {
 
 const stats = (page: Page) => page.evaluate(() => ({ ...window.__planMaison3D! }));
 
-/** Waits until the 3D view stopped rendering (render on demand): no new frame for 1.2 s. */
+/**
+ * Waits until the 3D view stopped rendering (render on demand): scene3dStats.idle is true when no
+ * frame is scheduled, i.e. no animation, damping or change is pending. The damping of the orbit
+ * lasts about 100 frames, which software WebGL on a loaded machine may take many seconds to draw.
+ */
 async function settle(page: Page): Promise<number> {
-  let last = -1;
-  let still = 0;
-  // the damping of the orbit lasts about 100 frames, and software WebGL on a loaded machine draws
-  // only a few frames per second
-  for (let i = 0; i < 100; i++) {
-    const { frames } = await stats(page);
-    still = frames === last ? still + 1 : 0;
-    if (still === 2) return frames;
-    last = frames;
-    await page.waitForTimeout(600);
-  }
-  throw new Error('the 3D view never stops rendering');
+  await expect.poll(async () => (await stats(page)).idle, { timeout: 60_000, message: 'the 3D view never stops rendering' }).toBe(true);
+  return (await stats(page)).frames;
 }
 
 /**
@@ -208,4 +202,92 @@ test('in the 3D layout, a catalog click still places the object at the center of
   const o = await page.evaluate(() => Object.values(window.__planMaison!.store.getState().project!.levels[0]!.objects)[0]!);
   expect(o.x).toBeCloseTo(center.x, 0);
   expect(o.y).toBeCloseTo(center.y, 0);
+});
+
+/** Share of the canvas pixels (below the option bar) that differ from the background #eef0f4. */
+async function drawnRatio(page: Page): Promise<number> {
+  const png = (await page.getByTestId('scene3d-canvas').screenshot()).toString('base64');
+  return page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const c = document.createElement('canvas');
+    c.width = bmp.width;
+    c.height = bmp.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(bmp, 0, 0);
+    const top = Math.round(bmp.height * 0.2);
+    const d = g.getImageData(0, top, bmp.width, bmp.height - top).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i]! - 0xee) + Math.abs(d[i + 1]! - 0xf0) + Math.abs(d[i + 2]! - 0xf4) > 12) n++;
+    return n / (d.length / 4);
+  }, png);
+}
+
+test('upper floor (review C1): every preset shows the level, the room preset from inside it', async ({ page }) => {
+  const errors = watchErrors(page);
+  await createProject(page, 'Deux niveaux');
+  await buildAttic(page);
+  await page.evaluate(async () => {
+    const { addLevel } = await import(/* @vite-ignore */ '/src/core/commands/levels.ts' as string);
+    const s = window.__planMaison!.store.getState();
+    const out = { levelId: '' };
+    if (!s.execute('Niveau', addLevel(s.activeLevelId!, 'above', 'Étage', out))) throw new Error('refused');
+    window.__planMaison!.store.getState().setActiveLevel(out.levelId);
+  });
+  await buildAttic(page);
+  const elevation = await page.evaluate(() => {
+    const s = window.__planMaison!.store.getState();
+    return s.project!.levels.find((l) => l.id === s.activeLevelId)!.elevation;
+  });
+  expect(elevation).toBeGreaterThan(240);
+  await open3d(page);
+  await page.evaluate(async () => {
+    const { deriveLevel } = await import(/* @vite-ignore */ '/src/core/geometry/derived.ts' as string);
+    const s = window.__planMaison!.store.getState();
+    const level = s.project!.levels.find((l) => l.id === s.activeLevelId)!;
+    s.setSelection([{ kind: 'room', id: deriveLevel(level).rooms[0].key }]);
+  });
+  for (const p of ['overview', 'top', 'room']) {
+    await page.getByTestId(`preset-${p}`).click();
+    await settle(page);
+    const camera = (await stats(page)).camera;
+    if (p === 'room') expect(camera[1]).toBeCloseTo(elevation / 100 + 1.6, 6);
+    const ratio = await drawnRatio(page);
+    // inside the room the walls, floor and ceiling fill the view; from outside the level takes a good share
+    expect(ratio, `${p}: ${ratio}`).toBeGreaterThan(p === 'room' ? 0.9 : 0.25);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('editor opened directly in the 3D layout: a catalog click places the object inside the level (review I3)', async ({ page }) => {
+  await createProject(page, 'Ouvert en 3D');
+  await buildAttic(page);
+  await page.getByTestId('view-3d').click();
+  await page.getByTestId('back-to-projects').click();
+  await page.getByTestId('project-item').filter({ hasText: 'Ouvert en 3D' }).getByRole('button', { name: 'Ouvrir' }).click();
+  await expect(page.getByTestId('editor')).toBeVisible();
+  await expect(page.getByTestId('plan-pane')).toBeHidden();
+  await page.getByTestId('catalog-item-catalog-bed-90').click();
+  const o = await page.evaluate(() => Object.values(window.__planMaison!.store.getState().project!.levels[0]!.objects)[0]!);
+  expect(o.x).toBeGreaterThan(0);
+  expect(o.x).toBeLessThan(400);
+  expect(o.y).toBeGreaterThan(0);
+  expect(o.y).toBeLessThan(400);
+});
+
+test('a lost WebGL context shows the problem and "Réessayer" brings the view back', async ({ page }) => {
+  await createProject(page, 'Contexte perdu');
+  await buildAttic(page);
+  await open3d(page);
+  await settle(page);
+  await page.evaluate(() => {
+    const c = document.querySelector('[data-testid="scene3d-canvas"]') as HTMLCanvasElement;
+    (c.getContext('webgl2')!.getExtension('WEBGL_lose_context') as { loseContext(): void }).loseContext();
+  });
+  await expect(page.getByTestId('scene3d-error')).toContainText('La vue 3D a rencontré un problème.', LOAD);
+  await expect(page.getByTestId('scene3d-canvas')).toHaveCount(0);
+  await expect.poll(async () => (await stats(page)).live).toBe(0);
+  await page.getByTestId('scene3d-retry').click();
+  await expect(page.getByTestId('scene3d-canvas')).toBeVisible(LOAD);
+  await expect(page.getByTestId('scene3d-error')).toHaveCount(0);
 });

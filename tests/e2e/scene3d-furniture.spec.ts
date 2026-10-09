@@ -23,18 +23,9 @@ function watchErrors(page: Page): string[] {
 const LOAD = { timeout: 30_000 };
 const frames = (page: Page) => page.evaluate(() => window.__planMaison3D!.frames);
 
-/** Waits until the 3D view stopped rendering (no new frame for 1.2 s). */
+/** Waits until the 3D view stopped rendering: scene3dStats.idle (no frame scheduled). */
 async function settle(page: Page): Promise<void> {
-  let last = -1;
-  let still = 0;
-  for (let i = 0; i < 100; i++) {
-    const f = await frames(page);
-    still = f === last ? still + 1 : 0;
-    if (still === 2) return;
-    last = f;
-    await page.waitForTimeout(600);
-  }
-  throw new Error('the 3D view never stops rendering');
+  await expect.poll(() => page.evaluate(() => window.__planMaison3D!.idle), { timeout: 60_000, message: 'the 3D view never stops rendering' }).toBe(true);
 }
 
 /** A 400 x 400 room with a 160 bed in the middle (its id is returned). */
@@ -99,6 +90,13 @@ test('a bed in alert is tinted red in 3D, back to its colors when the alert is g
   const [r1, g1, b1] = (await pixel(page, bed))!;
   // the duvet mixed 50 % with #cf2e2e (lit): red clearly over blue
   expect(r1, `${r1} ${g1} ${b1}`).toBeGreaterThan(b1 + 20);
+
+  // "Masquer les alertes": the tint goes, and comes back
+  const hide = (on: boolean) => page.evaluate((on) => window.__planMaison!.store.getState().setDisplay({ hideAlerts: on }), on);
+  await hide(true);
+  await expect.poll(async () => { const [r, , b] = (await pixel(page, bed))!; return b > r + 20; }, LOAD).toBe(true);
+  await hide(false);
+  await expect.poll(async () => { const [r, , b] = (await pixel(page, bed))!; return r > b + 20; }, LOAD).toBe(true);
 
   // the chair removed: no alert, the duvet is blue again
   await page.evaluate(

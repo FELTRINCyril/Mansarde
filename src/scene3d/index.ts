@@ -35,11 +35,16 @@ export interface Scene3D {
   dispose(): void;
 }
 
-export interface Scene3DCallbacks { onSelect(item: SelectionItem | null): void }
+/**
+ * onSelect: picking (task 13). onError: a failure outside update / setPreset / resize (a frame of
+ * the render loop, the WebGL context lost); the view stops drawing and the host shows it.
+ */
+export interface Scene3DCallbacks { onSelect(item: SelectionItem | null): void; onError?(error: Error): void }
 
 /**
  * Counters for the e2e tests (exposed in DEV by Plan3DView): live scenes, rendered frames, level
- * view builds, the camera position of the last frame, and what the renderer still held after the last dispose: 0 geometries and 1
+ * view builds, the camera position of the last frame, `idle` (no frame scheduled: nothing moves,
+ * the view is up to date), and what the renderer still held after the last dispose: 0 geometries and 1
  * texture when everything of ours was released (three.js keeps its DFG_LUT, a texture of its own
  * shared by every renderer, freed with the context).
  */
@@ -49,6 +54,7 @@ export const scene3dStats = {
   builds: 0,
   /** Camera position (m) at the last frame. */
   camera: [0, 0, 0] as [number, number, number],
+  idle: true,
   lastDisposed: null as null | { geometries: number; textures: number },
 };
 
@@ -83,9 +89,10 @@ function roomOfSelection(selection: SelectionItem[], level: Level, d: DerivedLev
  * active level (walls, floors, ceilings, beams, cupboards, doors and windows) and the lower levels
  * when asked. Renders on demand: a frame only when update() changed something, the camera moves
  * (animation, damping, gesture) or the size changes. Throws Error('webgl') when WebGL is missing.
- * `_cb.onSelect` is called by the picking of task 13.
+ * `cb.onSelect` is called by the picking of task 13; `cb.onError` reports a failure of the render
+ * loop or a lost WebGL context, after which the view no longer draws.
  */
-export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Scene3D {
+export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Scene3D {
   const renderer = createRenderer();
   const canvas = renderer.domElement;
   canvas.className = 'scene3d-canvas';
@@ -120,19 +127,39 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
 
   let frameId: number | null = null;
   let disposed = false;
+  let failed = false;
+  const fail = (e: unknown) => {
+    if (failed || disposed) return;
+    failed = true;
+    scene3dStats.idle = true;
+    cb.onError?.(e instanceof Error ? e : new Error(String(e)));
+  };
   const frame = (now: number) => {
     frameId = null;
-    if (disposed) return;
-    const moving = rig.tick(now);
-    renderer.render(scene, rig.camera);
-    labels.render(scene, rig.camera);
-    scene3dStats.frames++;
-    scene3dStats.camera = rig.camera.position.toArray();
-    if (moving) invalidate();
+    if (disposed || failed) return;
+    try {
+      const moving = rig.tick(now);
+      renderer.render(scene, rig.camera);
+      labels.render(scene, rig.camera);
+      scene3dStats.frames++;
+      scene3dStats.camera = rig.camera.position.toArray();
+      if (moving) invalidate();
+    } catch (e) {
+      fail(e);
+    }
+    if (frameId === null) scene3dStats.idle = true;
   };
   const invalidate = () => {
-    if (frameId === null && !disposed) frameId = requestAnimationFrame(frame);
+    if (frameId === null && !disposed && !failed) {
+      frameId = requestAnimationFrame(frame);
+      scene3dStats.idle = false;
+    }
   };
+  // a context lost while the view lives (GPU reset, too many contexts); our own dispose loses it too
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    fail(new Error('webgl-context-lost'));
+  });
   const rig = new CameraRig(canvas, invalidate);
 
   let shown: Shown | null = null;
@@ -161,7 +188,8 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
     scene3dStats.builds++;
     scene.add(view.root);
     shown = { level, d, view };
-    bounds = boundsOf([...d.outlines.values()]);
+    const top = Math.max(level.height, ...Object.values(level.walls).map((w) => w.height));
+    bounds = boundsOf([...d.outlines.values()], level.elevation / 100, (level.elevation + top) / 100);
     rig.setBounds(bounds);
     lights.frame(bounds, level.elevation / 100);
   };
@@ -201,7 +229,7 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
 
   scene3dProbe.objectPixel = (objectId) => {
     const g = furniture.groupOf(objectId);
-    if (!g || disposed) return null;
+    if (!g || disposed || failed) return null;
     g.updateMatrixWorld(true);
     const box = new Box3().setFromObject(g, true);
     rig.camera.updateMatrixWorld();
@@ -254,6 +282,7 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
       disposed = true;
       if (frameId !== null) cancelAnimationFrame(frameId);
       frameId = null;
+      scene3dStats.idle = true;
       rig.dispose();
       tints.dispose();
       furniture.dispose();
