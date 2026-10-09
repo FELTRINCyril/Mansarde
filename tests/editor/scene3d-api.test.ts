@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Mesh, Vector3, type Group, type MeshStandardMaterial, type Object3D } from 'three';
+import { Box3, Mesh, PerspectiveCamera, Vector3, type Group, type MeshStandardMaterial, type Object3D } from 'three';
 import { deriveLevel } from '@/core/geometry/derived';
 import { buildLevelMeshes } from '@/core/mesh';
 import { createBeam, createCupboard, createOpening, createSlope } from '@/core/model/factory';
 import type { Level } from '@/core/model/types';
 import { createEditorStore } from '@/editor/store';
-import { boundsOf, ease, presetPose, REF_ASPECT } from '@/scene3d/camera';
+import { boundsOf, corners, ease, presetPose, type Bounds } from '@/scene3d/camera';
 import { buildLevelView, toGeometry } from '@/scene3d/levelMeshes';
 import { COLORS, createMaterials, GLASS_OPACITY } from '@/scene3d/materials';
 import { buildOpening, DOOR_OPEN_DEG } from '@/scene3d/openings';
@@ -182,6 +182,38 @@ describe('openings', () => {
     }
   });
 
+  it('vertical and oblique walls: leaf at 70 degrees from the wall towards the swing side, hinge on the swing face (review minor)', () => {
+    for (const [x2, y2] of [[0, 300], [0, -300], [300, 200], [-250, 120]] as const) {
+      const level = levelFromWalls([[0, 0, x2, y2]]);
+      const wallId = Object.keys(level.walls)[0]!;
+      const len = Math.hypot(x2, y2);
+      const dir = { x: x2 / len, y: y2 / len };
+      const normal = { x: -dir.y, y: dir.x }; // left of the wall
+      for (const [hinge, swing] of [['start', 'left'], ['end', 'right']] as const) {
+        const o = { ...createOpening(wallId, 'door', 120), hinge, swing };
+        const m = mats();
+        const g = buildOpening(level, o, [], m)!;
+        const leafMesh = meshes(g).find((x) => x.material === m.door)!;
+        g.updateMatrixWorld(true);
+        const h = new Vector3().setFromMatrixPosition(leafMesh.parent!.matrixWorld);
+        const along = new Vector3(1, 0, 0).applyMatrix4(leafMesh.parent!.matrixWorld).sub(h);
+        const toward = hinge === 'start' ? 1 : -1;
+        const s = swing === 'left' ? 1 : -1;
+        const t = (DOOR_OPEN_DEG * Math.PI) / 180;
+        const expected = {
+          x: Math.cos(t) * toward * dir.x + Math.sin(t) * s * normal.x,
+          y: Math.cos(t) * toward * dir.y + Math.sin(t) * s * normal.y,
+        };
+        expect(along.x).toBeCloseTo(expected.x, 9);
+        expect(along.z).toBeCloseTo(expected.y, 9);
+        expect(along.y).toBeCloseTo(0, 9);
+        const a = 120 + (hinge === 'start' ? -41.5 : 41.5);
+        expect(h.x).toBeCloseTo((dir.x * a + normal.x * s * 10) / 100, 9);
+        expect(h.z).toBeCloseTo((dir.y * a + normal.y * s * 10) / 100, 9);
+      }
+    }
+  });
+
   it('window: frame, glass at 55 % and a sill board on the room side only', () => {
     const level = room();
     const top = findWall(level, -10, -10, 410, -10);
@@ -212,49 +244,78 @@ describe('openings', () => {
 });
 
 describe('camera presets', () => {
-  // plan-chambre's room spans 4.30 m with its 15 cm walls: same extent -> its very poses
-  const ref = { minX: -0.15, maxX: 4.15, minZ: -0.15, maxZ: 4.15 };
+  /** The attic room with its walls (outer -20 .. 420 cm), 2.40 m high, at the given elevation (m). */
+  const chambreBox = (elevation = 0): Bounds =>
+    boundsOf([[{ x: -20, y: -20 }, { x: 420, y: -20 }, { x: 420, y: 420 }, { x: -20, y: 420 }]], elevation, elevation + 2.4);
 
-  it("overview and top are plan-chambre's poses for its room", () => {
-    const o = presetPose('overview', ref);
-    [-1.7, 4.6, 6.1].forEach((v, i) => expect(o.pos[i]).toBeCloseTo(v, 9));
-    [2, 0.6, 2].forEach((v, i) => expect(o.tgt[i]).toBeCloseTo(v, 9));
-    const t = presetPose('top', ref);
-    [2, 9.5, 2.6].forEach((v, i) => expect(t.pos[i]).toBeCloseTo(v, 9));
-    [2, 0, 2].forEach((v, i) => expect(t.tgt[i]).toBeCloseTo(v, 9));
+  /** Projected corners of the box seen from a pose (NDC), with a three.js camera of the given aspect. */
+  function ndc(b: Bounds, pose: { pos: number[]; tgt: number[] }, aspect: number): { x: number; y: number; z: number }[] {
+    const cam = new PerspectiveCamera(45, aspect, 0.05, 500);
+    cam.position.set(pose.pos[0]!, pose.pos[1]!, pose.pos[2]!);
+    cam.lookAt(pose.tgt[0]!, pose.tgt[1]!, pose.tgt[2]!);
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    return corners(b).map(([x, y, z]) => new Vector3(x, y, z).project(cam));
+  }
+
+  for (const [label, aspect] of [['16:9', 16 / 9], ['split 1:1.2', 1 / 1.2]] as const) {
+    for (const preset of ['overview', 'top'] as const) {
+      it(`${preset} at ${label}: the level fills 70 to 95 % of the view on its limiting axis, centered, all in view`, () => {
+        for (const b of [chambreBox(), chambreBox(2.7), boundsOf([[{ x: 0, y: 0 }, { x: 1200, y: 0 }, { x: 1200, y: 500 }]], 0, 2.5)]) {
+          const pts = ndc(b, presetPose(preset, b, null, aspect), aspect);
+          expect(pts.every((p) => p.z > -1 && p.z < 1)).toBe(true); // in front of the camera
+          const xs = pts.map((p) => p.x);
+          const ys = pts.map((p) => p.y);
+          const extent = Math.max(...xs.map(Math.abs), ...ys.map(Math.abs));
+          expect(extent).toBeGreaterThan(0.7);
+          expect(extent).toBeLessThan(0.95);
+          expect(Math.abs(Math.min(...xs) + Math.max(...xs))).toBeLessThan(0.02);
+          expect(Math.abs(Math.min(...ys) + Math.max(...ys))).toBeLessThan(0.02);
+        }
+      });
+    }
+  }
+
+  it("overview and top look along plan-chambre's directions", () => {
+    const b = chambreBox();
+    const dirOf = (p: { pos: number[]; tgt: number[] }) => new Vector3(p.pos[0]! - p.tgt[0]!, p.pos[1]! - p.tgt[1]!, p.pos[2]! - p.tgt[2]!).normalize();
+    expect(dirOf(presetPose('overview', b)).angleTo(new Vector3(-3.7, 4.0, 4.1))).toBeCloseTo(0, 9);
+    expect(dirOf(presetPose('top', b)).angleTo(new Vector3(0, 9.5, 0.6))).toBeCloseTo(0, 9);
   });
 
-  it('moved back from the target in a view narrower than plan-chambre, by the ratio of the aspects', () => {
-    const wide = presetPose('overview', ref, null, REF_ASPECT * 2);
-    expect(wide).toEqual(presetPose('overview', ref));
-    const narrow = presetPose('overview', ref, null, REF_ASPECT / 2);
-    expect(narrow.tgt).toEqual(wide.tgt);
-    [-3.7, 4.0, 4.1].forEach((d, i) => expect(narrow.pos[i]! - narrow.tgt[i]!).toBeCloseTo(2 * d, 9));
-  });
-
-  it('scaled to a level twice as large, centered on it', () => {
-    const b = { minX: 0, maxX: 8.6, minZ: 0, maxZ: 4 };
-    const t = presetPose('top', b);
-    expect(t.pos[1]).toBeCloseTo(19, 9);
-    expect(t.tgt[0]).toBeCloseTo(4.3, 9);
-    expect(t.tgt[2]).toBeCloseTo(2, 9);
+  it('upper floor (elevation 2.70 m): every preset is raised by the elevation (review C1)', () => {
+    const level = chambre();
+    const room = deriveLevel(level).rooms[0]!;
+    const low = chambreBox(0);
+    const high = chambreBox(2.7);
+    const r = presetPose('room', high, room);
+    expect(r.pos[1]).toBeCloseTo(2.7 + 1.6, 9);
+    expect(r.tgt[1]).toBeCloseTo(2.7 + 0.9, 9);
+    for (const p of ['overview', 'top'] as const) {
+      const a = presetPose(p, low);
+      const h = presetPose(p, high);
+      expect(h.pos[1] - a.pos[1]).toBeCloseTo(2.7, 9);
+      expect(h.tgt[1]).toBeGreaterThanOrEqual(2.7);
+      expect(h.tgt[1]).toBeLessThanOrEqual(2.7 + 2.4);
+    }
   });
 
   it('room: eye at 1.60 m inside the room, looking at its center; overview without a room', () => {
     const level = chambre();
     const room = deriveLevel(level).rooms[0]!;
-    const p = presetPose('room', boundsOf([room.ring]), room);
+    const b = chambreBox();
+    const p = presetPose('room', b, room);
     expect(p.pos[1]).toBeCloseTo(1.6, 9);
     expect(p.pos[0]).toBeGreaterThan(0);
     expect(p.pos[0]).toBeLessThan(4);
     expect(p.pos[2]).toBeGreaterThan(0);
     expect(p.pos[2]).toBeLessThan(4);
     expect(p.tgt[0]).toBeCloseTo(room.labelPoint.x / 100, 9);
-    expect(presetPose('room', ref, null)).toEqual(presetPose('overview', ref));
+    expect(presetPose('room', b, null)).toEqual(presetPose('overview', b));
   });
 
   it('bounds of nothing: a 4 m square; ease goes from 0 to 1 symmetrically', () => {
-    expect(boundsOf([])).toEqual({ minX: 0, maxX: 4, minZ: 0, maxZ: 4 });
+    expect(boundsOf([])).toEqual({ minX: 0, maxX: 4, minZ: 0, maxZ: 4, minY: 0, maxY: 2.5 });
     expect(ease(0)).toBe(0);
     expect(ease(1)).toBe(1);
     expect(ease(0.5)).toBeCloseTo(0.5, 12);
