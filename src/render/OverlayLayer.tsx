@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import { HANDLE_PX, type ObjectHandle } from '@/editor/handles';
+import { HANDLE_PX, type ObjectHandle, type VolumeHandle } from '@/editor/handles';
 import type { Overlay } from '@/editor/store';
 import { isOutlineGhost, isSegmentGhost } from '@/editor/tools/types';
 import { CalibrationSegment } from './CalibrationSegment';
@@ -8,6 +8,7 @@ import { DimLineView } from './DimLineView';
 import { OpeningGhostView } from './OpeningGhostView';
 import { ZeroClearanceMarker } from './ZeroClearanceMarker';
 import { DrawGhostView } from './DrawGhostView';
+import { VolumeGhostView } from './VolumeGhostView';
 import { ringsPath } from './path';
 import { dashArray, num, STYLE } from './style';
 
@@ -24,7 +25,7 @@ export function OverlayLayer({
   lineUnit,
 }: {
   overlay: Overlay;
-  handles: ObjectHandle[];
+  handles: Array<ObjectHandle | VolumeHandle>;
   lineUnit: number;
 }): JSX.Element {
   const { marquee, guides, dynamicDims, activeDimIndex, ghost, previewInvalid } = overlay;
@@ -67,12 +68,15 @@ export function OverlayLayer({
         </g>
       )}
       <OpeningGhostView ghost={ghost} lineUnit={lineUnit} />
+      <VolumeGhostView ghost={ghost} lineUnit={lineUnit} />
       <ZeroClearanceMarker dims={dynamicDims} active={activeDimIndex} lineUnit={lineUnit} />
       {isSegmentGhost(ghost) && <CalibrationSegment ghost={ghost} lineUnit={lineUnit} />}
       {handles.length > 0 && (
         <g data-kind="handles" stroke={STYLE.selection} strokeWidth={STYLE.handleWidth * lineUnit} fill={STYLE.paper}>
           {handles.map((h) =>
-            h.kind === 'rotate' ? (
+            h.kind === 'point' ? (
+              <circle key={`${h.role}`} data-kind="handle-point" data-role={h.role} cx={num(h.at.x)} cy={num(h.at.y)} r={half} />
+            ) : h.kind === 'rotate' ? (
               <g key="rotate" data-kind="handle-rotate">
                 {h.anchor && <line x1={num(h.anchor.x)} y1={num(h.anchor.y)} x2={num(h.at.x)} y2={num(h.at.y)} />}
                 <circle cx={num(h.at.x)} cy={num(h.at.y)} r={STYLE.handleRadius * lineUnit} />

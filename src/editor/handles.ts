@@ -1,5 +1,6 @@
 import { add, deg2rad, dist, rotate } from '@/core/geometry/vec';
-import type { Level, PlacedObject, Vec2 } from '@/core/model/types';
+import { slopeFrame } from '@/core/geometry/slopes';
+import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
 import type { SelectionItem } from './selection';
 
 /** Side of a resize handle square, screen px. */
@@ -76,6 +77,53 @@ export function hitHandle(o: PlacedObject, p: Vec2, pxPerCm: number): ObjectHand
   let bestD = HANDLE_GRAB_PX / pxPerCm;
   for (const h of objectHandles(o, pxPerCm)) {
     if (inBody && h.kind === 'resize' && (h.sx === 0 || h.sy === 0)) continue;
+    const d = dist(h.at, p);
+    if (d <= bestD) {
+      best = h;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * A point handle of a selected slope or beam (spec 7.1): the ends of the start line of a slope
+ * ('a', 'b') and the middle of its end line ('depth'), on the lines that hit the slope (ruling
+ * V2-R23); the ends of a beam axis ('a', 'b').
+ */
+export interface VolumeHandle { kind: 'point'; target: 'slope' | 'beam'; id: Id; role: 'a' | 'b' | 'depth'; at: Vec2 }
+
+/** Handles of the only selected item, when it is an existing slope or beam; [] otherwise. */
+export function volumeHandles(selection: SelectionItem[], level: Level | undefined): VolumeHandle[] {
+  if (!level || selection.length !== 1) return [];
+  const item = selection[0]!;
+  if (item.kind === 'slope') {
+    const s = level.slopes[item.id];
+    if (!s) return [];
+    const f = slopeFrame(s);
+    const mid = { x: (s.a.x + s.b.x) / 2 + f.normal.x * s.depth, y: (s.a.y + s.b.y) / 2 + f.normal.y * s.depth };
+    return [
+      { kind: 'point', target: 'slope', id: s.id, role: 'a', at: { ...s.a } },
+      { kind: 'point', target: 'slope', id: s.id, role: 'b', at: { ...s.b } },
+      { kind: 'point', target: 'slope', id: s.id, role: 'depth', at: mid },
+    ];
+  }
+  if (item.kind === 'beam') {
+    const b = level.beams[item.id];
+    if (!b) return [];
+    return [
+      { kind: 'point', target: 'beam', id: b.id, role: 'a', at: { ...b.a } },
+      { kind: 'point', target: 'beam', id: b.id, role: 'b', at: { ...b.b } },
+    ];
+  }
+  return [];
+}
+
+/** Volume handle under the world point p (closest within HANDLE_GRAB_PX screen pixels), or null. */
+export function hitVolumeHandle(handles: VolumeHandle[], p: Vec2, pxPerCm: number): VolumeHandle | null {
+  let best: VolumeHandle | null = null;
+  let bestD = HANDLE_GRAB_PX / pxPerCm;
+  for (const h of handles) {
     const d = dist(h.at, p);
     if (d <= bestD) {
       best = h;
