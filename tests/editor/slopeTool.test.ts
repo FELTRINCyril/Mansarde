@@ -136,4 +136,16 @@ describe('slope tool', () => {
     tool.onNumericSubmit!(200, ctx);
     expect(slopes(store)[0]).toMatchObject({ a: { x: 100, y: 100 }, b: { x: 300, y: 100 }, depth: 50, heightStart: 200, heightEnd: 150 });
   });
+
+  it('the release of the third click lost (pointercancel): the heights field opens anyway', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, 100, 100);
+    click(tool, ctx, 300, 100);
+    tool.onPointerMove!(at(200, 160), ctx);
+    tool.onPointerDown!(at(200, 160), ctx);
+    tool.onCancel!(ctx);
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '250', label: 'Hauteur au départ' });
+    tool.onNumericSubmit!(240, ctx);
+    expect(slopes(store)[0]).toMatchObject({ depth: 60, heightStart: 240 });
+  });
 });
