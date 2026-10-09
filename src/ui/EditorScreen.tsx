@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'rea
 import type { Id, Project } from '@/core/model/types';
 import { watchBackgroundMode } from '@/editor/background';
 import { placeObjectAt } from '@/editor/placeObject';
+import { planCenter } from '@/editor/planCenter';
 import { useEditor } from '@/editor/store';
-import { screenToWorld } from '@/editor/view';
 import { startAutosave, type SaveStatus } from '@/storage/autosave';
 import type { ProjectStore, StoredImage } from '@/storage/db';
 import { imageSize } from '@/storage/files';
@@ -143,15 +143,14 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
   useEffect(() => watchBackgroundMode(useEditor), []);
 
   const placeAtCenter = useCallback((ref: string) => {
-    const s = size.current;
-    placeObjectAt(useEditor, ref, screenToWorld(useEditor.getState().view, { x: s.width / 2, y: s.height / 2 }));
+    placeObjectAt(useEditor, ref, planCenter(useEditor.getState(), size.current));
   }, []);
 
   const backgroundServices = useMemo<BackgroundServices>(
     () => ({
       projectStore: p.projectStore,
       registerImage,
-      viewCenter: () => screenToWorld(useEditor.getState().view, { x: size.current.width / 2, y: size.current.height / 2 }),
+      viewCenter: () => planCenter(useEditor.getState(), size.current),
     }),
     [p.projectStore, registerImage],
   );

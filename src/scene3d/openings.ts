@@ -57,6 +57,8 @@ function leaf(l: Local, mats: Materials, o: Opening, hingeA: number, len: number
   const w = Math.max(1, len - LEAF_GAP);
   const h = Math.max(1, o.height - 2 * LEAF_GAP);
   l.box(w / 2, o.sillHeight + LEAF_GAP + h / 2, 0, w, h, LEAF_THICKNESS, mats.door, pivot);
+  // handle 7 cm from the free edge at 102 cm above the floor (plan-chambre), lowered to 10 cm under
+  // the top of a leaf lower than that; a cylinder across the leaf, sticking out of both faces
   const handle = mesh(new CylinderGeometry(0.012, 0.012, 0.12, 16), mats.handle);
   handle.rotation.x = Math.PI / 2;
   handle.position.set((w - 7) / 100, Math.min(HANDLE_HEIGHT, o.sillHeight + h - 10) / 100, 0);
@@ -95,7 +97,9 @@ function door(l: Local, mats: Materials, o: Opening, hw: number, ht: number): vo
       return;
     }
     case 'pocket': {
-      // half open: the visible half on the pocket (hinge) side, the rest inside the wall
+      // interpretation: the leaf is drawn half open, as a visible cue of the kind of door. As in the
+      // plan symbol, `hinge` names the side of the pocket: the half of the leaf still out of the
+      // wall stands on that side, in the middle of the wall thickness, the other half is in the wall
       const atStart = o.hinge === 'start';
       l.box(atStart ? -hw / 2 : hw / 2, y, 0, hw, h, 3, mats.door);
       return;
