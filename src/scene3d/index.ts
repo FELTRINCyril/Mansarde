@@ -1,4 +1,4 @@
-import { Scene, type Texture } from 'three';
+import { Box3, Scene, Vector3, type Object3D, type Texture } from 'three';
 import { deriveLevel, type DerivedLevel } from '@/core/geometry/derived';
 import { pointInRing } from '@/core/geometry/polygon';
 import type { Room } from '@/core/geometry/rooms';
@@ -8,7 +8,10 @@ import { boundsOf, CameraRig, presetPose, type Bounds, type Preset } from './cam
 import { buildLevelView, type LevelView } from './levelMeshes';
 import { createMaterials, LOWER_LEVEL_OPACITY, type Materials } from './materials';
 import { createRenderer, setupScene, type Lights } from './renderer';
-import { createParquetTexture } from './textures';
+import { createParquetTexture, createRugTexture } from './textures';
+import { AlertTints, type AlertSeverity } from './alerts';
+import { FurnitureLayer, Kit } from './furniture';
+import { createLabels } from './labels';
 
 export type { Preset } from './camera';
 
@@ -53,6 +56,15 @@ export const scene3dStats = {
 const STRUCTURE_KEYS = ['nodes', 'walls', 'openings', 'roomLabels', 'slopes', 'beams', 'cupboards', 'height', 'elevation'] as const;
 const sameStructure = (a: Level, b: Level): boolean => a.id === b.id && STRUCTURE_KEYS.every((k) => a[k] === b[k]);
 
+/**
+ * DEV test hook (exposed by Plan3DView as window.__planMaison3DProbe): the color of the pixel at
+ * the top center of an object, read from the canvas right after a render (rgba 0..255), or null
+ * when the object is not shown or off screen.
+ */
+export const scene3dProbe = {
+  objectPixel: null as null | ((objectId: Id) => [number, number, number, number] | null),
+};
+
 interface Shown { level: Level; d: DerivedLevel; view: LevelView }
 
 /** The room of the selection: a selected room, else the room around the first selected object. */
@@ -91,6 +103,20 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
   }
   const mats: Materials = createMaterials(parquet);
   let lowerMats: Materials | null = null;
+  // furniture (task 12): builders, name labels, alert tint
+  const labels = createLabels(container);
+  const furniture = new FurnitureLayer(
+    new Kit((round) => {
+      try {
+        return createRugTexture(round);
+      } catch {
+        return null; // no 2D canvas: plain rug
+      }
+    }),
+    labels,
+  );
+  scene.add(furniture.root);
+  const tints = new AlertTints();
 
   let frameId: number | null = null;
   let disposed = false;
@@ -99,6 +125,7 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
     if (disposed) return;
     const moving = rig.tick(now);
     renderer.render(scene, rig.camera);
+    labels.render(scene, rig.camera);
     scene3dStats.frames++;
     scene3dStats.camera = rig.camera.position.toArray();
     if (moving) invalidate();
@@ -159,6 +186,36 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
     }
   };
 
+  /** The furniture and cupboard groups of the alert keys (`object:<id>`, `cupboard:<id>`). */
+  const alertTargets = (alerts: ReadonlyMap<string, AlertSeverity>): Map<Object3D, AlertSeverity> => {
+    const out = new Map<Object3D, AlertSeverity>();
+    for (const [key, severity] of alerts) {
+      const i = key.indexOf(':');
+      const kind = key.slice(0, i);
+      const id = key.slice(i + 1);
+      const g = kind === 'object' ? furniture.groupOf(id) : kind === 'cupboard' ? shown?.view.cupboards.getObjectByName(`cupboard:${id}`) : undefined;
+      if (g) out.set(g, severity);
+    }
+    return out;
+  };
+
+  scene3dProbe.objectPixel = (objectId) => {
+    const g = furniture.groupOf(objectId);
+    if (!g || disposed) return null;
+    g.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(g, true);
+    rig.camera.updateMatrixWorld();
+    const p = new Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2).project(rig.camera);
+    if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1) return null;
+    renderer.render(scene, rig.camera);
+    const gl = renderer.getContext();
+    const x = Math.round(((p.x + 1) / 2) * gl.drawingBufferWidth);
+    const y = Math.round(((p.y + 1) / 2) * gl.drawingBufferHeight);
+    const out = new Uint8Array(4);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, out);
+    return [out[0]!, out[1]!, out[2]!, out[3]!];
+  };
+
   const goToPreset = (p: Preset, instant: boolean) => {
     const room = p === 'room' && shown ? roomOfSelection(selection, shown.level, shown.d) : null;
     rig.goTo(presetPose(p === 'room' && !room ? 'overview' : p, bounds, room, rig.camera.aspect), instant, performance.now());
@@ -172,6 +229,8 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
       showLevel(input.level);
       showLower(input.lowerLevels);
       applyVisibility(input.hideAllWalls);
+      furniture.sync(input.level, input.project.customObjects, input.showLabels);
+      tints.sync(alertTargets(input.alerts));
       if (framedLevelId !== input.level.id) {
         framedLevelId = input.level.id;
         goToPreset('overview', true);
@@ -186,6 +245,7 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
       const h = container.clientHeight;
       if (disposed || w <= 0 || h <= 0) return;
       renderer.setSize(w, h);
+      labels.setSize(w, h);
       rig.setAspect(w / h);
       invalidate();
     },
@@ -195,6 +255,10 @@ export function createScene3D(container: HTMLElement, _cb: Scene3DCallbacks): Sc
       if (frameId !== null) cancelAnimationFrame(frameId);
       frameId = null;
       rig.dispose();
+      tints.dispose();
+      furniture.dispose();
+      labels.dispose();
+      scene3dProbe.objectPixel = null;
       shown?.view.dispose();
       shown = null;
       for (const s of lower.values()) s.view.dispose();
