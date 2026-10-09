@@ -16,6 +16,7 @@ import { Header } from './Header';
 import { levelsWithMissingImages, missingImageMessage } from './imageCheck';
 import { LevelTabs } from './LevelTabs';
 import { PlanArea } from './PlanArea';
+import { PlanViewportContext } from './planViewport';
 import type { Size } from './PlanCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { SettingsDialog } from './SettingsDialog';
@@ -137,6 +138,7 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
     // of the catalog placement and of an imported background stays the plan's)
     if (s.width > 0 && s.height > 0) size.current = s;
   }, []);
+  const planSize = useCallback(() => size.current, []);
   // the move mode of the tracing image ends by itself when the image gets locked, hidden or removed
   useEffect(() => watchBackgroundMode(useEditor), []);
 
@@ -179,7 +181,9 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
         <CatalogPanel onPlace={placeAtCenter} />
         <EditorCenter plan={<PlanArea imageUrls={imageUrls} onResize={onResize} onExportProject={p.onExportProject} onClose={p.onClose} />} />
         <BackgroundServicesContext.Provider value={backgroundServices}>
-          <PropertiesPanel />
+          <PlanViewportContext.Provider value={planSize}>
+            <PropertiesPanel />
+          </PlanViewportContext.Provider>
         </BackgroundServicesContext.Provider>
       </div>
       <LevelTabs />

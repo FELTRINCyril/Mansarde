@@ -3,6 +3,7 @@ import { renameProject } from '@/core/commands/project';
 import { MOD_LABEL } from '@/editor/keyboard';
 import { useEditor, type EditorState } from '@/editor/store';
 import type { SaveStatus } from '@/storage/autosave';
+import { AlertCounter } from './ChecksPanel';
 import { run } from './run';
 import { ViewSwitch } from './ViewSwitch';
 
@@ -95,6 +96,7 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
         </label>
       </div>
       <div className="header-spacer" />
+      <AlertCounter />
       <SaveIndicator status={p.saveStatus} />
       <button type="button" className="btn" onClick={p.onSettings} data-testid="open-settings">
         Réglages

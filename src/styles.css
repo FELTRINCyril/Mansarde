@@ -991,6 +991,132 @@ select {
   text-align: right;
 }
 
+.panel-error {
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* ===== Checks (spec 7.4) ===== */
+
+.alert-counter {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* the header buttons keep their label on one line (the counter takes room next to the view switch) */
+.header .btn,
+.header .segmented-item {
+  white-space: nowrap;
+}
+
+.alert-counter-error {
+  border-color: #cf2e2e;
+  color: #b3261e;
+  background: #fdeceb;
+}
+
+.alert-counter-warning {
+  border-color: #e08a1e;
+  color: #9a5a08;
+  background: #fdf3e5;
+}
+
+.checks-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.checks-toggle .panel-title {
+  margin: 0;
+}
+
+.checks-badge {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.checks-badge-error {
+  background: #cf2e2e;
+}
+
+.checks-badge-warning {
+  background: #e08a1e;
+}
+
+.checks-caret {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.checks-list {
+  margin: 8px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 6px;
+  align-items: start;
+  width: 100%;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.check-row:hover {
+  background: var(--surface-2);
+}
+
+.check-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.check-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.check-mark-error {
+  background: #cf2e2e;
+}
+
+.check-mark-warning {
+  background: #e08a1e;
+}
+
+.checks-hide {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
 /* ===== Level tabs ===== */
 
 .level-tabs {
