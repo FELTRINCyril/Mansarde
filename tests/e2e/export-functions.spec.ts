@@ -4,10 +4,11 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 // server; the sample project comes from tests/export/sampleProject.ts. The generated files are
 // downloaded into the test output folder (test-results/...) for the visual check.
 
-const M = { pdf: '/src/export/pdf.ts', png: '/src/export/png.ts', sample: '/tests/export/sampleProject.ts' };
+const M = { pdf: '/src/export/pdf.ts', png: '/src/export/png.ts', sample: '/tests/export/sampleProject.ts', factory: '/src/core/model/factory.ts' };
 type PdfModule = typeof import('../../src/export/pdf');
 type PngModule = typeof import('../../src/export/png');
 type SampleModule = typeof import('../export/sampleProject');
+type FactoryModule = typeof import('../../src/core/model/factory');
 type SampleWindow = { __samples?: Record<string, Blob> };
 
 /** Downloads a blob kept by the page in window.__samples into the test output folder. */
@@ -168,4 +169,45 @@ test('background image (data URL, opacity) in the pdf and the png', async ({ pag
   expect(out.onImage[1]).toBeGreaterThan(110);
   expect(out.onImage[1]).toBeLessThan(145);
   expect(out.offImage).toEqual([255, 255, 255, 255]);
+});
+
+test('volumes: a level with a slope, a beam and a cupboard exports to pdf (slope as an axial shading) and png', async ({ page }, testInfo) => {
+  const out = await page.evaluate(async (m) => {
+    const { exportPdf }: PdfModule = await import(m.pdf);
+    const { exportPng }: PngModule = await import(m.png);
+    const { buildSampleProject }: SampleModule = await import(m.sample);
+    const { createBeam, createCupboard, createSlope }: FactoryModule = await import(m.factory);
+    // the sample is frozen (immer): build a new level and project around it
+    const sample = buildSampleProject();
+    const base = sample.levels[0]!;
+    const slope = createSlope({ x: 200, y: 0 }, { x: 200, y: 300 }, 'right', 200, 250, 150);
+    const beam = createBeam({ x: 150, y: 0 }, { x: 150, y: 300 });
+    const wall = Object.values(base.walls)[0]!;
+    const cupboard = createCupboard(wall.id, 100, 'left', { width: 120 });
+    const level = {
+      ...base,
+      slopes: { [slope.id]: slope },
+      beams: { [beam.id]: beam },
+      cupboards: { [cupboard.id]: cupboard },
+    };
+    const project = { ...sample, levels: [level] };
+    const pdf = await exportPdf({
+      project,
+      level,
+      spec: { format: 'A3', orientation: 'landscape', scale: 50 },
+      imageDataUrls: {},
+      date: new Date(2026, 9, 9),
+      dimMode: 'all',
+    });
+    const png = await exportPng({ project, level, resolution: 1, imageDataUrls: {}, dimMode: 'all' });
+    (window as SampleWindow).__samples = { 'sample-volumes-a3-1-50.pdf': pdf, 'sample-volumes-1x.png': png };
+    const text = await pdf.text();
+    return { head: text.slice(0, 5), shading: /\/ShadingType 2/.test(text), png: png.type, pngSize: png.size };
+  }, M);
+  await saveSample(page, testInfo, 'sample-volumes-a3-1-50.pdf');
+  await saveSample(page, testInfo, 'sample-volumes-1x.png');
+  expect(out.head).toBe('%PDF-');
+  expect(out.shading).toBe(true); // the slope gradient became a PDF axial shading
+  expect(out.png).toBe('image/png');
+  expect(out.pngSize).toBeGreaterThan(1000);
 });

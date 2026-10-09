@@ -5,7 +5,7 @@ import { addOpening } from '@/core/commands/openings';
 import { addObject } from '@/core/commands/objects';
 import { addCustomObject } from '@/core/commands/project';
 import { addLevel } from '@/core/commands/levels';
-import { createObjectFromSize, createOpening } from '@/core/model/factory';
+import { createBeam, createCupboard, createObjectFromSize, createOpening, createSlope } from '@/core/model/factory';
 import type { Project } from '@/core/model/types';
 import { deleteSelectionRecipe } from '@/editor/deleteSelection';
 import { nextLevelName } from '@/editor/levelNames';
@@ -122,6 +122,33 @@ describe('deleteSelectionRecipe', () => {
     expect(lvl(next).walls[top]).toBeUndefined();
     const r = applyCommand(p, deleteSelectionRecipe(L, [{ kind: 'room', id: 'x' }]));
     expect(r.ok && r.patches.length).toBe(0);
+  });
+  it('deletes selected slopes, beams and cupboards, a cupboard of a deleted wall only once', () => {
+    let p = projectFrom(rectRoom(0, 0, 400, 300), (level) => {
+      const s = createSlope({ x: 200, y: 0 }, { x: 200, y: 300 }, 'right', 200, 250);
+      level.slopes[s.id] = s;
+      const b = createBeam({ x: 100, y: 0 }, { x: 100, y: 300 });
+      level.beams[b.id] = b;
+      const top = findWall(level, 0, 0, 400, 0);
+      for (const offset of [100, 300]) {
+        const c = createCupboard(top, offset, 'left');
+        level.cupboards[c.id] = c;
+      }
+    });
+    const L = levelId(p);
+    const level = lvl(p);
+    const [c1, c2] = Object.keys(level.cupboards);
+    const next = run(p, deleteSelectionRecipe(L, [
+      { kind: 'slope', id: Object.keys(level.slopes)[0]! },
+      { kind: 'beam', id: Object.keys(level.beams)[0]! },
+      { kind: 'cupboard', id: c1! },
+      { kind: 'wall', id: findWall(level, 0, 0, 400, 0) },
+    ]));
+    expect(lvl(next).slopes).toEqual({});
+    expect(lvl(next).beams).toEqual({});
+    expect(lvl(next).cupboards).toEqual({});
+    p = run(p, deleteSelectionRecipe(L, [{ kind: 'cupboard', id: c2! }]));
+    expect(Object.keys(lvl(p).cupboards)).toEqual([c1]);
   });
 });
 

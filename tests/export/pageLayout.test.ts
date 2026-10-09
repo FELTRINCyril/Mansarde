@@ -19,7 +19,7 @@ import {
   suggestScale,
   TITLE_BLOCK_MM,
 } from '@/export/pageLayout';
-import { createLevel, createOpening } from '@/core/model/factory';
+import { createBeam, createCupboard, createLevel, createOpening } from '@/core/model/factory';
 import type { Level, Opening } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from '../core/fixtures';
 import { buildSampleProject } from './sampleProject';
@@ -95,6 +95,30 @@ describe('levelBounds', () => {
     expect(b.maxX).toBeCloseTo(550, 9);
     expect(b.minX).toBeCloseTo(-10, 9);
     expect(b.maxY).toBeCloseTo(110, 9);
+  });
+
+  it('includes cupboards standing outside the walls and beams running past them', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
+    // right wall (100, 0) -> (100, 100): dir +y, left = -x (inside); 'right' = outside, 60 deep from x = 110
+    const c = createCupboard(findWall(level, 100, 0, 100, 100), 50, 'right', { width: 80 });
+    level.cupboards[c.id] = c;
+    let b = levelBounds(level, deriveLevel(level), 0)!;
+    expect(b.maxX).toBeCloseTo(170, 9);
+    expect(b.minY).toBeCloseTo(-10, 9);
+    // a new level: deriveVolumes caches by level identity (levels are immutable in the app)
+    const next = structuredClone(level);
+    const beam = createBeam({ x: 50, y: -40 }, { x: 50, y: 50 }); // 12 wide: y from -40
+    next.beams[beam.id] = beam;
+    b = levelBounds(next, deriveLevel(next), 0)!;
+    expect(b.minY).toBeCloseTo(-40, 9);
+    expect(b.maxX).toBeCloseTo(170, 9);
+  });
+
+  it('a cupboard on a missing wall (broken file) is left out without throwing', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
+    const c = createCupboard('missing', 50, 'right');
+    level.cupboards[c.id] = c;
+    expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -10, minY: -10, maxX: 110, maxY: 110 });
   });
 
   it('includes manual dimensions, and ignores dimensions whose anchor is gone', () => {
