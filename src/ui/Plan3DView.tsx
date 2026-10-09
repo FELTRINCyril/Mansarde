@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
+import { checkSeverityByTarget, computeChecks } from '@/core/checks/computeChecks';
+import type { Check } from '@/core/checks/types';
+import { deriveLevel } from '@/core/geometry/derived';
 import { activeLevel, useEditor, type EditorState } from '@/editor/store';
 import type { Preset, Scene3D, Scene3DInput } from '@/scene3d';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -7,11 +10,27 @@ declare global {
   interface Window {
     /** DEV only: counters of the 3D view for the e2e tests (scene3dStats). */
     __planMaison3D?: typeof import('@/scene3d').scene3dStats;
+    /** DEV only: pixel probe of the 3D view for the e2e tests (scene3dProbe). */
+    __planMaison3DProbe?: typeof import('@/scene3d').scene3dProbe;
   }
 }
 
-/** Alerts are tinted by task 12; until then the 3D view gets none (a stable empty map). */
 const NO_ALERTS: Scene3DInput['alerts'] = new Map();
+/** One severity map per checks array (computeChecks memoizes by level): a stable input while nothing changes. */
+const severities = new WeakMap<Check[], Scene3DInput['alerts']>();
+
+/** Worst severity per element of the checks of the level (tinted in 3D), none when the alerts are hidden ("Masquer les alertes"). */
+function alertsOf(s: EditorState, level: NonNullable<ReturnType<typeof activeLevel>>): Scene3DInput['alerts'] {
+  if (s.display.hideAlerts || !s.project) return NO_ALERTS;
+  const checks = computeChecks(level, deriveLevel(level), s.project.customObjects);
+  if (checks.length === 0) return NO_ALERTS;
+  let m = severities.get(checks);
+  if (!m) {
+    m = checkSeverityByTarget(checks);
+    severities.set(checks, m);
+  }
+  return m;
+}
 
 /** Input of the 3D view, or null without an open project and level. */
 function inputOf(s: EditorState): Scene3DInput | null {
@@ -23,7 +42,7 @@ function inputOf(s: EditorState): Scene3DInput | null {
     level,
     lowerLevels: s.display.lowerLevels3d ? s.project.levels.slice(0, Math.max(0, index)) : [],
     selection: s.selection,
-    alerts: NO_ALERTS,
+    alerts: alertsOf(s, level),
     showLabels: s.display.labels3d,
     hideAllWalls: s.display.hideWalls3d,
   };
@@ -85,7 +104,10 @@ function Scene3DHost(): JSX.Element {
           }
           throw e;
         }
-        if (import.meta.env.DEV) window.__planMaison3D = mod.scene3dStats;
+        if (import.meta.env.DEV) {
+          window.__planMaison3D = mod.scene3dStats;
+          window.__planMaison3DProbe = mod.scene3dProbe;
+        }
         const live = s;
         scene.current = live;
         let last: Scene3DInput | null = null;

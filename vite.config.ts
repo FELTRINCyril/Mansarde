@@ -12,7 +12,7 @@ export default defineConfig({
   },
   // three: pre-bundled at startup, else the first opening of the 3D view (dynamic import) makes the
   // dev server optimize it and reload the page
-  optimizeDeps: { include: ['jspdf', 'svg2pdf.js', 'three', 'three/addons/controls/OrbitControls.js'], rolldownOptions: { plugins: [polygonClippingLimitsDeps()] } },
+  optimizeDeps: { include: ['jspdf', 'svg2pdf.js', 'three', 'three/addons/controls/OrbitControls.js', 'three/addons/geometries/RoundedBoxGeometry.js', 'three/addons/renderers/CSS2DRenderer.js'], rolldownOptions: { plugins: [polygonClippingLimitsDeps()] } },
   test: {
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     environment: 'node',
