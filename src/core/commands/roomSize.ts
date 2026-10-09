@@ -1,14 +1,17 @@
 import { current, type Draft } from 'immer';
-import type { Id, Level, Project, Vec2 } from '../model/types';
-import { deriveLevel } from '../geometry/derived';
-import { pointInRing } from '../geometry/polygon';
+import polylabel from 'polylabel';
+import type { Id, Level, Project, Ring, Vec2 } from '../model/types';
+import { deriveLevel, type DerivedLevel } from '../geometry/derived';
+import { pointInRing, ringEdges, signedArea } from '../geometry/polygon';
+import type { Room } from '../geometry/rooms';
 import { rectangularRoom, type RectRoom } from '../geometry/roomRect';
-import { add, deg2rad, dot, normalize, perp, scale, sub } from '../geometry/vec';
+import { add, deg2rad, dot, normalize, perp, projectOnSegment, scale, segmentIntersection, sub } from '../geometry/vec';
 import { wallFrame } from '../geometry/walls';
 import { CommandError, getLevel, type Recipe } from './apply';
 import { moveNodes } from './walls';
 
 const ERR_SIZE = 'Dimension invalide';
+const ERR_MIN_SIZE = 'Dimension minimale : 10 cm.';
 const ERR_ROOM_NOT_FOUND = 'Pièce introuvable';
 const ERR_NOT_RECTANGULAR = 'Pièce non rectangulaire';
 const ERR_IMPOSSIBLE = 'Impossible de redimensionner cette pièce ainsi.';
@@ -21,6 +24,10 @@ const SIZE_EPS = 1e-6;
 const NEIGHBOUR_COS = Math.cos(deg2rad(1));
 /** Moves of the side; the first one is exact for a true rectangle, the next ones absorb the skew of a room rectangular within 1 deg. */
 const MAX_PASSES = 3;
+/** A room edge this close (cm) to a wall face touches the wall; a ring vertex this close lies on it. */
+const TOUCH_TOLERANCE = 0.05;
+/** Below this area (cm2) a room is gone (same threshold as the room derivation). */
+const MIN_ROOM_AREA = 1;
 
 const snapshot = (draft: Draft<Project>, levelId: Id): Level => current(getLevel(draft, levelId)) as Level;
 
@@ -46,12 +53,15 @@ function sideToMove(rect: RectRoom, u: Vec2, moveSide: 'min' | 'max'): { wallIds
  * redimensionner cette pièce ainsi.'. Other refusals: value not finite or under 10 cm, unknown or
  * non-rectangular room, the refusals of moveNodes (wall too short, openings or cupboards that no
  * longer fit). No-op without touch for the current size. The room key is the one of deriveLevel
- * on the level as it is before the command.
+ * on the level as it is before the command. Ruling V2-R26: every other room touching the moved
+ * walls before must still exist afterwards (see requireNeighbourRoomsKept). Values under 10 cm
+ * are refused with 'Dimension minimale : 10 cm.'.
  */
 export function setRoomInteriorSize(levelId: Id, roomKey: string, axis: 'width' | 'depth', value: number, moveSide: 'min' | 'max'): Recipe {
   return (draft) => {
     const level0 = snapshot(draft, levelId);
-    if (!Number.isFinite(value) || !(value >= MIN_ROOM_DIMENSION)) throw new CommandError(ERR_SIZE);
+    if (!Number.isFinite(value)) throw new CommandError(ERR_SIZE);
+    if (!(value >= MIN_ROOM_DIMENSION)) throw new CommandError(ERR_MIN_SIZE);
     const derived0 = deriveLevel(level0);
     if (!derived0.rooms.some((r) => r.key === roomKey)) throw new CommandError(ERR_ROOM_NOT_FOUND);
     let rect = rectangularRoom(level0, derived0, roomKey);
@@ -88,7 +98,81 @@ export function setRoomInteriorSize(levelId: Id, roomKey: string, axis: 'width' 
       rect = room ? rectangularRoom(after, derived, room.key) : null;
       if (!rect) throw new CommandError(ERR_IMPOSSIBLE);
     }
+    requireNeighbourRoomsKept(level0, derived0, roomKey, movedWalls, snapshot(draft, levelId), rect);
   };
+}
+
+/** Distance between segments [a, b] and [c, d]. */
+function segmentDistance(a: Vec2, b: Vec2, c: Vec2, d: Vec2): number {
+  if (segmentIntersection(a, b, c, d)) return 0;
+  return Math.min(
+    projectOnSegment(a, c, d).distance,
+    projectOnSegment(b, c, d).distance,
+    projectOnSegment(c, a, b).distance,
+    projectOnSegment(d, a, b).distance,
+  );
+}
+
+/** Whether a ring edge of the room runs along (or touches) one of the faces of the wall. */
+function roomTouchesWall(room: Room, level: Level, wallId: Id): boolean {
+  const f = wallFrame(level, wallId);
+  const reach = level.walls[wallId]!.thickness / 2 + TOUCH_TOLERANCE;
+  return ringEdges(room.ring).some(([p, q]) => segmentDistance(p, q, f.start, f.end) <= reach);
+}
+
+/**
+ * The ring a room should have after the move: its vertices lying on a face of a moved wall
+ * follow that wall (the displacement of its start node), the others stay.
+ */
+function expectedRing(ring: Ring, before: Level, after: Level, moved: Set<Id>): Ring {
+  const walls = [...moved].map((id) => {
+    const w = before.walls[id]!;
+    const shift = sub(after.nodes[w.startNodeId]!, before.nodes[w.startNodeId]!);
+    return { f: wallFrame(before, id), h: w.thickness / 2, shift };
+  });
+  return ring.map((v) => {
+    const on = walls.find(({ f, h }) => {
+      const proj = projectOnSegment(v, f.start, f.end);
+      return proj.distance <= h + TOUCH_TOLERANCE && Math.abs(Math.abs(dot(sub(v, f.start), f.normal)) - h) <= TOUCH_TOLERANCE;
+    });
+    return on ? add(v, on.shift) : v;
+  });
+}
+
+const roomAt = (d: DerivedLevel, p: Vec2): Room | undefined =>
+  d.rooms.find((r) => pointInRing(p, r.ring) && !r.islands.some((i) => pointInRing(p, i)));
+
+/**
+ * Ruling V2-R26: every other room touching the moved walls before the command still exists after
+ * it, as a room of its own with an area: the room found at the pole of its expected ring (see
+ * expectedRing), distinct from the resized room and from the other neighbours. Else
+ * 'Impossible de redimensionner cette pièce ainsi.' (a neighbour squeezed to nothing would leave
+ * wall stubs overlapping, without any room).
+ */
+function requireNeighbourRoomsKept(
+  before: Level,
+  derivedBefore: DerivedLevel,
+  roomKey: string,
+  moved: Set<Id>,
+  after: Level,
+  resized: RectRoom,
+): void {
+  const neighbours = derivedBefore.rooms.filter((r) => r.key !== roomKey && [...moved].some((id) => roomTouchesWall(r, before, id)));
+  if (neighbours.length === 0) return;
+  const derivedAfter = deriveLevel(after);
+  // rings of derivedAfter (a fresh derivation: compare within it, never with resized.room)
+  const self = roomAt(derivedAfter, resized.center);
+  const taken = new Set<Ring>(self ? [self.ring] : []);
+  for (const r of neighbours) {
+    const ring = expectedRing(r.ring, before, after, moved);
+    if (Math.sign(signedArea(ring)) !== Math.sign(signedArea(r.ring)) || Math.abs(signedArea(ring)) < MIN_ROOM_AREA) {
+      throw new CommandError(ERR_IMPOSSIBLE);
+    }
+    const [x, y] = polylabel([ring.map((q) => [q.x, q.y])], 1);
+    const found = roomAt(derivedAfter, { x: x!, y: y! });
+    if (!found || found.area < MIN_ROOM_AREA || taken.has(found.ring)) throw new CommandError(ERR_IMPOSSIBLE);
+    taken.add(found.ring);
+  }
 }
 
 /** Ruling V2-R11: the walls around the moved ones may get longer or shorter, not turn. */

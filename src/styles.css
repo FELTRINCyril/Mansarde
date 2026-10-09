@@ -631,6 +631,54 @@ select {
   font-size: 12px;
 }
 
+/* option bar of the wall tool (reference line), over the top of the plan */
+.wall-reference-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  z-index: 2;
+}
+
+.wall-reference-title,
+.wall-reference-hint {
+  color: var(--text-muted);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.wall-reference-choice {
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wall-reference-choice:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.wall-reference-active,
+.wall-reference-active:hover {
+  background: var(--accent-soft);
+  border-color: #a9c6e8;
+  color: var(--accent);
+}
+
 /* ===== Toolbar ===== */
 
 .toolbar {

@@ -4,7 +4,7 @@ import type { Guide, SnapKind, SnapResult } from '@/core/geometry/snap';
 import { add, rad2deg } from '@/core/geometry/vec';
 import type { Level, Vec2 } from '@/core/model/types';
 import { formatNumber } from '@/ui/numeric';
-import { activeLevel, type EditorStore } from '../store';
+import { activeLevel, type EditorStore, type WallReference } from '../store';
 import type { PointerInfo, ToolContext } from './types';
 
 /** Everything the drawing tools read from the editor (active level, zoom, project settings). */
@@ -15,6 +15,7 @@ export interface WallToolEnv {
   thickness: number; // settings.defaultWallThickness
   partitionThickness: number; // settings.partitionThickness, Ctrl / Cmd held
   height: number; // settings.defaultCeilingHeight
+  reference?: WallReference; // wall tool reference line (store.wallReference); absent = axis
 }
 
 /** Shift = orthogonal, Alt = no snapping, meta = Ctrl or Cmd (partition thickness). */
@@ -33,6 +34,7 @@ export function drawingEnv(c: ToolContext): WallToolEnv | null {
     thickness: s.defaultWallThickness,
     partitionThickness: s.partitionThickness,
     height: s.defaultCeilingHeight,
+    reference: st.wallReference,
   };
 }
 
@@ -93,11 +95,12 @@ export function fieldScreen(cursor: Vec2, toward: Vec2 | undefined): Vec2 {
 /**
  * Ghost of the drawing tools (wall, rectangular room) in `overlay.ghost`, drawn by DrawGhostView:
  * wall axes stroked with their thickness (polylines, closed for a rectangle), the snapped cursor
- * marker and a small text label next to the cursor. World cm.
+ * marker and a small text label next to the cursor. World cm. A path with `axis: false` is drawn
+ * without its dashed axis line; a path of thickness 0 is only that dashed line (a reference line).
  */
 export interface DrawGhost {
   kind: 'draw';
-  paths: { points: Vec2[]; closed: boolean; thickness: number }[];
+  paths: { points: Vec2[]; closed: boolean; thickness: number; axis?: false }[];
   marker: { at: Vec2; snap: SnapKind } | null;
   /** Text next to `at`, offset in screen px along the unit vector `toward` (default: up-right). */
   label: { at: Vec2; lines: string[]; toward?: Vec2 } | null;

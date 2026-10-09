@@ -1,7 +1,7 @@
 import { applyCommand } from '@/core/commands/apply';
 import { addWallChain } from '@/core/commands/walls';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
-import { degradesGeometry } from '../store';
+import { degradesGeometry, flipWallReference } from '../store';
 import { drawingEnv, EMPTY_DRAW_OVERLAY, isDigitKey, modsOf, undoKeyOf, watchActiveLevel, type WallToolEnv } from './drawing';
 import type { Tool, ToolContext } from './types';
 import { pendingChain, reduceWallTool, WALL_IDLE, wallToolOverlay, type WallToolEvent, type WallToolState } from './wallMachine';
@@ -67,6 +67,11 @@ export function createWallTool(): Tool {
         openNumericInput(c.store, { initial: fx.initial, screen: fx.screen, kind: 'positive', label: 'Longueur' });
       }
     }
+    show(c, env);
+  };
+
+  /** Draws the overlay of the current state (preview, dimension, red when the chain would be refused). */
+  const show = (c: ToolContext, env: WallToolEnv): void => {
     c.store.getState().setOverlay({ ...wallToolOverlay(state, env), previewInvalid: pendingRefused(c, env) });
   };
 
@@ -100,6 +105,13 @@ export function createWallTool(): Tool {
     },
     onNumericSubmit(value, c) {
       dispatch({ type: 'numericSubmit', value }, c);
+    },
+    /** Space: the reference line swaps sides (axis -> left face), the chain in progress follows at once. */
+    onSpaceTap(c) {
+      const st = c.store.getState();
+      st.setWallReference(flipWallReference(st.wallReference));
+      const env = drawingEnv(c);
+      if (env && state.phase === 'drawing' && env.level.id === state.levelId) show(c, env);
     },
     onNumericCancel(c) {
       dispatch({ type: 'numericCancel' }, c);

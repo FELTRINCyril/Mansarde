@@ -59,6 +59,11 @@ export interface Tool {
    * commit nothing. Must be safe to call when nothing is in progress.
    */
   onCancel?(c: ToolContext): void;
+  /**
+   * Space pressed and released on the plan without panning in between (PlanCanvas): space + drag
+   * stays the pan of the view. Used by the wall tool to flip its reference line (spec 6).
+   */
+  onSpaceTap?(c: ToolContext): void;
   /** Called when another tool becomes active (and on teardown): drop any internal state. */
   onDeactivate?(c: ToolContext): void;
 }

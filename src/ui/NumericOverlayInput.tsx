@@ -9,7 +9,7 @@ const stop = (e: { stopPropagation(): void }) => e.stopPropagation();
 /**
  * Shared numeric field of the drawing tools (overlay.numericInput), absolutely positioned over the
  * canvas next to the cursor and kept inside it. The first typed digit is already in the value; the
- * caret starts at the end. Enter validates through the rules of its kind (invalid: red border, the
+ * caret starts at the end (or the whole value is selected, `select`). Enter validates through the rules of its kind (invalid: red border, the
  * field stays open) then calls the active tool's onNumericSubmit; Escape and blur close it and call
  * onNumericCancel. As an input it is covered by the keyboard typing guard, and Escape is
  * preventDefault-ed so the global handler leaves it alone. Pointer events never reach the plan.
@@ -43,12 +43,14 @@ function NumericField(p: {
   const leaving = useRef(false);
   const [invalid, setInvalid] = useState(ni?.invalid === true); // read once: the field is remounted per opening
 
+  const selectAll = ni?.select === true; // read once, like `invalid`
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
-  }, []);
+    if (selectAll) el.select();
+    else el.setSelectionRange(el.value.length, el.value.length);
+  }, [selectAll]);
 
   if (!ni) return null;
   const at = placeNumericField(ni.screen, p.canvas);
