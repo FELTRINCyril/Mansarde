@@ -54,7 +54,7 @@ export function snapVolumePoint(
   return face ? { point: face, kind: 'face', guides: [] } : sn;
 }
 
-/** Ghost of the slope tool: the start line so far (b null: not fixed yet), then the whole slope. */
+/** Ghost of the slope tool: the start line a -> b (b follows the cursor until fixed), then the whole slope. */
 export interface SlopeGhost { kind: 'volume-slope'; a: Vec2; b: Vec2; slope: Slope | null; marks: Vec2[] }
 /** Ghost of the beam tool: the first point, then the beam to the cursor. */
 export interface BeamGhost { kind: 'volume-beam'; marks: Vec2[]; beam: Beam | null }

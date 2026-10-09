@@ -175,6 +175,11 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  * - a manual dimension changes its offset (setDimensionOffset);
  * - the handles of a single selected object rotate it (15 degree steps, free with Alt) or resize it
  *   (opposite side fixed, MIN_OBJECT_SIZE minimum).
+ * - slopes and beams of the selection move with the objects and walls (moveSlopes / moveBeams, grid
+ *   steps); the handles of a single selected slope (ends of its start line, middle of its end line)
+ *   or beam (ends) reshape it (dragVolumeHandle);
+ * - a cupboard slides along its wall or onto a hovered wall (dragCupboard);
+ * - at the release of an object drag, onTop and wall objects are posed (settlePose, spec 5.3).
  * A double-click on an interior dimension of a rectangular room opens the numeric field with its
  * value, the typed value resizes the room (setRoomInteriorSize, right / bottom side moves; a
  * refusal is toasted and the value given back in red); a double-click elsewhere in a room opens
