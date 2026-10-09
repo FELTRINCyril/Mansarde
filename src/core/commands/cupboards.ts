@@ -32,8 +32,15 @@ function requireRoom(level: DLevel, c: Cupboard): void {
   if (!cupboardFitsWall(c, wallLength(level, c.wallId))) throw new CommandError(ERR_NO_ROOM);
 }
 
+/** Fixed mode: the plinth under the top; ceiling mode: the gap under the level ceiling. */
+function requireConsistentHeights(level: DLevel, c: Cupboard): void {
+  if (c.heightMode === 'fixed' && !(c.plinth < c.height)) throw new CommandError(ERR_SIZE);
+  if (c.heightMode === 'ceiling' && !(c.gap < level.height)) throw new CommandError(ERR_SIZE);
+}
+
 function requireValidCupboard(level: DLevel, c: Cupboard): void {
   requireValidNumbers(c);
+  requireConsistentHeights(level, c);
   requireRoom(level, c);
 }
 

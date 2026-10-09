@@ -301,3 +301,23 @@ describe('splitWall distributes cupboards', () => {
     run(p2, joinNodeToWall(levelId(p2), nodeAt(lvl(p2), 150, -50), wall, 0.25, { nodeId: 'n-split', wallId: 'w-split' }));
   });
 });
+
+describe('plinth and gap bounds (T8 fix round)', () => {
+  it('fixed mode: the plinth must stay under the height', () => {
+    const { p, top } = setup();
+    const { p: q, id } = withCupboard(p, top, 200);
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 220 }))).toBe('Dimension invalide');
+    expect(refuse(q, updateCupboard(levelId(q), id, { height: 10 }))).toBe('Dimension invalide');
+    expect(refuse(p, addCupboard(levelId(p), createCupboard(top, 200, 'left', { plinth: 300 })))).toBe('Dimension invalide');
+    run(q, updateCupboard(levelId(q), id, { plinth: 219 }));
+  });
+
+  it('ceiling mode: the gap must stay under the level height, the plinth is not compared with height', () => {
+    const { p, top } = setup();
+    const { p: q, id } = withCupboard(p, top, 200, { heightMode: 'ceiling' });
+    const h = lvl(q).height;
+    expect(refuse(q, updateCupboard(levelId(q), id, { gap: h }))).toBe('Dimension invalide');
+    run(q, updateCupboard(levelId(q), id, { gap: h - 1 }));
+    run(q, updateCupboard(levelId(q), id, { height: 5 })); // unused in ceiling mode
+  });
+});

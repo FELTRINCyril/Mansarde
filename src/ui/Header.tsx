@@ -1,18 +1,12 @@
 import type { JSX } from 'react';
 import { renameProject } from '@/core/commands/project';
 import { MOD_LABEL } from '@/editor/keyboard';
-import { useEditor, type EditorState } from '@/editor/store';
+import { useEditor } from '@/editor/store';
 import type { SaveStatus } from '@/storage/autosave';
 import { AlertCounter } from './ChecksPanel';
+import { DisplayMenu } from './DisplayMenu';
 import { run } from './run';
 import { ViewSwitch } from './ViewSwitch';
-
-const DIM_MODES: Array<[EditorState['display']['dimMode'], string]> = [
-  ['all', 'Toutes les cotes'],
-  ['manual', 'Cotes manuelles'],
-  ['none', 'Aucune cote'],
-];
-
 
 function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element {
   if (status.state === 'error') {
@@ -29,13 +23,15 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element {
   );
 }
 
-/** Editor header: back to projects, project name, undo/redo, view switch, display options, settings, export, save status. */
+/**
+ * Editor header: back to projects, project name, undo/redo, view switch with the alert counter,
+ * the "Affichage" menu (ruling V2-R30), save status (fixed width: the name never moves), settings,
+ * export.
+ */
 export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings(): void; onExport(): void }): JSX.Element | null {
   const name = useEditor((s) => s.project?.name);
   const canUndo = useEditor((s) => s.history.past.length > 0);
   const canRedo = useEditor((s) => s.history.future.length > 0);
-  const display = useEditor((s) => s.display);
-  const setDisplay = useEditor((s) => s.setDisplay);
   if (name === undefined) return null;
   return (
     <header className="header">
@@ -71,32 +67,12 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
       </div>
       <div className="header-group">
         <ViewSwitch />
+        <AlertCounter />
       </div>
       <div className="header-group">
-        <select
-          className="input"
-          aria-label="Affichage des cotes"
-          data-testid="dim-mode"
-          value={display.dimMode}
-          onChange={(e) => setDisplay({ dimMode: e.target.value as EditorState['display']['dimMode'] })}
-        >
-          {DIM_MODES.map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <label className="check">
-          <input type="checkbox" checked={display.showLowerLevel} onChange={(e) => setDisplay({ showLowerLevel: e.target.checked })} />
-          Niveau inférieur en filigrane
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={display.showGrid} onChange={(e) => setDisplay({ showGrid: e.target.checked })} />
-          Grille
-        </label>
+        <DisplayMenu />
       </div>
       <div className="header-spacer" />
-      <AlertCounter />
       <SaveIndicator status={p.saveStatus} />
       <button type="button" className="btn" onClick={p.onSettings} data-testid="open-settings">
         Réglages

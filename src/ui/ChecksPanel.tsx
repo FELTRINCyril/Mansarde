@@ -1,10 +1,10 @@
-import { useContext, type JSX } from 'react';
+import { memo, useContext, useMemo, type JSX } from 'react';
 import { computeChecks } from '@/core/checks/computeChecks';
 import type { Check } from '@/core/checks/types';
 import { deriveLevel } from '@/core/geometry/derived';
 import { focusCheck } from '@/editor/checkTargets';
 import { activeLevel, useEditor } from '@/editor/store';
-import { alertCountLabel, orderChecks } from './checksView';
+import { alertCountLabel, MAX_CHECK_ROWS, moreChecksLabel, orderChecks } from './checksView';
 import { PlanViewportContext } from './planViewport';
 
 const NO_CHECKS: Check[] = [];
@@ -41,10 +41,35 @@ export function AlertCounter(): JSX.Element | null {
   );
 }
 
+/** Same rule, same targets (stable id), same text: the row would render the same. */
+const sameRow = (a: { check: Check }, b: { check: Check }): boolean =>
+  a.check.id === b.check.id && a.check.message === b.check.message && a.check.severity === b.check.severity;
+
+/**
+ * One alert. Memoized on what it shows: during a gesture computeChecks returns new Check objects
+ * every frame, but the rows whose alert did not change are not rendered again. A click uses the
+ * row's check, whose targets are the same as the current one's (same id).
+ */
+const CheckRow = memo(function CheckRow({ check, onFocus }: { check: Check; onFocus(c: Check): void }): JSX.Element {
+  const label = check.severity === 'error' ? 'Erreur' : 'Avertissement';
+  return (
+    <li>
+      <button type="button" className="check-row" data-testid="check-row" data-severity={check.severity} onClick={() => onFocus(check)}>
+        <span className={`check-mark check-mark-${check.severity}`} role="img" aria-label={label} title={label}>
+          !
+        </span>
+        <span className="check-message">{check.message}</span>
+      </button>
+    </li>
+  );
+}, sameRow);
+
 /**
  * Checks panel (spec 7.4), collapsible: one row per alert (red mark for an error, orange for a
- * warning), errors first; a click selects the elements of the alert and centers the plan on them;
- * "Masquer les alertes" removes the outlines from the plan (the list and the counter stay).
+ * warning), errors first, at most MAX_CHECK_ROWS rows then "N autres alertes", in a list of
+ * bounded height that scrolls (the properties stay in view); a click selects the elements of the
+ * alert and centers the plan on them; "Masquer les alertes" removes the outlines from the plan
+ * (the list and the counter stay).
  */
 export function ChecksPanel(): JSX.Element {
   const checks = useLevelChecks();
@@ -52,6 +77,9 @@ export function ChecksPanel(): JSX.Element {
   const hide = useEditor((s) => s.display.hideAlerts);
   const setDisplay = useEditor((s) => s.setDisplay);
   const viewport = useContext(PlanViewportContext);
+  const onFocus = useMemo(() => (c: Check) => focusCheck(useEditor, c, viewport()), [viewport]);
+  const ordered = useMemo(() => (open ? orderChecks(checks) : NO_CHECKS), [open, checks]);
+  const shown = ordered.length > MAX_CHECK_ROWS ? ordered.slice(0, MAX_CHECK_ROWS) : ordered;
   return (
     <section className="panel-section checks-panel" data-testid="checks-panel">
       <button
@@ -74,23 +102,15 @@ export function ChecksPanel(): JSX.Element {
               Aucune alerte.
             </p>
           ) : (
-            <ul className="checks-list">
-              {orderChecks(checks).map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    className="check-row"
-                    data-testid="check-row"
-                    data-severity={c.severity}
-                    onClick={() => focusCheck(useEditor, c, viewport())}
-                  >
-                    <span className={`check-mark check-mark-${c.severity}`} aria-label={c.severity === 'error' ? 'Erreur' : 'Avertissement'}>
-                      !
-                    </span>
-                    <span className="check-message">{c.message}</span>
-                  </button>
-                </li>
+            <ul className="checks-list" data-testid="checks-list">
+              {shown.map((c) => (
+                <CheckRow key={c.id} check={c} onFocus={onFocus} />
               ))}
+              {ordered.length > shown.length && (
+                <li className="checks-more" data-testid="checks-more">
+                  {moreChecksLabel(ordered.length - shown.length)}
+                </li>
+              )}
             </ul>
           )}
           <label className="field-check checks-hide">

@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import { updateCupboard } from '@/core/commands/cupboards';
+import { moveCupboard, updateCupboard } from '@/core/commands/cupboards';
 import { deriveVolumes } from '@/core/geometry/derived';
 import { MAX_CUPBOARD_DOORS } from '@/core/model/defaults';
 import type { Cupboard, Level } from '@/core/model/types';
@@ -22,7 +22,8 @@ const DOOR_COUNTS: Array<[string, string]> = Array.from({ length: MAX_CUPBOARD_D
 /**
  * Built-in cupboard (spec 7.2): sizes, plinth, height mode with the height (fixed) or the gap under
  * the ceiling, doors (count from a list bounded by MAX_CUPBOARD_DOORS, type), color, and the
- * resulting height read from the top profile ("de 1,48 m à 2,38 m" under a slope).
+ * resulting height read from the top profile ("de 1,48 m à 2,38 m" under a slope), and "Changer
+ * de face" (against the other face of its wall, the plan cannot do it; a refusal is toasted).
  */
 export function CupboardProperties({ level, id }: { level: Level; id: string }): JSX.Element | null {
   const c = level.cupboards[id];
@@ -50,6 +51,15 @@ export function CupboardProperties({ level, id }: { level: Level; id: string }):
       />
       <Choice label="Portes" value={c.doorType} options={DOOR_TYPES} testId="cupboard-door-type" onChange={(doorType) => update({ doorType })} />
       <ColorField label="Couleur" value={c.color} testId="cupboard-color" onCommit={(color) => update({ color })} />
+      <button
+        type="button"
+        className="btn btn-block"
+        data-testid="cupboard-flip-side"
+        title="Placer le placard contre l'autre face du mur"
+        onClick={() => run('Changer de face', moveCupboard(level.id, id, c.wallId, c.offset, c.side === 'left' ? 'right' : 'left'))}
+      >
+        Changer de face
+      </button>
     </Section>
   );
 }

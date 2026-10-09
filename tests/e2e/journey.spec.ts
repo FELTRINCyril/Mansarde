@@ -183,7 +183,8 @@ test("journey: a two-room summer house, furnished, on two levels, saved and expo
   await levelName.fill('Étage');
   await levelName.press('Enter');
   await expect(page.getByTestId('level-tab-1')).toHaveText('Étage');
-  // the watermark option is on by default: off, then on again
+  // the watermark option (menu "Affichage") is on by default: off, then on again
+  await page.getByTestId('display-menu').click();
   const watermark = page.getByRole('checkbox', { name: 'Niveau inférieur en filigrane' });
   await expect(watermark).toBeChecked();
   await watermark.uncheck();

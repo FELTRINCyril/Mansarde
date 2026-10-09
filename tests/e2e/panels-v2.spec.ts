@@ -135,6 +135,31 @@ test('beam and cupboard panels: mode, underside height, resulting height under t
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('toast')).toHaveText('Pas assez de place sur ce mur');
   expect((await levelState(page)).cupboards[0]!.width).toBe(120);
+  await page.keyboard.press('Escape');
+
+  // "Changer de face": against the other face of the wall, one undo step
+  const side = (await levelState(page)).cupboards[0]!.side;
+  await page.getByTestId('cupboard-flip-side').click();
+  await expect.poll(async () => (await levelState(page)).cupboards[0]!.side).toBe(side === 'left' ? 'right' : 'left');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(async () => (await levelState(page)).cupboards[0]!.side).toBe(side);
+
+  // fixed mode: a plinth up to the top is refused
+  await page.getByTestId('cupboard-height-mode').selectOption('fixed');
+  await page.getByTestId('cupboard-plinth').fill('220');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('toast')).toHaveText('Dimension invalide');
+  expect((await levelState(page)).cupboards[0]!.plinth).toBe(10);
+  await page.keyboard.press('Escape');
+
+  // a text that is not a value: red border and a short hint, nothing committed
+  await page.getByTestId('cupboard-depth').fill('abc');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('cupboard-depth-error')).toHaveText('Valeur invalide');
+  await expect(page.getByTestId('cupboard-depth')).toHaveAttribute('aria-invalid', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('cupboard-depth-error')).toHaveCount(0);
+  await expect(page.getByTestId('cupboard-depth')).toHaveValue('60');
 });
 
 test('checks: counter, panel rows, Revêtement, row click selects and centers, hide alerts', async ({ page }) => {
@@ -191,6 +216,66 @@ test('checks: counter, panel rows, Revêtement, row click selects and centers, h
   await expect(rows).toHaveCount(0);
 });
 
+test('checks list: bounded height, 200 rows at most, the properties stay in view', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await createProject(page, 'Beaucoup');
+  await interiorRoom(page);
+  // 25 chests on the same spot: 300 collisions
+  await addObjects(
+    page,
+    Array.from({ length: 25 }, (_, i) => ['generic-rect', `Coffre ${i + 1}`, 200, 150, { width: 80, depth: 60, height: 40 }] as [string, string, number, number, { width: number; depth: number; height: number }]),
+  );
+  await expect(page.getByTestId('alert-counter')).toHaveText('300 alertes');
+  await page.getByTestId('alert-counter').click();
+  await expect(page.getByTestId('check-row')).toHaveCount(200);
+  await expect(page.getByTestId('checks-more')).toHaveText('100 autres alertes');
+  await expect(page.getByRole('img', { name: 'Erreur' }).first()).toBeVisible();
+  const list = page.getByTestId('checks-list');
+  const { client, scroll } = await list.evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight }));
+  expect(client).toBeLessThanOrEqual(0.4 * 900 + 1);
+  expect(scroll).toBeGreaterThan(client);
+  // a row selects its two chests; the properties below the list are on screen
+  await page.getByTestId('check-row').first().click();
+  expect((await levelState(page)).selection).toHaveLength(2);
+  await expect(page.getByTestId('selection-count')).toBeInViewport();
+});
+
+test('header at 1440 px: a 30 character name is whole, the display options are in the "Affichage" menu', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = 'Maison de campagne à Montargis';
+  expect(name).toHaveLength(30);
+  await createProject(page, name);
+  await interiorRoom(page);
+  await addObjects(page, [
+    ['bed-90', 'Lit', 100, 150],
+    ['generic-rect', 'Coffre', 100, 230, { width: 80, depth: 60, height: 40 }],
+  ]);
+  await expect(page.getByTestId('alert-counter')).toBeVisible();
+  const input = page.getByTestId('project-name');
+  const whole = () => input.evaluate((el: HTMLInputElement) => el.scrollWidth <= el.clientWidth);
+  expect(await whole()).toBe(true);
+  // the counter sits in the group of the view switch
+  await expect(page.locator('.header-group').filter({ has: page.getByTestId('alert-counter') })).toContainText('Plan + 3D');
+  // the name does not move between "Enregistrement..." and "Enregistré": the status has a fixed width
+  await expect(page.getByTestId('save-status')).toHaveText('Enregistré');
+  expect(await page.getByTestId('save-status').evaluate((el) => el.getBoundingClientRect().width)).toBe(112);
+
+  // display menu: closed by default, grid off then on, Escape closes it
+  await expect(page.getByRole('checkbox', { name: 'Grille' })).toHaveCount(0);
+  await page.getByTestId('display-menu').click();
+  await expect(page.getByTestId('dim-mode')).toHaveValue('all');
+  await page.getByRole('checkbox', { name: 'Grille' }).uncheck();
+  expect(await page.evaluate(() => window.__planMaison!.store.getState().display.showGrid)).toBe(false);
+  await page.getByRole('checkbox', { name: 'Grille' }).check();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('display-menu-panel')).toHaveCount(0);
+  await expect(page.getByTestId('display-menu')).toBeFocused();
+  // a press outside closes it too
+  await page.getByTestId('display-menu').click();
+  await page.getByTestId('plan-canvas').click({ position: { x: 3, y: 3 } });
+  await expect(page.getByTestId('display-menu-panel')).toHaveCount(0);
+});
+
 test('pose menu: "Posé sur un meuble" lifts the object onto the furniture under its center', async ({ page }) => {
   await createProject(page, 'Pose');
   await interiorRoom(page);
@@ -210,6 +295,15 @@ test('pose menu: "Posé sur un meuble" lifts the object onto the furniture under
   await page.keyboard.press('ControlOrMeta+z');
   await expect(page.getByTestId('object-pose')).toHaveValue('floor');
   await expect(page.getByTestId('object-elevation')).toHaveValue('0');
+
+  // back on the furniture, then "Au sol": down to 0 in one step
+  await page.getByTestId('object-pose').selectOption('onTop');
+  await expect(page.getByTestId('object-elevation')).toHaveValue('50');
+  await page.getByTestId('object-pose').selectOption('floor');
+  await expect(page.getByTestId('object-elevation')).toHaveValue('0');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.getByTestId('object-pose')).toHaveValue('onTop');
+  await expect(page.getByTestId('object-elevation')).toHaveValue('50');
 });
 
 test('room panel: interior width 420 typed gives 12,60 m2; a refused size stays red with its reason', async ({ page }) => {
@@ -232,6 +326,19 @@ test('room panel: interior width 420 typed gives 12,60 m2; a refused size stays 
   await expect(page.getByTestId('room-depth')).toHaveValue('5');
   await expect(page.getByTestId('room-depth')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByTestId('room-area')).toHaveText('12,60 m²');
+  // the blur that follows does not submit the refused value a second time
+  const toastId = () => page.evaluate(() => window.__planMaison!.store.getState().toast?.id ?? null);
+  const first = await toastId();
+  await page.getByTestId('room-width').focus();
+  expect(await toastId()).toBe(first);
+  // Escape in the field drops the value and the reason
+  await page.getByTestId('room-depth').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('room-depth')).toHaveValue('300');
+  await expect(page.getByTestId('room-size-error')).toHaveCount(0);
+  await page.getByTestId('room-depth').fill('5');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('room-size-error')).toHaveText('Dimension minimale : 10 cm.');
   await page.getByTestId('room-depth').fill('320');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('room-area')).toHaveText('13,44 m²');
@@ -268,7 +375,7 @@ test('screenshots of the V2 panels', async ({ page }) => {
   const dir = process.env.SHOT_DIR;
   test.skip(!dir, 'visual check only (set SHOT_DIR)');
   await page.setViewportSize({ width: 1440, height: 900 });
-  await createProject(page, 'Captures V2');
+  await createProject(page, 'Maison de campagne à Montargis');
   await interiorRoom(page);
   await volumes(page);
   await addObjects(page, [
@@ -278,6 +385,10 @@ test('screenshots of the V2 panels', async ({ page }) => {
   ]);
   await fit(page);
   const shot = (name: string) => page.screenshot({ path: `${dir}/${name}.png` });
+  await shot('header');
+  await page.getByTestId('display-menu').click();
+  await shot('display-menu');
+  await page.keyboard.press('Escape');
   await page.getByTestId('alert-counter').click();
   await shot('checks-panel');
   await page.getByTestId('check-row').first().click();
