@@ -180,7 +180,8 @@ test('interrupted drags commit nothing; shortcuts work after a checkbox; rename 
   await expectUnmoved();
   await expect(page.locator('[data-kind="object"]')).toHaveCount(1);
 
-  // a focused checkbox does not swallow the shortcuts
+  // a focused checkbox does not swallow the shortcuts (the grid option is in the "Affichage" menu)
+  await page.getByTestId('display-menu').click();
   await page.getByRole('checkbox', { name: 'Grille' }).click();
   await expect(page.getByRole('checkbox', { name: 'Grille' })).toBeFocused();
   await page.keyboard.press('ControlOrMeta+z');

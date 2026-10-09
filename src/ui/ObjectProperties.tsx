@@ -33,6 +33,8 @@ export function ColorField(p: { label: string; value: string; onCommit(v: string
 
 const NO_CUSTOM: Record<string, CustomObjectDef> = {};
 const SHAPE_NAMES = { rect: 'Rectangle', circle: 'Cercle', lshape: 'Forme en L' } as const;
+/** Poses of objects standing on the floor. */
+const FLOOR_POSES: ReadonlySet<ObjectPose> = new Set(['floor', 'covering', 'tuckable']);
 const POSES: Array<[ObjectPose, string]> = [
   ['floor', 'Au sol'],
   ['covering', 'Revêtement'],
@@ -54,12 +56,20 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
   const savable = shape !== 'symbol' && o.source.kind === 'catalog';
 
   /**
-   * Pose menu (spec 7.2). Choosing "Posé sur un meuble" also lifts the object onto the furniture
-   * under its center, as a drop does (spec 5.3); without one its laying height is kept.
+   * Pose menu (spec 7.2), one history entry. Choosing "Posé sur un meuble" also lifts the object
+   * onto the furniture under its center, as a drop does (spec 5.3, ruling V2-R31); without one its
+   * laying height is kept. Leaving "Posé sur un meuble" for a pose standing on the floor (Au sol,
+   * Revêtement, Rangé dessous) puts it back at 0; "Mural" keeps the laying height.
    */
   const setPose = (pose: ObjectPose) => {
-    const support = pose === 'onTop' ? supportElevation(level, id, { x: o.x, y: o.y }, customObjects) : 0;
-    update(support > 0 ? { pose, elevation: support } : { pose });
+    if (pose === 'onTop') {
+      const support = supportElevation(level, id, { x: o.x, y: o.y }, customObjects);
+      update(support > 0 ? { pose, elevation: support } : { pose });
+    } else if (o.pose === 'onTop' && FLOOR_POSES.has(pose)) {
+      update({ pose, elevation: 0 });
+    } else {
+      update({ pose });
+    }
   };
 
   const saveAsCustom = () => {
@@ -90,7 +100,7 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
         testId="object-model"
       />
       <TextField label="Nom" value={o.name} testId="object-name" onCommit={(name) => update({ name })} />
-      <Choice label="Pose" wide value={o.pose} options={POSES} testId="object-pose" onChange={setPose} />
+      <Choice label="Pose" block value={o.pose} options={POSES} testId="object-pose" onChange={setPose} />
       <NumericInput label="Largeur" valueCm={o.width} testId="object-width" onCommit={(width) => update({ width })} />
       <NumericInput label="Profondeur" valueCm={o.depth} testId="object-depth" onCommit={(depth) => update({ depth })} />
       <NumericInput label="Hauteur" valueCm={o.height} testId="object-height" onCommit={(height) => update({ height })} />

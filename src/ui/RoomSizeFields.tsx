@@ -22,11 +22,13 @@ const NEIGHBOUR = 'La pièce voisine sera modifiée.';
  * bouge": the right / bottom side by default (in the room frame, see RectRoom), or the left / top
  * one. Under a field, "La pièce voisine sera modifiée." when its moving wall is shared with another
  * room. A refused size stays in red in its field and the reason is written under the fields (the
- * store toasts it too).
+ * store toasts it too) until Escape in the field or any change of the level.
  */
 export function RoomSizeFields({ level, roomKey }: { level: Level; roomKey: string }): JSX.Element | null {
   const [side, setSide] = useState<MoveSide>('max');
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // the reason of a refused size, for the level it was refused on: any change of the level (undo,
+  // another edit) or Escape in the field drops it
+  const [refusal, setRefusal] = useState<{ message: string; level: Level } | null>(null);
   const derived = deriveLevel(level);
   const rect = rectangularRoom(level, derived, roomKey);
   if (!rect) return null;
@@ -36,7 +38,8 @@ export function RoomSizeFields({ level, roomKey }: { level: Level; roomKey: stri
     const before = store.toast;
     const ok = store.execute('Dimensions de la pièce', setRoomInteriorSize(level.id, roomKey, axis, value, side));
     const toast = useEditor.getState().toast;
-    setRefusal(ok ? null : toast && toast !== before ? toast.message : 'Impossible de redimensionner cette pièce ainsi.');
+    const message = toast && toast !== before ? toast.message : 'Impossible de redimensionner cette pièce ainsi.';
+    setRefusal(ok ? null : { message, level });
     return ok;
   };
   const neighbour = (axis: Axis) =>
@@ -48,14 +51,14 @@ export function RoomSizeFields({ level, roomKey }: { level: Level; roomKey: stri
 
   return (
     <>
-      <NumericInput label="Largeur intérieure" valueCm={rect.width} testId="room-width" keepRefused onCommit={(v) => commit('width', v)} />
+      <NumericInput label="Largeur intérieure" valueCm={rect.width} testId="room-width" keepRefused onCommit={(v) => commit('width', v)} onRevert={() => setRefusal(null)} />
       {neighbour('width')}
-      <NumericInput label="Profondeur intérieure" valueCm={rect.depth} testId="room-depth" keepRefused onCommit={(v) => commit('depth', v)} />
+      <NumericInput label="Profondeur intérieure" valueCm={rect.depth} testId="room-depth" keepRefused onCommit={(v) => commit('depth', v)} onRevert={() => setRefusal(null)} />
       {neighbour('depth')}
       <Choice<MoveSide> label="Côté qui bouge" value={side} options={SIDES} testId="room-move-side" onChange={setSide} />
-      {refusal && (
+      {refusal && refusal.level === level && (
         <p className="panel-error" role="alert" data-testid="room-size-error">
-          {refusal}
+          {refusal.message}
         </p>
       )}
     </>

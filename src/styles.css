@@ -224,6 +224,14 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+.field-error {
+  grid-column: 1 / -1;
+  margin-top: -2px;
+  color: var(--danger);
+  font-size: 12px;
+  text-align: right;
+}
+
 .field-check {
   display: flex;
   gap: 6px;
@@ -529,7 +537,8 @@ select {
 }
 
 .project-name {
-  width: 200px;
+  flex: 0 1 260px;
+  min-width: 140px;
   font-weight: 600;
   border-color: transparent;
 }
@@ -540,9 +549,14 @@ select {
 }
 
 .save-status {
+  flex: none;
+  width: 112px;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 13px;
+  text-align: right;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .save-status-error {
@@ -997,6 +1011,28 @@ select {
   font-size: 13px;
 }
 
+/* ===== Display menu of the header (ruling V2-R30) ===== */
+
+.display-menu {
+  position: relative;
+}
+
+.display-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 230px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
 /* ===== Checks (spec 7.4) ===== */
 
 .alert-counter {
@@ -1064,9 +1100,17 @@ select {
 }
 
 .checks-list {
+  max-height: 40vh;
   margin: 8px 0 4px;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
+}
+
+.checks-more {
+  padding: 5px 4px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .check-row {

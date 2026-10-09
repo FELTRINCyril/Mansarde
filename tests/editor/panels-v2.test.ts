@@ -13,7 +13,7 @@ import { focusCheck, targetsBounds } from '@/editor/checkTargets';
 import { roomSideShared } from '@/editor/roomSizeInfo';
 import { createEditorStore } from '@/editor/store';
 import { centerOnBounds, worldToScreen } from '@/editor/view';
-import { alertCountLabel, orderChecks } from '@/ui/checksView';
+import { alertCountLabel, MAX_CHECK_ROWS, moreChecksLabel, orderChecks } from '@/ui/checksView';
 import { resultingHeightText } from '@/ui/volumeText';
 import { findWall, levelFromWalls, rectRoom, type WallSegment } from '../core/fixtures';
 import { lvl, projectFrom, run } from '../core/helpers';
@@ -133,6 +133,12 @@ describe('checks panel texts', () => {
   it('alertCountLabel: singular and plural', () => {
     expect(alertCountLabel(1)).toBe('1 alerte');
     expect(alertCountLabel(3)).toBe('3 alertes');
+  });
+
+  it('the panel renders at most 200 rows, the rest in one line', () => {
+    expect(MAX_CHECK_ROWS).toBe(200);
+    expect(moreChecksLabel(1)).toBe('1 autre alerte');
+    expect(moreChecksLabel(1301)).toBe('1301 autres alertes');
   });
 
   it('orderChecks puts the errors first, keeping the rule order otherwise', () => {
