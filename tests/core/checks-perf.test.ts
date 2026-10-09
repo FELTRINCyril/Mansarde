@@ -86,17 +86,23 @@ function house(seed: number): Level {
   return level;
 }
 
+const RUNS = 9; // warm runs, the minimum is kept (ruling V2-R28)
+// wall-clock limit of the test itself (vitest default 5 s): under a load of 30+ it is the whole test that
+// slows down (setup, deriveLevel), not the measured minimum; the assertions on the minimum guard the budget
+const TEST_TIMEOUT_MS = 60_000;
+
 /**
- * Mean time of computeChecks over 5 calls after a warm-up, each on a new Level built by `next(i)`
+ * Minimum time of computeChecks over RUNS calls after a warm-up (the best estimate of the intrinsic
+ * cost: load only ever adds time), each on a new Level built by `next(i)`
  * (new identity: the memo cannot answer); deriveLevel is computed outside the measure, as the
  * editor has it already.
  */
-function measure(label: string, next: (i: number) => Level): { mean: number; kinds: Set<string>; count: number } {
+function measure(label: string, next: (i: number) => Level): { best: number; kinds: Set<string>; count: number } {
   const custom = {};
   const first = next(0);
   const warm = computeChecks(first, deriveLevel(first), custom);
   const times: number[] = [];
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= RUNS; i++) {
     const fresh = next(i);
     const d = deriveLevel(fresh);
     const t0 = performance.now();
@@ -104,13 +110,13 @@ function measure(label: string, next: (i: number) => Level): { mean: number; kin
     times.push(performance.now() - t0);
     expect(out).not.toBe(warm);
   }
-  const mean = times.reduce((s, t) => s + t, 0) / times.length;
-  console.info(`computeChecks (${label}): ${warm.length} checks, mean ${mean.toFixed(1)} ms over 5 runs (${times.map((t) => t.toFixed(1)).join(', ')})`);
-  return { mean, kinds: new Set(warm.map((c) => c.kind)), count: warm.length };
+  const best = Math.min(...times);
+  console.info(`computeChecks (${label}): ${warm.length} checks, min ${best.toFixed(1)} ms of ${RUNS} runs (${times.map((t) => t.toFixed(1)).join(', ')})`);
+  return { best, kinds: new Set(warm.map((c) => c.kind)), count: warm.length };
 }
 
 describe('checks performance budget', () => {
-  it('300 objects in 6 rooms: computeChecks under 50 ms on average', () => {
+  it('300 objects in 6 rooms: computeChecks under 50 ms (best of 9 warm runs)', () => {
     const level = house(20261008);
     expect(Object.keys(level.objects)).toHaveLength(300);
     expect(deriveLevel(level).rooms).toHaveLength(6);
@@ -121,7 +127,7 @@ describe('checks performance budget', () => {
     for (const k of ['height', 'collision', 'wallOverlap', 'doorSwing', 'cupboardOpening', 'floating', 'cupboardClearance'] as const) {
       expect(still.kinds.has(k)).toBe(true);
     }
-    expect(still.mean).toBeLessThan(50);
+    expect(still.best).toBeLessThan(50);
 
     // a slope and the beam moving: the volumes (slope bands, cupboard profiles) are recomputed
     const [slopeId] = Object.keys(level.slopes);
@@ -138,6 +144,6 @@ describe('checks performance budget', () => {
     expect(deriveVolumes({ ...level })).toBe(deriveVolumes({ ...level }));
     const moving = measure('slope and beam moving', movedLevel);
     expect(moving.count).toBeGreaterThan(0);
-    expect(moving.mean).toBeLessThan(50);
-  });
+    expect(moving.best).toBeLessThan(50);
+  }, TEST_TIMEOUT_MS);
 });
