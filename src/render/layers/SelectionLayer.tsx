@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import { manualDimLine } from '@/core/geometry/autoDimensions';
-import type { DerivedLevel } from '@/core/geometry/derived';
+import { deriveVolumes, type DerivedLevel } from '@/core/geometry/derived';
 import { objectFootprint, objectShape } from '@/core/geometry/objects';
 import { openingCutRing } from '@/core/geometry/openings';
 import type { CustomObjectDef, Id, Level, Ring } from '@/core/model/types';
@@ -27,6 +27,18 @@ function outline(item: SelectionItem, level: Level, derived: DerivedLevel, custo
     case 'room': {
       const room = derived.rooms.find((r) => r.key === item.id);
       return room ? [room.ring, ...room.islands] : null;
+    }
+    case 'slope': {
+      const band = deriveVolumes(level).slopeBands.get(item.id);
+      return band ? [band] : null;
+    }
+    case 'beam': {
+      const ring = deriveVolumes(level).beamFootprints.get(item.id);
+      return ring ? [ring] : null;
+    }
+    case 'cupboard': {
+      const ring = deriveVolumes(level).cupboardFootprints.get(item.id);
+      return ring ? [ring] : null;
     }
     default:
       return null;

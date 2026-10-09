@@ -1,8 +1,14 @@
 import type { JSX, ReactNode } from 'react';
-import { deriveLevel } from '@/core/geometry/derived';
+import type { CheckSeverity } from '@/core/checks/types';
+import { deriveLevel, deriveVolumes } from '@/core/geometry/derived';
+import { objectCorners } from '@/core/geometry/objects';
+import { bbox } from '@/core/geometry/polygon';
 import type { Id, Level, Project } from '@/core/model/types';
 import type { SelectionItem } from '@/editor/selection';
+import { AlertsLayer } from './layers/AlertsLayer';
 import { BackgroundLayer } from './layers/BackgroundLayer';
+import { BeamsLayer } from './layers/BeamsLayer';
+import { CupboardsLayer } from './layers/CupboardsLayer';
 import { DimensionsLayer, type DimMode } from './layers/DimensionsLayer';
 import { GridLayer, type ViewBox } from './layers/GridLayer';
 import { LowerLevelLayer } from './layers/LowerLevelLayer';
@@ -11,7 +17,9 @@ import { OpeningsLayer } from './layers/OpeningsLayer';
 import { RoomLabelsLayer } from './layers/RoomLabelsLayer';
 import { RoomsLayer } from './layers/RoomsLayer';
 import { SelectionLayer } from './layers/SelectionLayer';
+import { SlopesLayer } from './layers/SlopesLayer';
 import { WallsLayer } from './layers/WallsLayer';
+import { roomLabelBox } from './roomLabelLayout';
 import { num, STYLE } from './style';
 
 export type { DimMode, ViewBox };
@@ -27,22 +35,41 @@ export interface PlanSvgProps {
   mode: 'screen' | 'print';
   imageUrls: Record<Id, string>; // background imageId -> URL (object URL on screen, data URL in export)
   selection?: SelectionItem[]; // screen only, highlights
+  /** Screen only: worst check severity per target, keyed `${kind}:${id}` (checkSeverityByTarget). */
+  alerts?: ReadonlyMap<string, CheckSeverity>;
   overlay?: ReactNode; // screen only, rendered last
   width?: number | string;
   height?: number | string;
 }
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 /**
- * The plan as an SVG whose user unit is the centimeter. Layers, bottom to top (spec 8): paper,
- * background image, lower level ghost, grid, rooms, objects, room labels, walls, openings,
- * dimensions, then selection and overlay on screen. Room labels sit above the objects so that
- * furniture never hides a room name. The print mode drops the grid, the selection and the overlay;
- * everything else is identical, so the export reuses the screen rendering.
+ * The plan as an SVG whose user unit is the centimeter. Layers, bottom to top (spec 8, V2 spec
+ * 7.3): paper, background image, lower level ghost, grid, rooms, roof slopes, cupboards and
+ * objects, walls, openings, beams, dimensions, room labels, then alerts, selection and overlay on
+ * screen. Room labels sit above the furniture, the beams and the dimensions so that nothing hides
+ * a room name (ruling R21). The print mode drops the grid, the alerts, the selection (and the
+ * cupboard clearance it shows) and the overlay; everything else is identical, so the export reuses
+ * the screen rendering.
  */
 export function PlanSvg(p: PlanSvgProps): JSX.Element {
   const { level, lineUnit, viewBox: vb } = p;
   const derived = deriveLevel(level);
+  const volumes = deriveVolumes(level);
   const screen = p.mode === 'screen';
+  // room names are drawn above the slopes and beams, the furniture and cupboards above the slopes:
+  // their labels keep clear of them
+  const roomNames = derived.rooms.map((r) => roomLabelBox(r, lineUnit));
+  const overSlopes =
+    Object.keys(level.slopes).length === 0
+      ? []
+      : [
+          ...roomNames,
+          ...Object.values(level.objects).map((o) => bbox(objectCorners(o))!),
+          ...[...volumes.cupboardFootprints.values()].map((r) => bbox(r)!),
+        ];
+  const selectedCupboards = screen && p.selection ? new Set(p.selection.filter((i) => i.kind === 'cupboard').map((i) => i.id)) : NO_IDS;
   const bg = level.background;
   const imageShown = !!bg && bg.visible && !!p.imageUrls[bg.imageId];
   return (
@@ -59,11 +86,17 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
       <LowerLevelLayer level={p.lowerLevel} />
       {screen && p.showGrid && <GridLayer viewBox={vb} gridStep={p.project.settings.gridStep} lineUnit={lineUnit} />}
       <RoomsLayer rooms={derived.rooms} translucent={imageShown} />
+      <SlopesLayer slopes={level.slopes} labelObstacles={overSlopes} lineUnit={lineUnit} />
+      <CupboardsLayer level={level} footprints={volumes.cupboardFootprints} selectedIds={selectedCupboards} lineUnit={lineUnit} />
       <ObjectsLayer objects={level.objects} customObjects={p.project.customObjects} lineUnit={lineUnit} />
-      <RoomLabelsLayer rooms={derived.rooms} lineUnit={lineUnit} />
       <WallsLayer shape={derived.shapeWithOpenings} degraded={derived.degraded} />
       <OpeningsLayer level={level} lineUnit={lineUnit} />
+      <BeamsLayer level={level} footprints={volumes.beamFootprints} labelObstacles={roomNames} lineUnit={lineUnit} />
       <DimensionsLayer level={level} derived={derived} dimMode={p.dimMode} lineUnit={lineUnit} />
+      <RoomLabelsLayer rooms={derived.rooms} lineUnit={lineUnit} />
+      {screen && p.alerts && (
+        <AlertsLayer alerts={p.alerts} level={level} volumes={volumes} customObjects={p.project.customObjects} lineUnit={lineUnit} />
+      )}
       {screen && p.selection && (
         <SelectionLayer selection={p.selection} level={level} derived={derived} customObjects={p.project.customObjects} lineUnit={lineUnit} />
       )}

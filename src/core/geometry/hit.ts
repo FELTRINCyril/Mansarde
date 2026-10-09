@@ -1,13 +1,13 @@
 import { SNAP_PX } from '../model/defaults';
 import type { CustomObjectDef, Id, Level, Opening, Ring, Vec2 } from '../model/types';
 import { dimLineEnds, manualDimLine } from './autoDimensions';
-import type { DerivedLevel } from './derived';
+import { deriveVolumes, type DerivedLevel } from './derived';
 import { objectFootprint, objectShape } from './objects';
 import { openingCutRing, openingFrame } from './openings';
 import { pointInPolygon, pointInRing } from './polygon';
 import { add, dist, projectOnSegment, scale, sub } from './vec';
 
-export type HitKind = 'opening' | 'object' | 'node' | 'wall' | 'dimension' | 'room';
+export type HitKind = 'opening' | 'object' | 'node' | 'wall' | 'dimension' | 'room' | 'slope' | 'beam' | 'cupboard';
 export interface HitTarget {
   kind: HitKind;
   id: Id; // for a room: room.key
@@ -27,6 +27,13 @@ function nearest<T>(items: Iterable<T>, distance: (item: T) => number, tol: numb
   return best;
 }
 
+/** Id of the last ring (topmost, record order) containing p, or null. */
+function lastContaining(rings: Map<Id, Ring>, p: Vec2): Id | null {
+  let found: Id | null = null;
+  for (const [id, ring] of rings) if (pointInRing(p, ring)) found = id;
+  return found;
+}
+
 /** Wall whose outline contains p; inside the wall shape but in no outline (tiny joint notch), the wall with the nearest axis. */
 function hitWall(level: Level, d: DerivedLevel, p: Vec2): Id | null {
   for (const [id, ring] of d.outlines) if (pointInRing(p, ring)) return id;
@@ -42,10 +49,12 @@ function hitWall(level: Level, d: DerivedLevel, p: Vec2): Id | null {
 
 /**
  * Element under the point p (world cm). Priority: opening (inside its cut ring) > wall node
- * (closer than SNAP_PX screen pixels) > object (topmost = last in record order, inside its
- * footprint) > manual dimension (closer than the tolerance to its drawn line) > wall (inside its
- * outline) > room (inside its ring and outside its islands). customObjects gives the footprint
- * shape of custom objects.
+ * (closer than SNAP_PX screen pixels) > cupboard (inside its footprint) > object (topmost = last
+ * in record order, inside its footprint) > beam (inside its footprint) > manual dimension (closer
+ * than the tolerance to its drawn line) > wall (inside its outline) > slope (inside its band, from
+ * the start line to the end line) > room (inside its ring and outside its islands). Among
+ * cupboards, beams or slopes, the last in record order wins (drawn on top). customObjects gives
+ * the footprint shape of custom objects.
  */
 export function hitTest(
   level: Level,
@@ -62,11 +71,18 @@ export function hitTest(
   const node = nearest(Object.values(level.nodes), (n) => dist(p, n), tol);
   if (node) return { kind: 'node', id: node.id };
 
+  const volumes = deriveVolumes(level);
+  const cupboard = lastContaining(volumes.cupboardFootprints, p);
+  if (cupboard) return { kind: 'cupboard', id: cupboard };
+
   const objects = Object.values(level.objects);
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i]!;
     if (pointInRing(p, objectFootprint(o, objectShape(o, customObjects)))) return { kind: 'object', id: o.id };
   }
+
+  const beam = lastContaining(volumes.beamFootprints, p);
+  if (beam) return { kind: 'beam', id: beam };
 
   const dimension = nearest(
     Object.values(level.dimensions),
@@ -83,6 +99,9 @@ export function hitTest(
   const wallId = hitWall(level, d, p);
   if (wallId) return { kind: 'wall', id: wallId };
 
+  const slope = lastContaining(volumes.slopeBands, p);
+  if (slope) return { kind: 'slope', id: slope };
+
   const room = d.rooms.find((r) => pointInRing(p, r.ring) && !r.islands.some((i) => pointInRing(p, i)));
   return room ? { kind: 'room', id: room.key } : null;
 }
@@ -97,8 +116,8 @@ function openingRect(level: Level, o: Opening): Ring {
 /**
  * Elements fully contained in the axis-aligned rectangle with opposite corners a and b, in this
  * order: objects (whole footprint), openings (whole rectangle in the wall), walls (both nodes),
- * manual dimensions (both anchors and both ends of the drawn line). Rooms and nodes are never
- * selected by rectangle.
+ * manual dimensions (both anchors and both ends of the drawn line), cupboards and beams (whole
+ * footprint), slopes (whole band). Rooms and nodes are never selected by rectangle.
  */
 export function hitTestRect(
   level: Level,
@@ -127,6 +146,15 @@ export function hitTestRect(
   for (const dim of Object.values(level.dimensions)) {
     const line = manualDimLine(level, dim);
     if (line && [line.a, line.b, ...dimLineEnds(line)].every(inside)) out.push({ kind: 'dimension', id: dim.id });
+  }
+  const volumes = deriveVolumes(level);
+  const rings: Array<[HitKind, Map<Id, Ring>]> = [
+    ['cupboard', volumes.cupboardFootprints],
+    ['beam', volumes.beamFootprints],
+    ['slope', volumes.slopeBands],
+  ];
+  for (const [kind, map] of rings) {
+    for (const [id, ring] of map) if (ring.every(inside)) out.push({ kind, id });
   }
   return out;
 }

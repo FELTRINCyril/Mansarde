@@ -48,6 +48,31 @@ export const STYLE = {
   dimExtOvershoot: 4,
   dimTextGap: 3, // distance between the line and the text baseline
 
+  // volumes (slopes, beams): the ink blue of plan-chambre
+  volumeInk: '#2438a0',
+  slopeMaxOpacity: 0.18, // gradient from 0 at the start line to this at the end line
+  slopeLine: 1, // start and end lines
+  slopeLevelLine: 0.75, // dashed level lines
+  slopeLineOpacity: 0.75,
+  slopeText: 10,
+  slopeTextGap: 3, // distance between a level line and its label baseline
+  beamLine: 1,
+  beamDash: [3, 2],
+  beamText: 10,
+  beamTextMaskOpacity: 0.85,
+
+  // cupboards
+  cupboardDoorInset: 2, // cm: door panels just inside the front face
+  cupboardTrackGap: 3, // cm: second track of sliding doors behind the first
+  cupboardHandleWidth: 2,
+  clearanceFill: '#f3b26b',
+  clearanceOpacity: 0.22,
+
+  // check alerts (screen only)
+  alertError: '#cf2e2e',
+  alertWarning: '#e08a1e',
+  alertWidth: 2.2,
+
   // selection (screen only)
   selection: '#1e6fd9',
   selectionWidth: 2,

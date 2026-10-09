@@ -1,4 +1,4 @@
-import type { Level, Ring, Shape, Slope, Vec2 } from '../model/types';
+import type { Beam, Level, Ring, Shape, Slope, Vec2 } from '../model/types';
 import { beamBottomAt, beamFootprint } from './beams';
 import { BooleanOpError, intersection, isUsableRing } from './boolean';
 import { area, bbox, clipConvex, convexParts, intersectionVertices, pointInRing, ringEdges, signedArea, vertexCentroid } from './polygon';
@@ -227,4 +227,14 @@ export function ceilingUnder(level: Level, footprint: Ring): { height: number; a
   // boundary): move it into its region then
   const exact = Math.abs(ceilingAt(level, at) - height) <= 1e-9;
   return { height, at: exact ? { x: at.x, y: at.y } : inset(at, vertexCentroid(region)) };
+}
+
+/**
+ * Lowest underside of the beam over its footprint (the free height shown on the plan): `bottom`
+ * in 'fixed' mode; in 'ceiling' mode the lowest ceiling without beams over the footprint (exact,
+ * ceilingUnder of the level without its beams) minus the drop.
+ */
+export function beamLowestBottom(level: Level, b: Beam): number {
+  if (b.mode === 'fixed') return b.bottom;
+  return ceilingUnder({ ...level, beams: {} }, beamFootprint(b)).height - b.drop;
 }

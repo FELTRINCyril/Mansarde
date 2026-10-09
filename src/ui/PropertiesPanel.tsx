@@ -222,6 +222,10 @@ function SingleItem({ level, item }: { level: Level; item: SelectionItem }): JSX
       return <DimensionProperties level={level} id={item.id} />;
     case 'node':
       return <NodeProperties level={level} id={item.id} />;
+    case 'slope':
+    case 'beam':
+    case 'cupboard':
+      return null; // no properties section for the volumes yet
   }
 }
 
