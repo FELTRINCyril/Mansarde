@@ -558,8 +558,99 @@ select {
 
 .editor-center {
   position: relative;
+  display: flex;
   flex: 1;
   min-width: 0;
+}
+
+/* ===== Plan / 3D / Plan + 3D (ruling V2-R19) ===== */
+
+.plan-pane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-pane[hidden] {
+  display: none;
+}
+
+.view3d-pane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+}
+
+.split-handle {
+  flex: 0 0 6px;
+  margin: 0 -3px;
+  z-index: 3;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.split-handle:hover,
+.split-handle:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.scene3d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #eef0f4;
+}
+
+.scene3d-host {
+  position: absolute;
+  inset: 0;
+}
+
+.scene3d-canvas {
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+
+.scene3d-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.scene3d-bar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  pointer-events: none;
+}
+
+.scene3d-bar > * {
+  pointer-events: auto;
+}
+
+.scene3d-bar .segmented-item {
+  white-space: nowrap;
+}
+
+.scene3d-bar .check {
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
 }
 
 .plan-canvas {

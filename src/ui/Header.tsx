@@ -4,6 +4,7 @@ import { MOD_LABEL } from '@/editor/keyboard';
 import { useEditor, type EditorState } from '@/editor/store';
 import type { SaveStatus } from '@/storage/autosave';
 import { run } from './run';
+import { ViewSwitch } from './ViewSwitch';
 
 const DIM_MODES: Array<[EditorState['display']['dimMode'], string]> = [
   ['all', 'Toutes les cotes'],
@@ -27,7 +28,7 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element {
   );
 }
 
-/** Editor header: back to projects, project name, undo/redo, display options, settings, export, save status. */
+/** Editor header: back to projects, project name, undo/redo, view switch, display options, settings, export, save status. */
 export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings(): void; onExport(): void }): JSX.Element | null {
   const name = useEditor((s) => s.project?.name);
   const canUndo = useEditor((s) => s.history.past.length > 0);
@@ -66,6 +67,9 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
         <button type="button" className="btn" disabled={!canRedo} title={`Rétablir (${MOD_LABEL}+Maj+Z)`} onClick={() => useEditor.getState().redo()}>
           Rétablir
         </button>
+      </div>
+      <div className="header-group">
+        <ViewSwitch />
       </div>
       <div className="header-group">
         <select
