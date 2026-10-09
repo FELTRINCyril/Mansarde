@@ -83,8 +83,9 @@ test('selection tool: select, drag, undo, delete, rectangle, rename a room', asy
   await dragOnPage(page, await onPage(page, { x: 40, y: 30 }), await onPage(page, { x: 360, y: 270 }));
   await expect(page.getByTestId('selection-count')).toHaveText('2 éléments sélectionnés');
 
-  // double-click in the room, type a name: the letters never reach the shortcuts
-  p = await onPage(page, { x: 200, y: 40 });
+  // double-click in the room, type a name: the letters never reach the shortcuts (away from the
+  // interior dimension texts, whose double-click edits the room size since V2)
+  p = await onPage(page, { x: 200, y: 80 });
   await page.mouse.dblclick(p.x, p.y);
   const input = page.getByTestId('room-rename');
   await expect(input).toBeFocused();

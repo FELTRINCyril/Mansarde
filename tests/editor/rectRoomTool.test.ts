@@ -108,7 +108,8 @@ describe('rectangle tool: in the editor', () => {
     tool.onPointerUp!(at(400, 300), ctx);
     expect(Object.keys(level(store).walls)).toHaveLength(4);
     expect(store.getState().history.past.map((e) => e.label)).toEqual(['Pièce rectangulaire']);
-    expect(deriveLevel(level(store)).rooms[0]!.area).toBeCloseTo(380 * 280, 6);
+    // V2: the rectangle is the inside of the room (walls outside)
+    expect(deriveLevel(level(store)).rooms[0]!.area).toBeCloseTo(400 * 300, 6);
     store.getState().undo();
     expect(Object.keys(level(store).walls)).toHaveLength(0);
   });
@@ -164,20 +165,21 @@ describe('rectangle tool: in the editor', () => {
     expect(Object.keys(level(store).walls)).toHaveLength(0);
   });
 
-  it('3, Tab, Tab, Enter: returning to the width prefills it with 3', () => {
+  it('30, Tab, Tab, Enter: returning to the width prefills it with 30', () => {
     const { store, ctx, tool } = setup();
     tool.onPointerDown!(at(0, 0), ctx);
     tool.onPointerMove!(at(300, 200), ctx);
     tool.onKeyDown!(keyOf('3'), ctx);
-    expect(tabNumericInput(store, ctx, '3')).toBe('ok');
+    expect(tabNumericInput(store, ctx, '30')).toBe('ok');
     expect(store.getState().overlay.numericInput).toMatchObject({ value: '', label: 'Hauteur' });
     expect(tabNumericInput(store, ctx, '', true)).toBe('ok'); // Shift+Tab
-    expect(store.getState().overlay.numericInput).toMatchObject({ value: '3', label: 'Largeur' });
-    expect(applyNumericInput(store, ctx, '3')).toBe(true);
+    expect(store.getState().overlay.numericInput).toMatchObject({ value: '30', label: 'Largeur' });
+    expect(applyNumericInput(store, ctx, '30')).toBe(true);
+    // interior 30 x 200, wall axes 10 cm outside (V2)
     const xs = Object.values(level(store).nodes).map((n) => n.x);
     const ys = Object.values(level(store).nodes).map((n) => n.y);
-    expect(Math.max(...xs) - Math.min(...xs)).toBe(3);
-    expect(Math.max(...ys) - Math.min(...ys)).toBe(200);
+    expect(Math.max(...xs) - Math.min(...xs)).toBe(50);
+    expect(Math.max(...ys) - Math.min(...ys)).toBe(220);
   });
 
   it('the partition thickness stays once Ctrl / Cmd was seen during the drag', () => {

@@ -78,7 +78,8 @@ test('rectangle tool: a drag creates 4 walls, undo removes the whole room at onc
   await page.mouse.up();
 
   expect(await counts(page)).toEqual({ walls: 4, nodes: 4, history: 1 });
-  await expect(page.locator('[data-kind="room-label"]')).toContainText('10,64 m²');
+  // V2: the rectangle is the inside of the room
+  await expect(page.locator('[data-kind="room-label"]')).toContainText('12,00 m²');
   await page.keyboard.press('ControlOrMeta+z');
   expect(await counts(page)).toEqual({ walls: 0, nodes: 0, history: 0 });
 });
@@ -112,7 +113,8 @@ test('rectangle tool: typed width, Tab, typed height, Enter', async ({ page }) =
     const ys = Object.values(level.nodes).map((n) => n.y);
     return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   });
-  expect(size).toEqual({ w: 500, h: 350 });
+  // V2: interior 500 x 350, wall axes 10 cm outside
+  expect(size).toEqual({ w: 520, h: 370 });
   expect((await counts(page)).history).toBe(1);
 });
 

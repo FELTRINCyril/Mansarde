@@ -74,9 +74,10 @@ const open = (s: Drag, field: RectField, initial?: string): RectToolResult => {
 };
 
 /**
- * The rectangular room tool as a pure state machine (spec 7.3, 7.4): press = snapped corner A,
- * drag = snapped corner B (preview with width / height dimensions), release = addRectRoom (a
- * release without a real rectangle does nothing). While dragging, a digit opens the width field,
+ * The rectangular room tool as a pure state machine (spec 7.3, 7.4; V2 spec 6): press = snapped
+ * corner A, drag = snapped corner B (preview with width / height dimensions), release = commit of
+ * the rectangle A-B as the INSIDE of the room (the tool runs addRectRoomInterior: walls outside;
+ * a release without a real rectangle does nothing). While dragging, a digit opens the width field,
  * Tab / Shift+Tab fix the typed value and switch to the other side (prefilled with its value when
  * already typed; an emptied field lets that side follow the cursor again), Enter fixes it and
  * creates the room (a typed size follows the side of the cursor; the other one follows the
@@ -148,8 +149,9 @@ function diagonal(a: Vec2, c: Vec2): Vec2 | undefined {
 
 /**
  * Overlay of the rectangle tool: the snapped cursor marker and its guides; while dragging, the
- * rectangle of wall axes stroked with the wall thickness, its width (top side) and height (left
- * side) as dynamic dimensions outside it (the one being typed highlighted), and the thickness.
+ * walls around the rectangle (their axes thickness / 2 outside it, stroked with the thickness),
+ * the rectangle itself dashed, its interior width (top side) and height (left side) as dynamic
+ * dimensions beyond the walls (the one being typed highlighted), and the thickness.
  */
 export function rectToolOverlay(s: RectToolState, env: RectToolEnv): DrawOverlay {
   if (s.phase === 'idle') {
@@ -164,7 +166,8 @@ export function rectToolOverlay(s: RectToolState, env: RectToolEnv): DrawOverlay
   const y1 = Math.min(s.a.y, c.y);
   const y2 = Math.max(s.a.y, c.y);
   // offsets are positive towards perp(b - a): outside means negative for both sides below
-  const offset = -(thickness / 2 + DYN_DIM_GAP_PX / env.pxPerCm);
+  const offset = -(thickness + DYN_DIM_GAP_PX / env.pxPerCm);
+  const h = thickness / 2;
   return {
     guides: s.b.guides,
     dynamicDims: [
@@ -174,7 +177,10 @@ export function rectToolOverlay(s: RectToolState, env: RectToolEnv): DrawOverlay
     activeDimIndex: s.typing === 'width' ? 0 : s.typing === 'height' ? 1 : null,
     ghost: {
       kind: 'draw',
-      paths: [{ points: [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }], closed: true, thickness }],
+      paths: [
+        { points: [{ x: x1 - h, y: y1 - h }, { x: x2 + h, y: y1 - h }, { x: x2 + h, y: y2 + h }, { x: x1 - h, y: y2 + h }], closed: true, thickness, axis: false },
+        { points: [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }], closed: true, thickness: 0 },
+      ],
       marker: { at: c, snap: s.b.kind },
       // outside the rectangle, beyond the dragged corner
       label: { at: c, lines: [thicknessLabel(thickness, s.partition)], toward: diagonal(s.a, c) },

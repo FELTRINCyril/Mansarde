@@ -1,9 +1,11 @@
 import type { WallPoint } from '@/core/commands/walls';
+import { offsetChain } from '@/core/geometry/offsetChain';
 import { snapPoint, type SnapResult } from '@/core/geometry/snap';
 import { add, dist, normalize, perp, scale, sub } from '@/core/geometry/vec';
 import { MIN_WALL_LENGTH } from '@/core/model/defaults';
 import type { Id, Level, Vec2, WallNode } from '@/core/model/types';
 import { SNAP_PX } from '@/core/model/defaults';
+import type { WallReference } from '../store';
 import {
   DYN_DIM_GAP_PX, EMPTY_DRAW_OVERLAY, fieldScreen, formatAngle, screenAngle, thicknessLabel, wallPointOf,
   type DrawOverlay, type Mods, type WallToolEnv,
@@ -113,13 +115,42 @@ function chainPointOf(s: Drawing, sn: SnapResult): { cp: ChainPoint; closes: boo
   return { cp: { wp: wallPointOf(sn), at: { ...sn.point } }, closes };
 }
 
+/**
+ * Offset (cm, along +perp of each segment) from the clicked line to the wall axes (spec 6): 0 for
+ * the axis; the clicked line is the left face (+perp side) of the walls for 'left', so their axes
+ * are thickness / 2 on the -perp side, and the opposite for 'right'.
+ */
+export function referenceOffset(reference: WallReference | undefined, thickness: number): number {
+  return reference === 'left' ? -thickness / 2 : reference === 'right' ? thickness / 2 : 0;
+}
+
+/** A chain whose last point is its first one (at least a triangle): offset as a closed loop. */
+const isClosedChain = (at: Vec2[]): boolean => at.length >= 4 && dist(at[0]!, at[at.length - 1]!) <= EPS;
+
+/** The wall axes of a clicked line: offsetChain of the points (closed loops mitered all round). */
+function axisPoints(at: Vec2[], offset: number): Vec2[] {
+  return offset === 0 ? at : offsetChain(at, offset, isClosedChain(at));
+}
+
+/**
+ * What addWallChain gets for the clicked points: the points as clicked (nodes, wall axes) for the
+ * axis reference; otherwise the line offset to the wall axes, as free points (offsetChain may add
+ * bevel points: its output is not matched to the clicks; addWallChain then reuses nodes within
+ * 0.5 cm and splits the walls whose axis a point lies on, as for any free point).
+ */
+function committedPoints(points: ChainPoint[], env: WallToolEnv, thickness: number): WallPoint[] {
+  const offset = referenceOffset(env.reference, thickness);
+  if (offset === 0) return points.map((p) => p.wp);
+  return axisPoints(points.map((p) => p.at), offset).map((p): WallPoint => ({ kind: 'free', x: p.x, y: p.y }));
+}
+
 function finish(s: Drawing, env: WallToolEnv, points: ChainPoint[] = s.points, meta = false): WallToolResult {
   const state: WallToolState = { phase: 'idle', hover: null };
   if (points.length < 2) return { state, effects: [] };
   const thickness = s.partition || meta ? env.partitionThickness : env.thickness;
   return {
     state,
-    effects: [{ type: 'commit', levelId: s.levelId, points: points.map((p) => p.wp), thickness, height: env.height }],
+    effects: [{ type: 'commit', levelId: s.levelId, points: committedPoints(points, env, thickness), thickness, height: env.height }],
   };
 }
 
@@ -162,8 +193,9 @@ function labelToward(v: Vec2): Vec2 {
  *   cancels a lone point; Mod+Z removes the last point (the chain when it is the only one);
  * - a digit opens the numeric field with the preview direction frozen; the typed length adds the
  *   point last + direction * value (closing the chain if it lands on the first point).
- * Committing is one addWallChain effect. The partition thickness is frozen for the chain by the
- * first click or key made with Ctrl / Cmd (a held modifier only previews it).
+ * Committing is one addWallChain effect, the clicked line being offset to the wall axes first
+ * according to env.reference (spec 6, see referenceOffset). The partition thickness is frozen for
+ * the chain by the first click or key made with Ctrl / Cmd (a held modifier only previews it).
  */
 export function reduceWallTool(state: WallToolState, event: WallToolEvent, env: WallToolEnv): WallToolResult {
   // the active level changed under the chain: drop it
@@ -255,13 +287,17 @@ export function pendingChain(s: WallToolState, env: WallToolEnv): Extract<WallTo
   const points = s.hover && previewEnd(s) ? [...s.points, chainPointOf(s, s.hover).cp] : s.points;
   if (points.length < 2) return null;
   const thickness = s.partition || s.mods.meta ? env.partitionThickness : env.thickness;
-  return { type: 'commit', levelId: s.levelId, points: points.map((p) => p.wp), thickness, height: env.height };
+  return { type: 'commit', levelId: s.levelId, points: committedPoints(points, env, thickness), thickness, height: env.height };
 }
+
+export const REFERENCE_LABELS: Record<WallReference, string> = { axis: 'Axe', left: 'Face gauche', right: 'Face droite' };
 
 /**
  * Overlay of the wall tool: the snapped cursor marker and its guides; while drawing, the chain and
  * the preview segment stroked with the wall thickness, the segment's length as a dynamic dimension
- * and a label with its angle and the thickness in use.
+ * and a label with its angle and the thickness in use. With a face reference (spec 6), the walls
+ * are drawn on their offset axes, the clicked line dashed, the dimension (of the clicked line)
+ * beyond the walls, and the label names the face.
  */
 export function wallToolOverlay(s: WallToolState, env: WallToolEnv): DrawOverlay {
   const hover = s.hover;
@@ -276,20 +312,31 @@ export function wallToolOverlay(s: WallToolState, env: WallToolEnv): DrawOverlay
   const last = pts[pts.length - 1]!;
   const end = previewEnd(s);
   const what = thicknessLabel(thickness, partition);
+  const line = end ? [...pts, end] : pts;
+  const offset = referenceOffset(env.reference, thickness);
+  // distance from the clicked line to the wall face on the -perp side, where the dimension goes
+  const faceBelow = thickness / 2 - offset;
+  const lines = offset === 0 ? [what] : [what, REFERENCE_LABELS[env.reference!]];
   return {
     guides: hover?.guides ?? [],
     dynamicDims: end
-      ? [{ a: last, b: end, offset: -(thickness / 2 + DYN_DIM_GAP_PX / env.pxPerCm), value: dist(last, end), kind: 'dynamic' }]
+      ? [{ a: last, b: end, offset: -(faceBelow + DYN_DIM_GAP_PX / env.pxPerCm), value: dist(last, end), kind: 'dynamic' }]
       : [],
     activeDimIndex: null,
     ghost: {
       kind: 'draw',
-      paths: [{ points: end ? [...pts, end] : pts, closed: false, thickness }],
+      paths:
+        offset === 0
+          ? [{ points: line, closed: false, thickness }]
+          : [
+              { points: axisPoints(line, offset), closed: false, thickness, axis: false },
+              { points: line, closed: false, thickness: 0 },
+            ],
       marker,
       // the label goes ahead of the segment, on the side opposite to its dimension
       label: end
-        ? { at: end, lines: [formatAngle(screenAngle(sub(end, last))), what], toward: labelToward(sub(end, last)) }
-        : { at: last, lines: [what] },
+        ? { at: end, lines: [formatAngle(screenAngle(sub(end, last))), ...lines], toward: labelToward(sub(end, last)) }
+        : { at: last, lines },
     },
   };
 }

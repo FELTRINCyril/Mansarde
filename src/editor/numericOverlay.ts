@@ -18,14 +18,19 @@ export const numericSession = (): number => session;
 
 /**
  * Opens (or replaces) the shared numeric field. `initial` is the text already typed (the first digit);
- * `invalid` opens it with the red invalid border (a refused value given back to the user to correct).
+ * `invalid` opens it with the red invalid border (a refused value given back to the user to correct);
+ * `select` selects the initial text (a current value shown for editing: typing replaces it).
  */
 export function openNumericInput(
   store: EditorStore,
-  opts: { initial: string; screen: Vec2; kind: NumericKind; label?: string; invalid?: boolean },
+  opts: { initial: string; screen: Vec2; kind: NumericKind; label?: string; invalid?: boolean; select?: boolean },
 ): void {
   session++;
-  const numericInput = { value: opts.initial, screen: opts.screen, kind: opts.kind, label: opts.label, ...(opts.invalid ? { invalid: true } : {}) };
+  const numericInput = {
+    value: opts.initial, screen: opts.screen, kind: opts.kind, label: opts.label,
+    ...(opts.invalid ? { invalid: true } : {}),
+    ...(opts.select ? { select: true } : {}),
+  };
   store.getState().setOverlay({ numericInput });
 }
 

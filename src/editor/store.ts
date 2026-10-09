@@ -11,15 +11,25 @@ import { DEFAULT_VIEW, isValidView, type View } from './view';
 
 export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate' | 'moveBackground';
 
+/**
+ * Reference line of the wall tool (spec 6): the clicked line is the wall axis, or its left / right
+ * face in the model frame (left = +perp(direction), so the walls stand on the other side).
+ */
+export type WallReference = 'axis' | 'left' | 'right';
+
+/** Space in the wall tool: left and right swap; from the axis it goes to the left face. */
+export const flipWallReference = (r: WallReference): WallReference => (r === 'left' ? 'right' : 'left');
+
 /** Room name being edited in place (double-click in a room, select tool). */
 export interface RoomRename { levelId: Id; label: RoomLabel | null; labelPoint: Vec2; placeholder: string }
 
 /**
  * Shared numeric field shown near the cursor while a tool is active (see numericOverlay.ts). `screen` is
  * canvas px; `value` is the text being typed, `kind` selects the parsing rules, `label` an optional caption;
- * `invalid`: the field opens with the red invalid border (a refused value given back to correct).
+ * `invalid`: the field opens with the red invalid border (a refused value given back to correct);
+ * `select`: the initial text is selected (a current value that typing replaces).
  */
-export interface NumericInput { value: string; screen: Vec2; kind: NumericKind; label?: string; invalid?: boolean }
+export interface NumericInput { value: string; screen: Vec2; kind: NumericKind; label?: string; invalid?: boolean; select?: boolean }
 
 /**
  * Transient interaction state drawn by OverlayLayer (world cm unless stated): snap guides, dynamic
@@ -53,6 +63,8 @@ export interface EditorState {
   display: { dimMode: 'all' | 'manual' | 'none'; showLowerLevel: boolean; showGrid: boolean };
   clipboard: PlacedObject[];
   toast: { message: string; id: number } | null;
+  /** Reference line of the wall tool, kept for the session (never reset by opening a project). */
+  wallReference: WallReference;
   // actions
   /** Resets history, selection, gesture, overlay and tool; activeLevelId = first level. */
   openProject(p: Project): void;
@@ -91,6 +103,7 @@ export interface EditorState {
   setDisplay(p: Partial<EditorState['display']>): void;
   setClipboard(objects: PlacedObject[]): void;
   showToast(message: string): void;
+  setWallReference(r: WallReference): void;
 }
 
 export type EditorStore = ReturnType<typeof createEditorStore>;
@@ -159,6 +172,7 @@ export function createEditorStore() {
       display: { dimMode: 'all', showLowerLevel: true, showGrid: true },
       clipboard: [],
       toast: null,
+      wallReference: 'axis',
 
       openProject: (p) =>
         set({
@@ -258,6 +272,7 @@ export function createEditorStore() {
       setDisplay: (p) => set((s) => ({ display: { ...s.display, ...p } })),
       setClipboard: (clipboard) => set({ clipboard }),
       showToast: (message) => set({ toast: { message, id: ++toastId } }),
+      setWallReference: (wallReference) => set({ wallReference }),
     };
   });
 }

@@ -1,10 +1,10 @@
-import { addRectRoom } from '@/core/commands/walls';
+import { addRectRoomInterior } from '@/core/commands/walls';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import { drawingEnv, EMPTY_DRAW_OVERLAY, isDigitKey, modsOf, undoKeyOf, watchActiveLevel } from './drawing';
 import { RECT_IDLE, reduceRectTool, rectToolOverlay, type RectToolEvent, type RectToolState } from './rectRoomMachine';
 import type { Tool, ToolContext } from './types';
 
-/** The rectangular room tool (R): thin wiring of reduceRectTool (rectRoomMachine.ts) to the editor store. */
+/** The rectangular room tool (R): thin wiring of reduceRectTool (rectRoomMachine.ts) to the editor store; the rectangle is the inside of the room. */
 export function createRectRoomTool(): Tool {
   let state: RectToolState = RECT_IDLE;
 
@@ -31,7 +31,7 @@ export function createRectRoomTool(): Tool {
     state = r.state;
     for (const fx of r.effects) {
       if (fx.type === 'commit') {
-        c.store.getState().execute('Pièce rectangulaire', addRectRoom(fx.levelId, fx.a, fx.b, fx.thickness, fx.height));
+        c.store.getState().execute('Pièce rectangulaire', addRectRoomInterior(fx.levelId, fx.a, fx.b, fx.thickness, fx.height));
       } else if (fx.type === 'openNumeric') {
         openNumericInput(c.store, { initial: fx.initial, screen: fx.screen, kind: 'positive', label: fx.label });
       } else {

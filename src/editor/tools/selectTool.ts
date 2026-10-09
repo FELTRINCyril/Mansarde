@@ -2,6 +2,7 @@ import type { Recipe } from '@/core/commands/apply';
 import { setDimensionOffset } from '@/core/commands/dimensions';
 import { moveObjects, setObjectTransform, updateObject } from '@/core/commands/objects';
 import { moveOpening } from '@/core/commands/openings';
+import { setRoomInteriorSize } from '@/core/commands/roomSize';
 import { joinNodeToWall, mergeNode, moveNodes, moveWalls } from '@/core/commands/walls';
 import { manualDimLine, type DimLine } from '@/core/geometry/autoDimensions';
 import { wallFaceInterval } from '@/core/geometry/clearances';
@@ -17,6 +18,7 @@ import type { Id, Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { formatNumber } from '@/ui/numeric';
 import { handleTarget, hitHandle, objectLocalToWorld, worldToObjectLocal } from '../handles';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
+import { roomDimensionAt } from '../roomDimensions';
 import type { SelectionItem } from '../selection';
 import { activeLevel, type EditorState, type EditorStore } from '../store';
 import { worldToScreen } from '../view';
@@ -149,7 +151,10 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  * - a manual dimension changes its offset (setDimensionOffset);
  * - the handles of a single selected object rotate it (15 degree steps, free with Alt) or resize it
  *   (opposite side fixed, MIN_OBJECT_SIZE minimum).
- * A double-click in a room opens the in-place room name input (overlay.rename).
+ * A double-click on an interior dimension of a rectangular room opens the numeric field with its
+ * value, the typed value resizes the room (setRoomInteriorSize, right / bottom side moves; a
+ * refusal is toasted and the value given back in red); a double-click elsewhere in a room opens
+ * the in-place room name input (overlay.rename).
  */
 export function createSelectTool(): Tool {
   let session: Session | null = null;
@@ -160,6 +165,15 @@ export function createSelectTool(): Tool {
   let keyboard: { target: MeasureTarget; activeSide: string | null; typing: boolean } | null = null;
   /** Where the typed-distance field was opened (canvas px): reopenings keep it in place. */
   let fieldScreen: Vec2 = { x: 0, y: 0 };
+  /** Interior dimension of a rectangular room being edited in the numeric field (spec 6). */
+  let roomSize: { levelId: Id; roomKey: string; axis: 'width' | 'depth'; screen: Vec2 } | null = null;
+
+  /** Opens the room size field: the current value selected, or a refused value in red to correct. */
+  function openRoomSize(store: EditorStore, text: string, invalid = false): void {
+    if (!roomSize) return;
+    const label = roomSize.axis === 'width' ? 'Largeur' : 'Profondeur';
+    openNumericInput(store, { initial: text, screen: roomSize.screen, kind: 'positive', label, select: !invalid, invalid });
+  }
 
   const clearTransient = (store: EditorStore) =>
     store.getState().setOverlay({ marquee: null, guides: [], dynamicDims: [], activeDimIndex: null, ghost: null });
@@ -173,6 +187,10 @@ export function createSelectTool(): Tool {
     const kb = keyboard;
     session = null;
     keyboard = null;
+    if (roomSize) {
+      roomSize = null;
+      closeNumericInput(store);
+    }
     if (s?.typing || kb?.typing) closeNumericInput(store);
     if ((s?.phase === 'drag' && s.plan?.kind !== 'marquee') || kb?.typing) store.getState().cancelGesture();
     clearTransient(store);
@@ -568,6 +586,13 @@ export function createSelectTool(): Tool {
       const level = activeLevel(st);
       if (!st.project || !level) return;
       const d = deriveLevel(level);
+      const dim = roomDimensionAt(level, d, e.world, 1 / c.pxPerCm(), st.display.dimMode);
+      if (dim) {
+        st.setSelection([{ kind: 'room', id: dim.roomKey }]);
+        roomSize = { levelId: level.id, roomKey: dim.roomKey, axis: dim.axis, screen: e.screen };
+        openRoomSize(c.store, formatNumber(dim.value));
+        return;
+      }
       const hit = hitTest(level, d, e.world, c.pxPerCm(), st.project.customObjects);
       const room = hit?.kind === 'room' ? d.rooms.find((r) => r.key === hit.id) : undefined;
       if (!room) return;
@@ -587,6 +612,14 @@ export function createSelectTool(): Tool {
     },
 
     onNumericSubmit(value, c) {
+      if (roomSize) {
+        const r = roomSize;
+        const ok = c.store.getState().execute('Dimensions de la pièce', setRoomInteriorSize(r.levelId, r.roomKey, r.axis, value, 'max'));
+        // refused: execute toasted the reason; the value comes back in red, to correct or Escape
+        if (ok) roomSize = null;
+        else openRoomSize(c.store, formatNumber(value), true);
+        return;
+      }
       const t = typing();
       if (!t) return;
       if (!applyTyped(t, value, c)) {
@@ -614,6 +647,7 @@ export function createSelectTool(): Tool {
     },
 
     onNumericCancel(c) {
+      roomSize = null;
       // Escape (or blur) in the field cancels the whole operation, released or not (ruling R33)
       if (typing()) cancelSession(c.store);
     },
@@ -625,6 +659,7 @@ export function createSelectTool(): Tool {
     onDeactivate(c) {
       session = null;
       keyboard = null;
+      roomSize = null;
       clearTransient(c.store);
     },
   };

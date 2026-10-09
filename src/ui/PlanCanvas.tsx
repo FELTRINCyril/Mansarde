@@ -14,6 +14,7 @@ import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
 import { NumericOverlayInput } from './NumericOverlayInput';
 import { RoomRenameInput } from './RoomRenameInput';
+import { WallReferenceBar } from './WallReferenceBar';
 
 export interface Size { width: number; height: number }
 
@@ -52,7 +53,8 @@ function PlanOverlay(): JSX.Element | null {
  * event goes to the active tool (TOOLS) and catalog items can be dropped. A press interrupted
  * without a pointerup (pointercancel, capture lost, window blur) calls the tool's onCancel. The single window key
  * handler of the editor is here too: guard (isIgnoredKey: typing in a field, key already handled,
- * dialog open), space for panning, then handleGlobalKey (tool keys, shortcuts, 0 = fit).
+ * dialog open), space for panning (released without a pan: the tool's onSpaceTap), then
+ * handleGlobalKey (tool keys, shortcuts, 0 = fit). The wall tool's option bar sits on top.
  */
 export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Size): void }): JSX.Element | null {
   const project = useEditor((s) => s.project);
@@ -66,6 +68,8 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [spaceDown, setSpaceDown] = useState(false);
   const spaceRef = useRef(false);
+  /** The view was panned with the current space press: its release is not a tap (Tool.onSpaceTap). */
+  const spacePanned = useRef(false);
   const pan = useRef<{ pointerId: number; start: Vec2; view: View } | null>(null);
   /** Pointer pressed for the active tool (captured), until its pointerup or its cancellation. */
   const toolPointer = useRef<number | null>(null);
@@ -155,13 +159,19 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
         const onPlan = e.target === document.body || (e.target instanceof Node && !!ref.current?.contains(e.target));
         if (!onPlan) return;
         e.preventDefault();
-        if (!e.repeat) setSpace(true);
+        if (!e.repeat) {
+          spacePanned.current = false;
+          setSpace(true);
+        }
         return;
       }
       if (handleGlobalKey(e, useEditor, ctx)) e.preventDefault();
     };
     const onUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') setSpace(false);
+      if (e.code !== 'Space') return;
+      const tap = spaceRef.current && !spacePanned.current;
+      setSpace(false);
+      if (tap) TOOLS[useEditor.getState().tool]?.onSpaceTap?.(ctx);
     };
     const onBlur = () => {
       setSpace(false);
@@ -200,6 +210,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     ref.current?.focus({ preventScroll: true });
     if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
       e.preventDefault();
+      if (spaceRef.current) spacePanned.current = true;
       e.currentTarget.setPointerCapture(e.pointerId);
       pan.current = { pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY }, view: useEditor.getState().view };
       setPanning(true);
@@ -290,6 +301,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
           height={size.height}
         />
       )}
+      <WallReferenceBar />
       <RoomRenameInput />
       <NumericOverlayInput ctx={ctx} canvas={size} restoreFocus={() => ref.current?.focus({ preventScroll: true })} />
     </div>
