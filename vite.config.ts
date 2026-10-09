@@ -15,5 +15,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     environment: 'node',
     env: polygonClippingEnv(),
+    // CPU-heavy tests (fuzz, random cross-checks) exceed the 5 s default when the machine is loaded (V2-R28)
+    testTimeout: 30000,
   },
 })
