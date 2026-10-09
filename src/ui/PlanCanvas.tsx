@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type JSX, type MouseEvent, type PointerEvent } from 'react';
+import { checkSeverityByTarget } from '@/core/checks/computeChecks';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
 import { fitBounds } from '@/editor/background';
@@ -14,6 +15,7 @@ import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
 import { NumericOverlayInput } from './NumericOverlayInput';
 import { RoomRenameInput } from './RoomRenameInput';
+import { useLevelChecks } from './ChecksPanel';
 import { WallReferenceBar } from './WallReferenceBar';
 
 export interface Size { width: number; height: number }
@@ -68,6 +70,9 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const selection = useEditor((s) => s.selection);
   const toolId = useEditor((s) => s.tool);
   const setView = useEditor((s) => s.setView);
+  // check alerts of the active level (spec 7.3), none when "Masquer les alertes" is checked
+  const checks = useLevelChecks();
+  const alerts = useMemo(() => (display.hideAlerts ? undefined : checkSeverityByTarget(checks)), [checks, display.hideAlerts]);
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [spaceDown, setSpaceDown] = useState(false);
@@ -300,6 +305,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
           mode="screen"
           imageUrls={p.imageUrls}
           selection={selection}
+          alerts={alerts}
           overlay={<PlanOverlay />}
           width={size.width}
           height={size.height}

@@ -3,7 +3,9 @@ import { renameProject } from '@/core/commands/project';
 import { MOD_LABEL } from '@/editor/keyboard';
 import { useEditor, type EditorState } from '@/editor/store';
 import type { SaveStatus } from '@/storage/autosave';
+import { AlertCounter } from './ChecksPanel';
 import { run } from './run';
+import { ViewSwitch } from './ViewSwitch';
 
 const DIM_MODES: Array<[EditorState['display']['dimMode'], string]> = [
   ['all', 'Toutes les cotes'],
@@ -27,7 +29,7 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element {
   );
 }
 
-/** Editor header: back to projects, project name, undo/redo, display options, settings, export, save status. */
+/** Editor header: back to projects, project name, undo/redo, view switch, display options, settings, export, save status. */
 export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings(): void; onExport(): void }): JSX.Element | null {
   const name = useEditor((s) => s.project?.name);
   const canUndo = useEditor((s) => s.history.past.length > 0);
@@ -68,6 +70,9 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
         </button>
       </div>
       <div className="header-group">
+        <ViewSwitch />
+      </div>
+      <div className="header-group">
         <select
           className="input"
           aria-label="Affichage des cotes"
@@ -91,6 +96,7 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
         </label>
       </div>
       <div className="header-spacer" />
+      <AlertCounter />
       <SaveIndicator status={p.saveStatus} />
       <button type="button" className="btn" onClick={p.onSettings} data-testid="open-settings">
         Réglages

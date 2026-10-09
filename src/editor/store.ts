@@ -53,6 +53,29 @@ export interface Gesture {
   lastRecipe: Recipe | null; // last accepted recipe; applied to base at commit
 }
 
+/** Layout of the editor center (ruling V2-R19): the plan, the 3D view, or both side by side. */
+export type ViewMode = 'plan' | '3d' | 'split';
+
+/**
+ * Display options of the editor, kept while the session lasts (across projects): plan dimensions,
+ * lower level, grid; the view layout and the share of the plan in 'split' (0.2 .. 0.8); the options
+ * of the 3D view (object names, all walls hidden, lower levels shown); the check alerts (spec 7.4):
+ * outlines hidden on the plan ("Masquer les alertes"), checks panel expanded.
+ */
+export interface Display {
+  dimMode: 'all' | 'manual' | 'none'; showLowerLevel: boolean; showGrid: boolean;
+  view: ViewMode; splitRatio: number;
+  labels3d: boolean; hideWalls3d: boolean; lowerLevels3d: boolean;
+  hideAlerts: boolean; checksOpen: boolean;
+}
+
+export const DEFAULT_DISPLAY: Display = {
+  dimMode: 'all', showLowerLevel: true, showGrid: true,
+  view: 'plan', splitRatio: 0.5,
+  labels3d: true, hideWalls3d: false, lowerLevels3d: false,
+  hideAlerts: false, checksOpen: false,
+};
+
 export interface EditorState {
   project: Project | null;
   history: History;
@@ -62,7 +85,7 @@ export interface EditorState {
   view: View;
   gesture: Gesture | null;
   overlay: Overlay;
-  display: { dimMode: 'all' | 'manual' | 'none'; showLowerLevel: boolean; showGrid: boolean };
+  display: Display;
   clipboard: PlacedObject[];
   toast: { message: string; id: number } | null;
   /** Reference line of the wall tool, kept for the session (never reset by opening a project). */
@@ -171,7 +194,7 @@ export function createEditorStore() {
       view: DEFAULT_VIEW,
       gesture: null,
       overlay: createOverlay(),
-      display: { dimMode: 'all', showLowerLevel: true, showGrid: true },
+      display: { ...DEFAULT_DISPLAY },
       clipboard: [],
       toast: null,
       wallReference: 'axis',

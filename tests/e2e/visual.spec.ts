@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Page } from '@playwright/test';
+import { buildAttic } from './attic';
 import { createProject, onPage } from './helpers';
 
 // Visual check (spec 12): screenshots of the main screens for a human to look at. Skipped unless
@@ -159,4 +160,52 @@ test('visual: a traced background image', async ({ page }) => {
   await page.screenshot({ path: shot('10-background') });
   await page.getByTestId('background-calibrate').click();
   await page.screenshot({ path: shot('11-background-calibrate') });
+});
+
+test('visual: 3D view of the attic room (compare with plan-chambre 03-3d-overview and 04-3d-top)', async ({ page }) => {
+  await createProject(page, 'Chambre sous les toits');
+  await buildAttic(page);
+  await page.getByTestId('plan-canvas').click({ position: { x: 3, y: 3 } });
+  await page.keyboard.press('0');
+  await page.getByTestId('plan-canvas').screenshot({ path: shot('11-attic-plan') });
+  await page.getByTestId('view-3d').click();
+  const canvas = page.getByTestId('scene3d-canvas');
+  await expect(canvas).toBeVisible();
+  /** Waits for the camera animation and the damping to end (no new frame for 600 ms). */
+  const still = async () => {
+    let last = -1;
+    for (let i = 0; i < 40; i++) {
+      const frames = await page.evaluate(() => window.__planMaison3D!.frames);
+      if (frames === last) return;
+      last = frames;
+      await page.waitForTimeout(600);
+    }
+  };
+  await still();
+  await page.screenshot({ path: shot('12-3d-editor') });
+  await canvas.screenshot({ path: shot('13-3d-overview') });
+  await page.getByTestId('preset-top').click();
+  await still();
+  await canvas.screenshot({ path: shot('14-3d-top') });
+  await page.getByTestId('hide-walls-3d').check();
+  await page.getByTestId('preset-overview').click();
+  await still();
+  await canvas.screenshot({ path: shot('15-3d-overview-walls-hidden') });
+  await page.getByTestId('hide-walls-3d').uncheck();
+  await page.getByTestId('view-plan').click();
+  await page.getByTestId('view-split').click();
+  await expect(canvas).toBeVisible();
+  await still();
+  await page.screenshot({ path: shot('16-split') });
+  // from inside the room: the room selected by a click in the plan
+  await page.getByTestId('view-3d').click();
+  await page.evaluate(async () => {
+    const { deriveLevel } = await import(/* @vite-ignore */ '/src/core/geometry/derived.ts' as string);
+    const s = window.__planMaison!.store.getState();
+    const level = s.project!.levels.find((l) => l.id === s.activeLevelId)!;
+    s.setSelection([{ kind: 'room', id: deriveLevel(level).rooms[0].key }]);
+  });
+  await page.getByTestId('preset-room').click();
+  await still();
+  await canvas.screenshot({ path: shot('17-3d-room') });
 });

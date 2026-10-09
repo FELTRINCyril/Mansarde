@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { beamFootprint } from '@/core/geometry/beams';
-import { unionRings } from '@/core/geometry/boolean';
+import { intersection, unionRings } from '@/core/geometry/boolean';
+import { openingCutRing } from '@/core/geometry/openings';
 import { ceilingWithoutBeams } from '@/core/geometry/ceiling';
 import { cupboardFrame, cupboardTopProfile } from '@/core/geometry/cupboards';
 import { deriveLevel } from '@/core/geometry/derived';
@@ -435,6 +436,32 @@ describe('walls', () => {
     expect(lintelBottom.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(0.83 * 0.2, 9);
     const threshold = tris.filter((t) => t.n[1] > 0.999 && t.p.every((p) => inDoor(p) && Math.abs(p[1]) < 1e-9));
     expect(threshold.reduce((s, t) => s + triArea(t.p), 0)).toBeCloseTo(0.83 * 0.2, 9);
+  });
+
+  it('door flush at a wall end also cuts the mitered end of the neighbouring wall, as in 2D (ruling V2-R20)', () => {
+    const level = room400x300();
+    const top = findWall(level, -10, -10, 410, -10);
+    const left = findWall(level, -10, 310, -10, -10);
+    const door = createOpening(top, 'door', 41.5); // axis x -10 .. 73: flush with the corner node
+    level.openings[door.id] = door;
+    const lm = meshesOf(level);
+    expectWallsClosed(level, lm);
+    const d = deriveLevel(level);
+    // the part of the left wall's outline inside the door's cut ring: x -10 .. 0, from the miter y = x down to y = 2
+    const overlap = intersection([{ outer: d.outlines.get(left)!, holes: [] }], openingCutRing(level, door)).reduce((s, p) => s + area(p.outer), 0);
+    expect(overlap).toBeCloseTo(70, 6);
+    const tris = triangles(lm.walls.find((w) => w.wallId === left)!.mesh);
+    const at = (h: number, up: boolean) =>
+      tris.filter((t) => (up ? t.n[1] > 0.999 : t.n[1] < -0.999) && t.p.every((p) => Math.abs(p[1] - h) < 1e-9)).reduce((s, t) => s + triArea(t.p), 0);
+    // the left wall gets the door's lintel bottom at 2.04 m and its threshold at 0 over the overlap
+    expect(at(2.04, false)).toBeCloseTo(overlap / 1e4, 9);
+    expect(at(0, true)).toBeCloseTo(overlap / 1e4, 9);
+    // nothing of the left wall between the floor and the lintel inside the door's cut ring
+    const inCut = (p: V3) => p[0] > -0.1 + 1e-6 && p[2] < 0.02 - 1e-6;
+    expect(tris.some((t) => t.p.every(inCut) && t.p.some((p) => p[1] > 1e-6 && p[1] < 2.04 - 1e-6))).toBe(false);
+    // the right wall, far from the door, is not touched
+    const right = findWall(level, 410, -10, 410, 310);
+    expect(triangles(lm.walls.find((w) => w.wallId === right)!.mesh).some((t) => t.p.every((p) => Math.abs(p[1] - 2.04) < 1e-9))).toBe(false);
   });
 
   it('walls of different heights: each wall mesh keeps its own top', () => {

@@ -6,15 +6,18 @@ import { commitNumericAs, formatNumber, type NumericKind } from './numeric';
  * via parseCmInput, R5 bound); an invalid text gets a red border and is never committed; Escape
  * reverts to the current value. The displayed value follows valueCm unless the user is typing.
  * `mixed` (multiple selection with different values) shows an empty field; any valid value is committed.
+ * `keepRefused`: when onCommit returns false (the command was refused), the typed text stays in the
+ * field with the red border, to correct it or revert it with Escape.
  */
 export function NumericInput(p: {
   label: string;
   valueCm: number;
-  onCommit(v: number): void;
+  onCommit(v: number): void | boolean;
   testId?: string;
   kind?: NumericKind;
   unit?: string;
   mixed?: boolean;
+  keepRefused?: boolean;
 }): JSX.Element {
   const kind = p.kind ?? 'positive';
   const [draft, setDraft] = useState<string | null>(null);
@@ -27,9 +30,13 @@ export function NumericInput(p: {
       setInvalid(true);
       return;
     }
+    const accepted = p.mixed || r.value !== p.valueCm ? p.onCommit(r.value) : true;
+    if (p.keepRefused && accepted === false) {
+      setInvalid(true);
+      return;
+    }
     setDraft(null);
     setInvalid(false);
-    if (p.mixed || r.value !== p.valueCm) p.onCommit(r.value);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {

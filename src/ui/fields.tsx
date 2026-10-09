@@ -26,9 +26,11 @@ export function Choice<T extends string>(p: {
   options: Array<[T, string]>;
   onChange(v: T): void;
   testId?: string;
+  /** Short label, wide list (long option texts such as "Posé sur un meuble"). */
+  wide?: boolean;
 }): JSX.Element {
   return (
-    <label className="field">
+    <label className={p.wide ? 'field field-wide' : 'field'}>
       <span className="field-label">{p.label}</span>
       <select className="input" value={p.value} data-testid={p.testId} onChange={(e) => p.onChange(e.target.value as T)}>
         {p.options.map(([v, label]) => (

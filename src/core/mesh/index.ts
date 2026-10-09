@@ -8,7 +8,7 @@ import type { CupboardParts, LevelMeshes, MeshData } from './types';
 import { buildWalls } from './walls';
 
 export type { CupboardParts, LevelMeshes, MeshData } from './types';
-export { triangulate, triangulatePolygon } from './triangulate';
+export { triangulatePolygon } from './triangulate';
 
 type Structure = Pick<LevelMeshes, 'walls' | 'floors' | 'ceilings'>;
 

@@ -10,7 +10,9 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },
-  optimizeDeps: { include: ['jspdf', 'svg2pdf.js'], rolldownOptions: { plugins: [polygonClippingLimitsDeps()] } },
+  // three: pre-bundled at startup, else the first opening of the 3D view (dynamic import) makes the
+  // dev server optimize it and reload the page
+  optimizeDeps: { include: ['jspdf', 'svg2pdf.js', 'three', 'three/addons/controls/OrbitControls.js'], rolldownOptions: { plugins: [polygonClippingLimitsDeps()] } },
   test: {
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     environment: 'node',
