@@ -259,7 +259,10 @@ describe('setRoomInteriorSize', () => {
     const p = interior(0, 0, 400, 300);
     const key = onlyRoomKey(lvl(p));
     noop(p, setRoomInteriorSize(levelId(p), key, 'width', 400, 'max'));
-    for (const v of [0, 9.99, -5, NaN, Infinity]) {
+    for (const v of [0, 9.99, -5]) {
+      expect(refuse(p, setRoomInteriorSize(levelId(p), key, 'width', v, 'max'))).toBe('Dimension minimale : 10 cm.');
+    }
+    for (const v of [NaN, Infinity]) {
       expect(refuse(p, setRoomInteriorSize(levelId(p), key, 'width', v, 'max'))).toBe('Dimension invalide');
     }
     expect(refuse(p, setRoomInteriorSize(levelId(p), 'ghost', 'width', 300, 'max'))).toBe('Pièce introuvable');
@@ -283,5 +286,37 @@ describe('setRoomInteriorSize', () => {
     expect(refuse(p, setRoomInteriorSize(levelId(p), a.key, 'width', 750, 'max'))).toBe(IMPOSSIBLE);
     // exactly onto B's far wall: B's top and bottom walls would have a zero length
     expect(refuse(p, setRoomInteriorSize(levelId(p), a.key, 'width', 700, 'max'))).toBe('Mur trop court');
+  });
+
+  /** A 0..400 and B 420..720 (300 wide) inside, sharing the wall on x = 410; B's far wall on x = 730. */
+  const twoRooms300: WallSegment[] = [
+    [-10, -10, 410, -10],
+    [410, -10, 730, -10],
+    [730, -10, 730, 310],
+    [730, 310, 410, 310],
+    [410, 310, -10, 310],
+    [-10, 310, -10, -10],
+    [410, -10, 410, 310],
+  ];
+
+  it('refuses a size that would make a neighbouring room vanish (V2-R26)', () => {
+    const p = projectFrom(twoRooms300);
+    const a = roomLeftOf(lvl(p), 410);
+    expect(roomRightOf(lvl(p), 410).area).toBeCloseTo(300 * 300, 6);
+    // the shared wall would land on B's far face: B's walls stay (20 cm stubs) but B is gone
+    expect(refuse(p, setRoomInteriorSize(levelId(p), a.key, 'width', 700, 'max'))).toBe(IMPOSSIBLE);
+    // 10 cm left for B: allowed, B still exists
+    const next = run(p, setRoomInteriorSize(levelId(p), a.key, 'width', 690, 'max'));
+    const rooms = deriveLevel(lvl(next)).rooms;
+    expect(rooms).toHaveLength(2);
+    expect(rooms.map((r) => r.area).sort((x, y) => x - y)).toEqual([expect.closeTo(10 * 300, 6), expect.closeTo(690 * 300, 6)]);
+  });
+
+  it('refuses when a room on the other side of the moved wall would vanish, whichever side moves (V2-R26)', () => {
+    const p = projectFrom(twoRooms300);
+    const b = roomRightOf(lvl(p), 410);
+    // B grows to the left by 400: the shared wall lands on A's far face
+    expect(refuse(p, setRoomInteriorSize(levelId(p), b.key, 'width', 700, 'min'))).toBe(IMPOSSIBLE);
+    run(p, setRoomInteriorSize(levelId(p), b.key, 'width', 600, 'min'));
   });
 });

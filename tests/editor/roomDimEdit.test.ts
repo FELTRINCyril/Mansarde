@@ -78,7 +78,7 @@ describe('room dimension edit (double-click, select tool)', () => {
     expect(store.getState().overlay.numericInput).toMatchObject({ value: '300', label: 'Profondeur' });
     const before = store.getState().project;
     expect(applyNumericInput(store, ctx, '5')).toBe(true); // parsed, then refused by the command
-    expect(store.getState().toast?.message).toBe('Dimension invalide');
+    expect(store.getState().toast?.message).toBe('Dimension minimale : 10 cm.');
     expect(store.getState().overlay.numericInput).toMatchObject({ value: '5', invalid: true });
     cancelNumericInput(store, ctx);
     expect(store.getState().project).toBe(before);

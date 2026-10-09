@@ -36,7 +36,7 @@ describe('rectangle tool: state machine', () => {
   it('press, drag, release -> addRectRoom between the snapped corners', () => {
     const { state, effects } = run(env, [pointer('move', { x: 2, y: 1 }), pointer('down', { x: 2, y: 1 }), pointer('move', { x: 250, y: 100 }), pointer('up', { x: 398, y: 303 })]);
     expect(state).toEqual(RECT_IDLE);
-    expect(effects).toEqual([{ type: 'commit', levelId: env.level.id, a: { x: 0, y: 0 }, b: { x: 400, y: 300 }, thickness: 20, height: 250 }]);
+    expect(effects).toEqual([{ type: 'commit', levelId: env.level.id, a: { x: 0, y: 0 }, b: { x: 400, y: 300 }, thickness: 20, height: 250, interior: true }]);
   });
 
   it('a click without a real rectangle does nothing; Escape cancels the drag', () => {

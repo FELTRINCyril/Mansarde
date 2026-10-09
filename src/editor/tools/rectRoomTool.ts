@@ -1,4 +1,4 @@
-import { addRectRoomInterior } from '@/core/commands/walls';
+import { addRectRoom, addRectRoomInterior } from '@/core/commands/walls';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import { drawingEnv, EMPTY_DRAW_OVERLAY, isDigitKey, modsOf, undoKeyOf, watchActiveLevel } from './drawing';
 import { RECT_IDLE, reduceRectTool, rectToolOverlay, type RectToolEvent, type RectToolState } from './rectRoomMachine';
@@ -31,7 +31,9 @@ export function createRectRoomTool(): Tool {
     state = r.state;
     for (const fx of r.effects) {
       if (fx.type === 'commit') {
-        c.store.getState().execute('Pièce rectangulaire', addRectRoomInterior(fx.levelId, fx.a, fx.b, fx.thickness, fx.height));
+        // interior rectangle, or wall axes when a corner is on an existing wall (V2-R25)
+        const add = fx.interior ? addRectRoomInterior : addRectRoom;
+        c.store.getState().execute('Pièce rectangulaire', add(fx.levelId, fx.a, fx.b, fx.thickness, fx.height));
       } else if (fx.type === 'openNumeric') {
         openNumericInput(c.store, { initial: fx.initial, screen: fx.screen, kind: 'positive', label: fx.label });
       } else {

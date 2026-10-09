@@ -1,7 +1,8 @@
 import type { WallPoint } from '@/core/commands/walls';
 import { offsetChain } from '@/core/geometry/offsetChain';
 import { snapPoint, type SnapResult } from '@/core/geometry/snap';
-import { add, dist, normalize, perp, scale, sub } from '@/core/geometry/vec';
+import { add, cross, dist, dot, lineIntersection, normalize, perp, scale, sub } from '@/core/geometry/vec';
+import { wallFrame } from '@/core/geometry/walls';
 import { MIN_WALL_LENGTH } from '@/core/model/defaults';
 import type { Id, Level, Vec2, WallNode } from '@/core/model/types';
 import { SNAP_PX } from '@/core/model/defaults';
@@ -132,16 +133,75 @@ function axisPoints(at: Vec2[], offset: number): Vec2[] {
   return offset === 0 ? at : offsetChain(at, offset, isClosedChain(at));
 }
 
+/** An end moved closer than this (cm) to a node of the wall it lands on takes that node. */
+const JOIN_NODE_DISTANCE = MIN_WALL_LENGTH;
+/** How far (in |offset|) an end may slide along its segment line to reach a wall axis (as the miter limit). */
+const JOIN_SLIDE_LIMIT = 4;
+
+/**
+ * Ruling V2-R21: the end `p` of an offset open chain whose clicked point snapped to an existing
+ * node or wall (`wp`) stays connected. `p` slides along its segment line (direction from `q`, the
+ * neighbouring offset point) to the axis of the snapped wall, or of a wall of the snapped node,
+ * the most perpendicular one first: inside that wall it becomes an onWall point (T junction),
+ * near one of its nodes that node; past the snapped node, on the extension of that wall, the end
+ * is joined to the node by a short collinear wall. Without such a crossing, a node end is joined
+ * to the node by a short wall (the offset itself). Returns the points from the existing structure
+ * outwards, or null to keep the plain free point (free click, or a wall crossed nowhere near).
+ */
+function joinEnd(level: Level, wp: WallPoint, p: Vec2, q: Vec2, offset: number): WallPoint[] | null {
+  if (wp.kind === 'free') return null;
+  const d = normalize(sub(p, q));
+  const nodeId = wp.kind === 'node' ? wp.nodeId : null;
+  const node = nodeId !== null ? level.nodes[nodeId] : undefined;
+  if (nodeId !== null && !node) return null;
+  if (node && Math.abs(cross(sub(node, p), d)) <= JOIN_NODE_DISTANCE) return [{ kind: 'node', nodeId: nodeId! }];
+  const wallIds =
+    wp.kind === 'onWall'
+      ? level.walls[wp.wallId] ? [wp.wallId] : []
+      : Object.values(level.walls).filter((w) => w.startNodeId === nodeId || w.endNodeId === nodeId).map((w) => w.id);
+  let best: { points: WallPoint[]; rank: number; sin: number } | null = null;
+  for (const id of wallIds) {
+    const f = wallFrame(level, id);
+    const x = lineIntersection(p, d, f.start, f.dir);
+    if (!x || dist(x, p) > JOIN_SLIDE_LIMIT * Math.abs(offset)) continue;
+    const s = dot(sub(x, f.start), f.dir);
+    const wall = level.walls[id]!;
+    let points: WallPoint[] | null = null;
+    let rank = 0;
+    if (dist(x, f.start) < JOIN_NODE_DISTANCE) points = [{ kind: 'node', nodeId: wall.startNodeId }];
+    else if (dist(x, f.end) < JOIN_NODE_DISTANCE) points = [{ kind: 'node', nodeId: wall.endNodeId }];
+    else if (s > 0 && s < f.length) points = [{ kind: 'onWall', wallId: id, t: s / f.length }];
+    else if (nodeId !== null && ((s < 0 && wall.startNodeId === nodeId) || (s > f.length && wall.endNodeId === nodeId))) {
+      points = [{ kind: 'node', nodeId }, { kind: 'free', x: x.x, y: x.y }];
+      rank = 1;
+    }
+    if (!points) continue;
+    const sin = Math.abs(cross(d, f.dir));
+    if (!best || rank < best.rank || (rank === best.rank && sin > best.sin)) best = { points, rank, sin };
+  }
+  if (best) return best.points;
+  return nodeId !== null ? [{ kind: 'node', nodeId }, { kind: 'free', x: p.x, y: p.y }] : null;
+}
+
 /**
  * What addWallChain gets for the clicked points: the points as clicked (nodes, wall axes) for the
- * axis reference; otherwise the line offset to the wall axes, as free points (offsetChain may add
- * bevel points: its output is not matched to the clicks; addWallChain then reuses nodes within
- * 0.5 cm and splits the walls whose axis a point lies on, as for any free point).
+ * axis reference; otherwise the line offset to the wall axes (offsetChain may add bevel points:
+ * its output is not matched to the clicks one to one), as free points, except the two ends of an
+ * open chain whose click snapped to an existing node or wall: they stay connected (joinEnd,
+ * ruling V2-R21). addWallChain then reuses nodes within 0.5 cm and splits the walls whose axis a
+ * free point lies on, as for any free point.
  */
 function committedPoints(points: ChainPoint[], env: WallToolEnv, thickness: number): WallPoint[] {
   const offset = referenceOffset(env.reference, thickness);
   if (offset === 0) return points.map((p) => p.wp);
-  return axisPoints(points.map((p) => p.at), offset).map((p): WallPoint => ({ kind: 'free', x: p.x, y: p.y }));
+  const at = points.map((p) => p.at);
+  const out = axisPoints(at, offset);
+  const free = (p: Vec2): WallPoint => ({ kind: 'free', x: p.x, y: p.y });
+  if (isClosedChain(at) || out.length < 2) return out.map(free);
+  const n = out.length;
+  const head = joinEnd(env.level, points[0]!.wp, out[0]!, out[1]!, offset) ?? [free(out[0]!)];
+  const tail = joinEnd(env.level, points[points.length - 1]!.wp, out[n - 1]!, out[n - 2]!, offset) ?? [free(out[n - 1]!)];
+  return [...head, ...out.slice(1, -1).map(free), ...tail.reverse()];
 }
 
 function finish(s: Drawing, env: WallToolEnv, points: ChainPoint[] = s.points, meta = false): WallToolResult {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { addRectRoomInterior } from '@/core/commands/walls';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Level, Vec2 } from '@/core/model/types';
 import { createEditorStore, flipWallReference, type EditorStore } from '@/editor/store';
@@ -183,5 +184,66 @@ describe('wall tool v2: state machine', () => {
     const axisOv = wallToolOverlay(state, env('axis'));
     expect(axisOv.ghost!.paths).toEqual([{ points: [{ x: 0, y: 0 }, { x: 200, y: 0 }], closed: false, thickness: 20 }]);
     expect(axisOv.ghost!.label!.lines).toEqual(['0°', 'Mur 20 cm']);
+  });
+});
+
+describe('wall tool v2: face-mode ends stay connected (V2-R21)', () => {
+  const enter = { key: 'Enter', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false } as KeyboardEvent;
+  const degrees = (lvl: Level): Map<string, number> => {
+    const m = new Map<string, number>(Object.keys(lvl.nodes).map((id) => [id, 0]));
+    for (const w of Object.values(lvl.walls)) {
+      m.set(w.startNodeId, m.get(w.startNodeId)! + 1);
+      m.set(w.endNodeId, m.get(w.endNodeId)! + 1);
+    }
+    return m;
+  };
+  const nodeAt = (lvl: Level, x: number, y: number) => Object.values(lvl.nodes).find((n) => Math.abs(n.x - x) < 1e-6 && Math.abs(n.y - y) < 1e-6);
+
+  /** Room A inside 0..400 x 0..300, wall axes on -10 / 410 and -10 / 310; then a face-mode wall. */
+  function drawFrom(reference: 'left' | 'right', from: Vec2, to: Vec2) {
+    const { store, ctx, tool } = setup();
+    expect(store.getState().execute('A', addRectRoomInterior(level(store).id, { x: 0, y: 0 }, { x: 400, y: 300 }, 20, 250))).toBe(true);
+    store.getState().setWallReference(reference);
+    click(tool, ctx, from);
+    click(tool, ctx, to);
+    tool.onKeyDown!(enter, ctx);
+    const lvl = level(store);
+    const deg = degrees(lvl);
+    return { store, lvl, deg, ends: [...deg.values()].filter((d) => d === 1).length };
+  }
+
+  it("from A's corner node (left face): the corner gets a third wall, nothing floats", () => {
+    const { lvl, deg, ends } = drawFrom('left', { x: 410, y: -10 }, { x: 710, y: -10 });
+    const corner = nodeAt(lvl, 410, -10)!;
+    expect(deg.get(corner.id)).toBe(3);
+    expect(ends).toBe(1); // only the free far end of the open chain
+    expect(nodeAt(lvl, 710, -20)).toBeDefined(); // the far end keeps the plain offset
+    expect(deriveLevel(lvl).rooms.map((r) => Math.round(r.area))).toEqual([120000]);
+  });
+
+  it("from A's corner node (right face): A's side wall is split where the offset line crosses it", () => {
+    const { lvl, deg, ends } = drawFrom('right', { x: 410, y: -10 }, { x: 710, y: -10 });
+    const split = nodeAt(lvl, 410, 0)!;
+    expect(split).toBeDefined();
+    expect(deg.get(split.id)).toBe(3);
+    expect(ends).toBe(1);
+  });
+
+  it("from the middle of A's wall: T junction on A's wall axis at the offset line", () => {
+    const { lvl, deg, ends } = drawFrom('left', { x: 410, y: 150 }, { x: 710, y: 150 });
+    const t = nodeAt(lvl, 410, 140)!;
+    expect(t).toBeDefined();
+    expect(deg.get(t.id)).toBe(3);
+    expect(ends).toBe(1);
+    expect(deriveLevel(lvl).rooms.map((r) => Math.round(r.area))).toEqual([120000]);
+  });
+
+  it('a chain ending on an existing wall is joined at that end too', () => {
+    const { lvl, deg, ends } = drawFrom('left', { x: 710, y: 150 }, { x: 410, y: 150 });
+    // travelling left, +perp points up: with the left face clicked the axis is 10 cm below, y = 160
+    const t = nodeAt(lvl, 410, 160)!;
+    expect(t).toBeDefined();
+    expect(deg.get(t.id)).toBe(3);
+    expect(ends).toBe(1);
   });
 });

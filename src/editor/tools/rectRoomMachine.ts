@@ -1,5 +1,5 @@
-import { snapPoint, type SnapResult } from '@/core/geometry/snap';
-import { len, normalize, sub } from '@/core/geometry/vec';
+import { snapPoint, type SnapKind, type SnapResult } from '@/core/geometry/snap';
+import { dist, len, normalize, sub } from '@/core/geometry/vec';
 import { MIN_WALL_LENGTH } from '@/core/model/defaults';
 import type { Id, Vec2 } from '@/core/model/types';
 import { formatNumber } from '@/ui/numeric';
@@ -21,7 +21,8 @@ export type RectToolEvent =
   | { type: 'numericCancel' };
 
 export type RectToolEffect =
-  | { type: 'commit'; levelId: Id; a: Vec2; b: Vec2; thickness: number; height: number }
+  // interior: a and b are interior corners (addRectRoomInterior); false: wall axes (addRectRoom, V2-R25)
+  | { type: 'commit'; levelId: Id; a: Vec2; b: Vec2; thickness: number; height: number; interior: boolean }
   | { type: 'openNumeric'; initial: string; screen: Vec2; label: string }
   | { type: 'closeNumeric' };
 
@@ -31,6 +32,7 @@ export type RectToolState =
       phase: 'drag';
       levelId: Id;
       a: Vec2; // snapped corner at the press
+      aOnWall: boolean; // the press snapped to an existing node or wall axis (V2-R25)
       b: SnapResult; // snapped cursor
       screen: Vec2;
       released: boolean; // pointer already up, typed values still pending
@@ -46,6 +48,9 @@ export const RECT_IDLE: RectToolState = { phase: 'idle', hover: null };
 
 export const RECT_FIELD_LABELS: Record<RectField, string> = { width: 'Largeur', height: 'Hauteur' };
 
+/** Preview label when a corner is on an existing wall: the rectangle is drawn at the wall axes. */
+export const HOOKED_LABEL = "Accroché à un mur : cotes à l'axe";
+
 type Drag = Extract<RectToolState, { phase: 'drag' }>;
 
 function snap(world: Vec2, mods: Mods, env: RectToolEnv): SnapResult {
@@ -58,9 +63,23 @@ export function rectCorner(s: Drag): Vec2 {
   return { x: along(s.width, s.a.x, s.b.point.x), y: along(s.height, s.a.y, s.b.point.y) };
 }
 
+const onWall = (kind: SnapKind): boolean => kind === 'node' || kind === 'wallAxis' || kind === 'wallMid';
+
+/**
+ * Ruling V2-R25: a corner on an existing wall (the press, or the cursor when it gives the opposite
+ * corner) makes this drawing an axis one, V1 addRectRoom: the corners are wall axes, so that the
+ * sides shared with the existing walls merge with them (T junctions) instead of doubling them.
+ */
+export function rectHooked(s: Drag): boolean {
+  return s.aOnWall || (onWall(s.b.kind) && dist(rectCorner(s), s.b.point) <= 1e-9);
+}
+
 function commit(s: Drag, env: RectToolEnv): RectToolResult {
   const thickness = s.partition ? env.partitionThickness : env.thickness;
-  return { state: RECT_IDLE, effects: [{ type: 'commit', levelId: s.levelId, a: s.a, b: rectCorner(s), thickness, height: env.height }] };
+  return {
+    state: RECT_IDLE,
+    effects: [{ type: 'commit', levelId: s.levelId, a: s.a, b: rectCorner(s), thickness, height: env.height, interior: !rectHooked(s) }],
+  };
 }
 
 /** Opens the field of a side; `initial` defaults to the value already typed for that side. */
@@ -76,8 +95,9 @@ const open = (s: Drag, field: RectField, initial?: string): RectToolResult => {
 /**
  * The rectangular room tool as a pure state machine (spec 7.3, 7.4; V2 spec 6): press = snapped
  * corner A, drag = snapped corner B (preview with width / height dimensions), release = commit of
- * the rectangle A-B as the INSIDE of the room (the tool runs addRectRoomInterior: walls outside;
- * a release without a real rectangle does nothing). While dragging, a digit opens the width field,
+ * the rectangle A-B as the INSIDE of the room (the tool runs addRectRoomInterior: walls outside),
+ * or as wall axes when a corner is on an existing wall (rectHooked, ruling V2-R25); a release
+ * without a real rectangle does nothing. While dragging, a digit opens the width field,
  * Tab / Shift+Tab fix the typed value and switch to the other side (prefilled with its value when
  * already typed; an emptied field lets that side follow the cursor again), Enter fixes it and
  * creates the room (a typed size follows the side of the cursor; the other one follows the
@@ -95,7 +115,7 @@ export function reduceRectTool(state: RectToolState, event: RectToolEvent, env: 
       case 'down': {
         const b = snap(event.world, event.mods, env);
         const drag: Drag = {
-          phase: 'drag', levelId: env.level.id, a: { ...b.point }, b, screen: event.screen, released: false,
+          phase: 'drag', levelId: env.level.id, a: { ...b.point }, aOnWall: onWall(b.kind), b, screen: event.screen, released: false,
           partition: event.mods.meta, width: null, height: null, typing: null,
         };
         return { state: drag, effects: [] };
@@ -151,7 +171,8 @@ function diagonal(a: Vec2, c: Vec2): Vec2 | undefined {
  * Overlay of the rectangle tool: the snapped cursor marker and its guides; while dragging, the
  * walls around the rectangle (their axes thickness / 2 outside it, stroked with the thickness),
  * the rectangle itself dashed, its interior width (top side) and height (left side) as dynamic
- * dimensions beyond the walls (the one being typed highlighted), and the thickness.
+ * dimensions beyond the walls (the one being typed highlighted), and the thickness. Hooked on an
+ * existing wall (V2-R25): the V1 preview (axes on the rectangle, axis dimensions) and HOOKED_LABEL.
  */
 export function rectToolOverlay(s: RectToolState, env: RectToolEnv): DrawOverlay {
   if (s.phase === 'idle') {
@@ -165,9 +186,12 @@ export function rectToolOverlay(s: RectToolState, env: RectToolEnv): DrawOverlay
   const x2 = Math.max(s.a.x, c.x);
   const y1 = Math.min(s.a.y, c.y);
   const y2 = Math.max(s.a.y, c.y);
+  const hooked = rectHooked(s);
   // offsets are positive towards perp(b - a): outside means negative for both sides below
-  const offset = -(thickness + DYN_DIM_GAP_PX / env.pxPerCm);
+  const offset = -((hooked ? thickness / 2 : thickness) + DYN_DIM_GAP_PX / env.pxPerCm);
   const h = thickness / 2;
+  const rect = [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }];
+  const lines = [thicknessLabel(thickness, s.partition), ...(hooked ? [HOOKED_LABEL] : [])];
   return {
     guides: s.b.guides,
     dynamicDims: [
@@ -177,13 +201,15 @@ export function rectToolOverlay(s: RectToolState, env: RectToolEnv): DrawOverlay
     activeDimIndex: s.typing === 'width' ? 0 : s.typing === 'height' ? 1 : null,
     ghost: {
       kind: 'draw',
-      paths: [
-        { points: [{ x: x1 - h, y: y1 - h }, { x: x2 + h, y: y1 - h }, { x: x2 + h, y: y2 + h }, { x: x1 - h, y: y2 + h }], closed: true, thickness, axis: false },
-        { points: [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }], closed: true, thickness: 0 },
-      ],
+      paths: hooked
+        ? [{ points: rect, closed: true, thickness }]
+        : [
+            { points: [{ x: x1 - h, y: y1 - h }, { x: x2 + h, y: y1 - h }, { x: x2 + h, y: y2 + h }, { x: x1 - h, y: y2 + h }], closed: true, thickness, axis: false },
+            { points: rect, closed: true, thickness: 0 },
+          ],
       marker: { at: c, snap: s.b.kind },
       // outside the rectangle, beyond the dragged corner
-      label: { at: c, lines: [thicknessLabel(thickness, s.partition)], toward: diagonal(s.a, c) },
+      label: { at: c, lines, toward: diagonal(s.a, c) },
     },
   };
 }

@@ -11,7 +11,6 @@ export interface RoomDimensionHit {
   roomKey: string;
   axis: 'width' | 'depth'; // axisU / axisV of rectangularRoom
   value: number; // current interior size along that axis (cm)
-  at: Vec2; // middle of the written length (world cm)
 }
 
 /** Extra margin (display px) around a written length that still counts as on it. */
@@ -32,8 +31,8 @@ function onText(t: DimText, p: Vec2, slack: number): boolean {
  * The interior dimension of a rectangular room whose written length is under `world`, as the
  * dimensions layer draws them at this lineUnit (layoutDimensions: left-out ones cannot be hit).
  * Only 'room' dimensions measuring an edge of the room's own ring count (not the faces of a wall
- * box standing inside it); null when there is none, or when that room is not rectangular
- * (rectangularRoom).
+ * box standing inside it) and whose room is rectangular (rectangularRoom); the first such one,
+ * else null.
  */
 export function roomDimensionAt(level: Level, d: DerivedLevel, world: Vec2, lineUnit: number, dimMode: DimMode): RoomDimensionHit | null {
   const { auto } = layoutDimensions(level, d, dimMode, lineUnit);
@@ -46,9 +45,9 @@ export function roomDimensionAt(level: Level, d: DerivedLevel, world: Vec2, line
       ringEdges(mergeCollinear(r.ring)).some(([p, q]) => dist(p, a) <= SAME_POINT && dist(q, b) <= SAME_POINT),
     );
     const rect = room ? rectangularRoom(level, d, room.key) : null;
-    if (!room || !rect) return null;
+    if (!room || !rect) continue; // another written length may be under the point too (slack)
     const along = Math.abs(dot(normalize(sub(b, a)), rect.axisU)) >= Math.SQRT1_2;
-    return { roomKey: room.key, axis: along ? 'width' : 'depth', value: along ? rect.width : rect.depth, at: t.at };
+    return { roomKey: room.key, axis: along ? 'width' : 'depth', value: along ? rect.width : rect.depth };
   }
   return null;
 }
