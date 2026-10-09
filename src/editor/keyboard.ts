@@ -16,7 +16,9 @@ export const PASTE_OFFSET: Vec2 = { x: 20, y: 20 };
 const NUDGE = 1;
 const NUDGE_SHIFT = 10;
 
-const TOOL_KEYS: Record<string, ToolId> = { v: 'select', m: 'wall', r: 'rect', p: 'door', f: 'window', c: 'dimension' };
+const TOOL_KEYS: Record<string, ToolId> = {
+  v: 'select', m: 'wall', r: 'rect', p: 'door', f: 'window', c: 'dimension', t: 'slope', b: 'beam', k: 'cupboard',
+};
 const ARROWS: Record<string, Vec2> = {
   arrowleft: { x: -1, y: 0 },
   arrowright: { x: 1, y: 0 },
@@ -193,7 +195,7 @@ function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
  *    Backspace and letters; nor is a key already handled (defaultPrevented) or pressed while a
  *    modal dialog is open (isIgnoredKey);
  * 2. the active tool's onKeyDown;
- * 3. global shortcuts: V M R P F C tools; Escape cancels the gesture or clears the selection;
+ * 3. global shortcuts: V M R P F C T B K tools; Escape cancels the gesture or clears the selection;
  *    Delete / Backspace deletes the selection; Mod+Z undo, Mod+Shift+Z and Mod+Y redo (during a
  *    gesture all three only cancel it); Mod+C copies
  *    the selected objects, Mod+V pastes them at +20 +20, Mod+D duplicates them; arrows nudge the

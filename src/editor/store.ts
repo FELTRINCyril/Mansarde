@@ -9,7 +9,9 @@ import type { NumericKind } from '@/ui/numeric';
 import { pruneSelection, type SelectionItem } from './selection';
 import { DEFAULT_VIEW, isValidView, type View } from './view';
 
-export type ToolId = 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate' | 'moveBackground';
+export type ToolId =
+  | 'select' | 'wall' | 'rect' | 'door' | 'window' | 'dimension' | 'calibrate' | 'moveBackground'
+  | 'slope' | 'beam' | 'cupboard';
 
 /**
  * Reference line of the wall tool (spec 6): the clicked line is the wall axis, or its left / right

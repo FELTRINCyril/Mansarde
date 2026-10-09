@@ -3,7 +3,7 @@ import { checkSeverityByTarget } from '@/core/checks/computeChecks';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
 import { fitBounds } from '@/editor/background';
-import { handleTarget, objectHandles } from '@/editor/handles';
+import { handleTarget, objectHandles, volumeHandles } from '@/editor/handles';
 import { handleGlobalKey, isIgnoredKey } from '@/editor/keyboard';
 import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
 import { activeLevel, useEditor } from '@/editor/store';
@@ -35,7 +35,7 @@ function fitActiveLevel(size: Size): View | null {
 /**
  * Interaction layer of the plan, a component of its own: it alone subscribes to the overlay, so a
  * pointer move that only changes the overlay (selection rectangle, guides) does not re-render the
- * static plan layers. Handles: select tool, exactly one object selected.
+ * static plan layers. Handles: select tool, exactly one object, slope or beam selected.
  */
 function PlanOverlay(): JSX.Element | null {
   const overlay = useEditor((s) => s.overlay);
@@ -44,7 +44,11 @@ function PlanOverlay(): JSX.Element | null {
   const level = useEditor(activeLevel);
   const z = useEditor((s) => s.view.pxPerCm);
   const target = toolId === 'select' ? handleTarget(selection, level) : null;
-  const handles = useMemo(() => (target ? objectHandles(target, z) : []), [target, z]);
+  const select = toolId === 'select';
+  const handles = useMemo(
+    () => (target ? objectHandles(target, z) : select ? volumeHandles(selection, level) : []),
+    [target, z, select, selection, level],
+  );
   return <OverlayLayer overlay={overlay} handles={handles} lineUnit={1 / z} />;
 }
 

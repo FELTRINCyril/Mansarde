@@ -23,9 +23,9 @@ const HANDLE_REACH = 3;
  * front face with a small gap between them; each arc starts at the free end of its panel and is
  * centered on its hinge. Sliding panels run on two tracks just behind the front face. Handles are
  * short pulls standing out of the front face: by the free end of a hinged door, mid-panel on a
- * sliding one.
+ * sliding one. Stroked with the color of the parent group (also used by the cupboard tool ghost).
  */
-function Doors({ level, c, f, lineUnit }: { level: Level; c: Cupboard; f: CupboardFrame; lineUnit: number }): JSX.Element {
+export function CupboardDoors({ level, c, f, lineUnit }: { level: Level; c: Cupboard; f: CupboardFrame; lineUnit: number }): JSX.Element {
   const doors = cupboardDoors(level, c);
   const thin = STYLE.objectLine * lineUnit;
   const inset = Math.min(STYLE.cupboardDoorInset, f.depth / 4);
@@ -125,7 +125,7 @@ export function CupboardsLayer({
       {shown.map((c) => (
         <g key={c.id} data-kind="cupboard" data-id={c.id} stroke={STYLE.objectStroke} fill="none" strokeLinecap="butt">
           <path d={ringsPath([footprints.get(c.id)!])} fill={c.color} fillOpacity={STYLE.objectFillOpacity} strokeWidth={STYLE.objectLine * lineUnit} />
-          <Doors level={level} c={c} f={cupboardFrame(level, c)} lineUnit={lineUnit} />
+          <CupboardDoors level={level} c={c} f={cupboardFrame(level, c)} lineUnit={lineUnit} />
         </g>
       ))}
     </g>
