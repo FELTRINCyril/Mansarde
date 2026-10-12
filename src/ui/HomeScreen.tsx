@@ -45,7 +45,7 @@ function UnreadableItem(p: { meta: UnreadableMeta; onDelete(): void }): JSX.Elem
           Projet illisible
         </span>
         {known.length > 0 && <span className="project-meta">{known.join(' - ')}</span>}
-        <span className="project-meta">Format non reconnu par cette version de Plan Maison.</span>
+        <span className="project-meta">Format non reconnu par cette version de Mansarde.</span>
       </div>
       <div className="project-actions">
         <button type="button" className="btn btn-small btn-danger-outline" onClick={p.onDelete}>
@@ -124,7 +124,7 @@ export function HomeScreen(p: {
   return (
     <div className="home" data-testid="home">
       <header className="home-header">
-        <h1 className="home-title">Plan Maison</h1>
+        <h1 className="home-title">Mansarde</h1>
         <div className="home-actions">
           <button type="button" className="btn btn-primary" data-testid="new-project" onClick={() => setDialog({ kind: 'new' })}>
             Nouveau projet
@@ -159,7 +159,7 @@ export function HomeScreen(p: {
         {projects?.length === 0 && (
           <div className="home-empty">
             <p>Aucun projet pour l'instant.</p>
-            <p className="hint">Créez un nouveau projet ou importez un fichier .json exporté depuis Plan Maison.</p>
+            <p className="hint">Créez un nouveau projet ou importez un fichier .json exporté depuis Mansarde.</p>
           </div>
         )}
         {projects && projects.length > 0 && (

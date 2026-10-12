@@ -124,7 +124,7 @@ export default function App(): JSX.Element {
   if (dbError) {
     screen = (
       <div className="home">
-        <h1 className="home-title">Plan Maison</h1>
+        <h1 className="home-title">Mansarde</h1>
         <Banner kind="error">
           Le stockage du navigateur est indisponible ({dbError}). Les projets ne peuvent pas être enregistrés : vérifiez que
           la navigation privée est désactivée.

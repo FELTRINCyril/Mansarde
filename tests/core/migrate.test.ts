@@ -114,7 +114,7 @@ describe('parseImport of older and newer files', () => {
     const f = v1Export();
     f.formatVersion = 3;
     const r = parseImport(JSON.stringify(f));
-    expect(r).toEqual({ ok: false, error: 'Ce fichier a été créé par une version plus récente de Plan Maison.' });
+    expect(r).toEqual({ ok: false, error: 'Ce fichier a été créé par une version plus récente de Mansarde.' });
   });
 
   it('still refuses a malformed V1 file after migrating it', () => {

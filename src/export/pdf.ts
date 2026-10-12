@@ -135,7 +135,7 @@ export async function exportPdf(args: {
     orientation: spec.orientation,
     compress: true,
   });
-  doc.setProperties({ title: `${project.name} - ${level.name}`, creator: 'Plan Maison' });
+  doc.setProperties({ title: `${project.name} - ${level.name}`, creator: 'Mansarde' });
   await svg2pdf(parsePlanSvg(markup), doc, { x: place.x, y: place.y, width: place.width, height: place.height });
   drawScaleBar(doc, spec);
   drawTitleBlock(doc, spec, project.name, level.name, args.date);

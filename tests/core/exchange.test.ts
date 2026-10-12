@@ -93,14 +93,14 @@ describe('serializeExport / parseImport', () => {
 
   it('rejects JSON that is not an object', () => {
     for (const text of ['42', 'null', '[]', '"x"']) {
-      expect(parseImport(text)).toEqual({ ok: false, error: 'Ce fichier ne provient pas de Plan Maison.' });
+      expect(parseImport(text)).toEqual({ ok: false, error: 'Ce fichier ne provient pas de Mansarde.' });
     }
   });
 
   it('rejects another app', () => {
     const f = exported(richProject());
     f.app = 'autre';
-    expect(parseImport(JSON.stringify(f))).toEqual({ ok: false, error: 'Ce fichier ne provient pas de Plan Maison.' });
+    expect(parseImport(JSON.stringify(f))).toEqual({ ok: false, error: 'Ce fichier ne provient pas de Mansarde.' });
   });
 
   it('rejects a newer format version', () => {
@@ -108,7 +108,7 @@ describe('serializeExport / parseImport', () => {
     f.formatVersion = 99;
     expect(parseImport(JSON.stringify(f))).toEqual({
       ok: false,
-      error: 'Ce fichier a été créé par une version plus récente de Plan Maison.',
+      error: 'Ce fichier a été créé par une version plus récente de Mansarde.',
     });
   });
 

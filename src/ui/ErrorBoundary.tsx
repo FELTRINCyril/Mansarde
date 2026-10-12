@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
 export function AppError(): JSX.Element {
   return (
     <div className="app-error" role="alert" data-testid="app-error">
-      <h1 className="home-title">Plan Maison</h1>
+      <h1 className="home-title">Mansarde</h1>
       <p>Une erreur inattendue empêche l'affichage. Vos projets restent enregistrés dans le navigateur.</p>
       <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
         Recharger la page

@@ -81,7 +81,7 @@ function parseImportUnsafe(text: string): ImportResult {
     return { ok: false, error: "Fichier illisible : ce n'est pas un fichier JSON valide." };
   }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw) || (raw as { app?: unknown }).app !== 'plan-maison') {
-    return { ok: false, error: 'Ce fichier ne provient pas de Plan Maison.' };
+    return { ok: false, error: 'Ce fichier ne provient pas de Mansarde.' };
   }
   const header = raw as { formatVersion?: unknown };
   const version = header.formatVersion;
@@ -89,7 +89,7 @@ function parseImportUnsafe(text: string): ImportResult {
     return invalid('formatVersion invalide');
   }
   if (version > FORMAT_VERSION) {
-    return { ok: false, error: 'Ce fichier a été créé par une version plus récente de Plan Maison.' };
+    return { ok: false, error: 'Ce fichier a été créé par une version plus récente de Mansarde.' };
   }
 
   const forbidden = findProtoKey(raw, '');
