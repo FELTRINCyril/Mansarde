@@ -139,3 +139,17 @@ describe('the reconciliation never refuses an edit for a conflict it did not cau
     expect(messages(fine.p)).toEqual([]);
   });
 });
+
+describe('plinth refusal message (V2-R39)', () => {
+  it('a plinth up to the top of the cupboard says so', () => {
+    const fixed = withCupboard(rectRoom(0, 0, 400, 300), [0, 0, 400, 0], 200);
+    const msg = 'Socle plus haut que le dessus du placard.';
+    expect(refuse(fixed.p, updateCupboard(levelId(fixed.p), fixed.c.id, { plinth: 220 }))).toBe(msg);
+    expect(refuse(fixed.p, updateCupboard(levelId(fixed.p), fixed.c.id, { height: 10 }))).toBe(msg);
+    const ceiling = withCupboard(rectRoom(0, 0, 400, 300), [0, 0, 400, 0], 200, { heightMode: 'ceiling', plinth: 10, gap: 2 });
+    expect(refuse(ceiling.p, updateCupboard(levelId(ceiling.p), ceiling.c.id, { plinth: 248 }))).toBe(msg);
+    expect(refuse(ceiling.p, updateCupboard(levelId(ceiling.p), ceiling.c.id, { gap: 240 }))).toBe(msg);
+    // invalid numbers keep the generic message
+    expect(refuse(fixed.p, updateCupboard(levelId(fixed.p), fixed.c.id, { plinth: -1 }))).toBe('Dimension invalide');
+  });
+});

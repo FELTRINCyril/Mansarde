@@ -12,6 +12,7 @@ const ERR_CUPBOARD_NOT_FOUND = 'Placard introuvable';
 const ERR_WALL_NOT_FOUND = 'Mur introuvable';
 const ERR_NO_ROOM = 'Pas assez de place sur ce mur';
 const ERR_DOORS = 'Nombre de portes invalide';
+const ERR_PLINTH = 'Socle plus haut que le dessus du placard.';
 
 /** Below this (cm), the offset given by the free stretch is the current one (no spurious patch). */
 const OFFSET_EPS = 1e-9;
@@ -40,14 +41,15 @@ function requireRoom(level: DLevel, c: Cupboard): void {
 /**
  * Fixed mode: the plinth under the top. Ceiling mode: the gap under the level ceiling, and the
  * plinth under the real top, i.e. the lowest point of the top under slopes and beams (ceiling
- * minus gap, cupboardTopProfile); called once the wall is known to exist.
+ * minus gap, cupboardTopProfile); called once the wall is known to exist. A plinth up to the top
+ * gets a message that says so (ERR_PLINTH), the other values the generic one.
  */
 function requireConsistentHeights(level: DLevel, c: Cupboard): void {
-  if (c.heightMode === 'fixed' && !(c.plinth < c.height)) throw new CommandError(ERR_SIZE);
+  if (c.heightMode === 'fixed' && !(c.plinth < c.height)) throw new CommandError(ERR_PLINTH);
   if (c.heightMode === 'ceiling') {
     if (!(c.gap < level.height)) throw new CommandError(ERR_SIZE);
     const lowestTop = Math.min(...cupboardTopProfile(level as Level, c).map((p) => p.top));
-    if (!(c.plinth < lowestTop)) throw new CommandError(ERR_SIZE);
+    if (!(c.plinth < lowestTop)) throw new CommandError(ERR_PLINTH);
   }
 }
 

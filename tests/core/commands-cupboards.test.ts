@@ -12,6 +12,7 @@ import { levelId, lvl, noop, projectFrom, refuse, run } from './helpers';
 
 const NO_ROOM = 'Pas assez de place sur ce mur';
 const TOO_SHORT = 'Le mur est trop court pour ses placards';
+const PLINTH = 'Socle plus haut que le dessus du placard.';
 
 /** 400 x 300 room (axes); top wall (0,0)->(400,0) has the room on its left. */
 function setup(): { p: Project; top: Id; right: Id } {
@@ -342,9 +343,9 @@ describe('plinth and gap bounds (T8 fix round)', () => {
   it('fixed mode: the plinth must stay under the height', () => {
     const { p, top } = setup();
     const { p: q, id } = withCupboard(p, top, 200);
-    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 220 }))).toBe('Dimension invalide');
-    expect(refuse(q, updateCupboard(levelId(q), id, { height: 10 }))).toBe('Dimension invalide');
-    expect(refuse(p, addCupboard(levelId(p), createCupboard(top, 200, 'left', { plinth: 300 })))).toBe('Dimension invalide');
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 220 }))).toBe(PLINTH);
+    expect(refuse(q, updateCupboard(levelId(q), id, { height: 10 }))).toBe(PLINTH);
+    expect(refuse(p, addCupboard(levelId(p), createCupboard(top, 200, 'left', { plinth: 300 })))).toBe(PLINTH);
     run(q, updateCupboard(levelId(q), id, { plinth: 219 }));
   });
 
@@ -354,15 +355,15 @@ describe('plinth and gap bounds (T8 fix round)', () => {
     const h = lvl(q).height;
     expect(refuse(q, updateCupboard(levelId(q), id, { gap: h }))).toBe('Dimension invalide');
     // top = h - gap must stay above the plinth (10)
-    expect(refuse(q, updateCupboard(levelId(q), id, { gap: h - 10 }))).toBe('Dimension invalide');
+    expect(refuse(q, updateCupboard(levelId(q), id, { gap: h - 10 }))).toBe(PLINTH);
     run(q, updateCupboard(levelId(q), id, { gap: h - 11 }));
-    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: h - 2 }))).toBe('Dimension invalide');
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: h - 2 }))).toBe(PLINTH);
     run(q, updateCupboard(levelId(q), id, { plinth: h - 3 }));
     run(q, updateCupboard(levelId(q), id, { height: 5 })); // unused in ceiling mode
     // switching a fixed cupboard with a high plinth to the ceiling mode is checked too
     const { p: r, id: fixed } = withCupboard(p, top, 200, { plinth: 200, height: 220 });
-    expect(refuse(r, updateCupboard(levelId(r), fixed, { heightMode: 'ceiling', gap: h - 150 }))).toBe('Dimension invalide');
-    expect(refuse(p, addCupboard(levelId(p), createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: h - 2, gap: 2 })))).toBe('Dimension invalide');
+    expect(refuse(r, updateCupboard(levelId(r), fixed, { heightMode: 'ceiling', gap: h - 150 }))).toBe(PLINTH);
+    expect(refuse(p, addCupboard(levelId(p), createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: h - 2, gap: 2 })))).toBe(PLINTH);
   });
 
   it('ceiling mode under a slope: the plinth is compared with the lowest top under the cupboard', () => {
@@ -376,10 +377,10 @@ describe('plinth and gap bounds (T8 fix round)', () => {
     const top = findWall(lvl(p), 0, 0, 400, 0);
     const { p: q, id } = withCupboard(p, top, 200, { heightMode: 'ceiling', plinth: 10, gap: 2, depth: 60 });
     // 20 cm walls: the cupboard runs from y = 10 to 70, lowest ceiling 250 - 70 = 180, top 178
-    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 178 }))).toBe('Dimension invalide');
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 178 }))).toBe(PLINTH);
     run(q, updateCupboard(levelId(q), id, { plinth: 177 }));
     // a level height of 250 alone would have accepted 200
-    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 200 }))).toBe('Dimension invalide');
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 200 }))).toBe(PLINTH);
   });
 
   it('a slope added later puts the top under the plinth: edits that leave the heights alone stay accepted (V2-R36)', () => {
@@ -394,11 +395,11 @@ describe('plinth and gap bounds (T8 fix round)', () => {
     run(sloped, moveCupboard(lid, id, top, 150));
     run(sloped, moveCupboard(lid, id, top, 200, 'right'));
     // the heights themselves are still checked when they change
-    expect(refuse(sloped, updateCupboard(lid, id, { plinth: 9 }))).toBe('Dimension invalide');
-    expect(refuse(sloped, updateCupboard(lid, id, { gap: 1 }))).toBe('Dimension invalide');
+    expect(refuse(sloped, updateCupboard(lid, id, { plinth: 9 }))).toBe(PLINTH);
+    expect(refuse(sloped, updateCupboard(lid, id, { gap: 1 }))).toBe(PLINTH);
     run(sloped, updateCupboard(lid, id, { plinth: 0, gap: 1 }));
     run(sloped, updateCupboard(lid, id, { heightMode: 'fixed', height: 100 }));
     // a new cupboard there is refused, as before
-    expect(refuse(sloped, addCupboard(lid, createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: 10, gap: 2 })))).toBe('Dimension invalide');
+    expect(refuse(sloped, addCupboard(lid, createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: 10, gap: 2 })))).toBe(PLINTH);
   });
 });

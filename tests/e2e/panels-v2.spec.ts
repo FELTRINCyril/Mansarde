@@ -148,7 +148,7 @@ test('beam and cupboard panels: mode, underside height, resulting height under t
   await page.getByTestId('cupboard-height-mode').selectOption('fixed');
   await page.getByTestId('cupboard-plinth').fill('220');
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('toast')).toHaveText('Dimension invalide');
+  await expect(page.getByTestId('toast')).toHaveText('Socle plus haut que le dessus du placard.');
   expect((await levelState(page)).cupboards[0]!.plinth).toBe(10);
   await page.keyboard.press('Escape');
 
