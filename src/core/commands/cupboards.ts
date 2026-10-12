@@ -2,7 +2,7 @@ import type { Draft } from 'immer';
 import { MAX_CUPBOARD_DOORS } from '../model/defaults';
 import { newId } from '../model/ids';
 import type { Cupboard, Id, Level } from '../model/types';
-import { cupboardCopyOffset, fitCupboardOnWall } from '../geometry/clearances';
+import { cupboardCopySlots, fitCupboardOnWall } from '../geometry/clearances';
 import { deriveLevel } from '../geometry/derived';
 import { cupboardFitsWall, cupboardTopProfile } from '../geometry/cupboards';
 import { wallLength } from '../geometry/walls';
@@ -143,27 +143,49 @@ export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard
 }
 
 /**
- * Adds a copy of each cupboard (each id once) with all its settings, right next to it on the same
- * face (cupboardCopyOffset: after it, else before it, on the free stretch of the face, never over
- * a cupboard of that face nor over a copy made before). The copies are validated as new cupboards
- * (addCupboard). Refused (ERR_NO_ROOM_FOR_COPY) when one of them fits nowhere on that face; the
- * new ids in `out`.
+ * Adds a copy of each cupboard (each id once) with all its settings, on the same face, as near to
+ * it as the face allows (cupboardCopySlots: just after it, else just before it, else the nearest
+ * gap anywhere on the free stretches of that face; never over any cupboard of the level, those of
+ * the perpendicular walls included). The cupboards of a face are copied in their order along the
+ * wall and each copy sees the copies made before it, so that the copies never overlap each other
+ * (A and B side by side give A' then B' after them). Each copy is validated as a new cupboard
+ * (addCupboard): a slot where the heights do not hold (a ceiling-mode copy under a low slope) gives
+ * way to the next slot. Refused when a copy fits nowhere: ERR_NO_ROOM_FOR_COPY when no gap of its
+ * width is left on that face, else the refusal of its best slot (ERR_PLINTH...). The new ids in
+ * `out`, in the order of `ids`.
  */
 export function duplicateCupboards(levelId: Id, ids: Id[], out?: { ids: Id[] }): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
     const sources: Cupboard[] = [...new Set(ids)].map((id) => ({ ...requireCupboard(level, id) }));
-    const copies: Id[] = [];
     // the walls do not change here: their derived geometry is computed once
     const d = sources.length > 0 ? deriveLevel(levelSnapshot(level)) : undefined;
-    for (const c of sources) {
-      const offset = cupboardCopyOffset(levelSnapshot(level), c, d);
-      if (offset === null) throw new CommandError(ERR_NO_ROOM_FOR_COPY);
-      const copy: Cupboard = { ...c, id: newId(), offset };
-      requireValidCupboard(level, copy, true);
+    const alongFace = [...sources].sort((a, b) =>
+      a.wallId !== b.wallId ? (a.wallId < b.wallId ? -1 : 1) : a.side !== b.side ? (a.side < b.side ? -1 : 1) : a.offset - b.offset,
+    );
+    const copyOf = new Map<Id, Id>();
+    for (const c of alongFace) {
+      const slots = cupboardCopySlots(levelSnapshot(level), c, d);
+      if (slots.length === 0) throw new CommandError(ERR_NO_ROOM_FOR_COPY);
+      let copy: Cupboard | null = null;
+      let refusal: unknown = null;
+      for (const offset of slots) {
+        const candidate: Cupboard = { ...c, id: newId(), offset };
+        try {
+          requireValidCupboard(level, candidate, true);
+        } catch (e) {
+          if (!(e instanceof CommandError)) throw e;
+          refusal ??= e;
+          continue;
+        }
+        copy = candidate;
+        break;
+      }
+      if (!copy) throw refusal;
       level.cupboards[copy.id] = copy;
-      copies.push(copy.id);
+      copyOf.set(c.id, copy.id);
     }
+    const copies = sources.map((c) => copyOf.get(c.id)!);
     if (out) out.ids = copies;
     if (copies.length > 0) touch(draft);
   };

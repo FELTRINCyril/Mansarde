@@ -405,7 +405,7 @@ describe('plinth and gap bounds (T8 fix round)', () => {
   });
 });
 
-describe('duplicateCupboards: a copy right next to the original on the same face', () => {
+describe('duplicateCupboards: a copy on the same face, as near to the original as it has room', () => {
   // top wall (0,0)->(400,0), 20 cm thick: the free stretch of its room face is [10, 390]
   const duplicate = (p: Project, ids: Id[]) => {
     const out = { ids: [] as Id[] };
@@ -461,6 +461,79 @@ describe('duplicateCupboards: a copy right next to the original on the same face
     expect(copies.map((c) => c.offset)).toEqual([120, 360]);
     // an id given twice is duplicated once
     expect(duplicate(p2, [a, a]).ids).toHaveLength(1);
+  });
+
+  it('searches the whole face: past a neighbour, to the nearest gap that has room (nav review I2)', () => {
+    // free face [10, 390]: A [10, 70] and B [70, 130] at its start, 260 cm free after B
+    const { p, top } = setup();
+    const { p: p1, id: a } = withCupboard(p, top, 40, { width: 60 });
+    const { p: p2, id: b } = withCupboard(p1, top, 100, { width: 60 });
+    expect(duplicate(p2, [a]).copies.map((c) => c.offset)).toEqual([160]);
+    // both at once: one copy after the other, never over each other, whatever the order given
+    expect(duplicate(p2, [a, b]).copies.map((c) => c.offset)).toEqual([160, 220]);
+    expect(duplicate(p2, [b, a]).copies.map((c) => c.offset)).toEqual([220, 160]);
+    // a gap before the original is taken when it is the nearest one
+    const { p: p3, id: c } = withCupboard(p, top, 200, { width: 60 }); // [170, 230]
+    const { p: p4 } = withCupboard(p3, top, 260, { width: 60 }); // [230, 290]
+    const { p: p5 } = withCupboard(p4, top, 320, { width: 60 }); // [290, 350]
+    expect(duplicate(p5, [c]).copies[0]!.offset).toBe(140);
+  });
+
+  it('refuses only when no gap of the width is left anywhere on that face (nav review I2)', () => {
+    const { p, top } = setup();
+    // S [10, 70] and T [70, 130] at the start, Z [190, 390] at the end: one 60 cm gap [130, 190]
+    const { p: p1, id: s } = withCupboard(p, top, 40, { width: 60 });
+    const { p: p2, id: t } = withCupboard(p1, top, 100, { width: 60 });
+    const { p: p3 } = withCupboard(p2, top, 290, { width: 200 });
+    const { next, copies } = duplicate(p3, [s]);
+    expect(copies[0]!.offset).toBe(160);
+    // the face is full now
+    expect(refuse(next, duplicateCupboards(levelId(next), [s]))).toBe(NO_ROOM_FOR_COPY);
+    // two copies for a single gap: refused as a whole, nothing added
+    expect(refuse(p3, duplicateCupboards(levelId(p3), [s, t]))).toBe(NO_ROOM_FOR_COPY);
+    // a wider cupboard does not fit the gap
+    const { p: p4, id: wide } = withCupboard(p, top, 70, { width: 120 }); // [10, 130]
+    const { p: p5 } = withCupboard(p4, top, 290, { width: 200 });
+    expect(refuse(p5, duplicateCupboards(levelId(p5), [wide]))).toBe(NO_ROOM_FOR_COPY);
+  });
+
+  it('never lands on a cupboard of the perpendicular wall standing in the corner (nav review I3)', () => {
+    const { p, top } = setup();
+    const left = findWall(lvl(p), 0, 300, 0, 0);
+    // C on the left wall (start node (0, 300)): offset 260, footprint x 10..70, y 10..70
+    const c = createCupboard(left, 260, 'left', { width: 60, depth: 60 });
+    const p1 = run(p, addCupboard(levelId(p), c));
+    const fp = cupboardFootprint(lvl(p1), c);
+    expect(Math.min(...fp.map((q) => q.x))).toBeCloseTo(10, 9);
+    expect(Math.min(...fp.map((q) => q.y))).toBeCloseTo(10, 9);
+    const { p: p2, id: d } = withCupboard(p1, top, 100, { width: 60, depth: 60 }); // [70, 130]
+    const { p: p3 } = withCupboard(p2, top, 160, { width: 60, depth: 60 }); // [130, 190]
+    expect(duplicate(p3, [d]).copies[0]!.offset).toBe(220);
+    // a cupboard of the perpendicular wall beyond the depth of the copy does not count, one within it does
+    const withLeft = (offset: number) => {
+      const q = run(p, addCupboard(levelId(p), createCupboard(left, offset, 'left', { width: 60, depth: 60 })));
+      const { p: q1, id } = withCupboard(q, top, 100, { width: 60, depth: 60 }); // [70, 130]
+      const { p: q2 } = withCupboard(q1, top, 160, { width: 60, depth: 60 }); // [130, 190]
+      return duplicate(q2, [id]).copies[0]!.offset;
+    };
+    expect(withLeft(190)).toBe(40); // y 80..140: the copy [10, 70] (y 10..70) is clear of it
+    expect(withLeft(210)).toBe(220); // y 60..120: it reaches 10 cm into the depth of the copy
+  });
+
+  it('a ceiling-mode copy whose first slot is under a low slope takes the next slot that works (nav review M8)', () => {
+    // a local slope over x 160..240 of the top wall: 250 at the wall face, 8 at 60 cm from it
+    const p = projectFrom(rectRoom(0, 0, 400, 300), (level) => {
+      const s = createSlope({ x: 160, y: 10 }, { x: 240, y: 10 }, 'left', 60, 250, 8);
+      level.slopes[s.id] = s;
+    });
+    const top = findWall(lvl(p), 0, 0, 400, 0);
+    const { p: p1, id } = withCupboard(p, top, 100, { width: 100, depth: 60, heightMode: 'ceiling', plinth: 10, gap: 2 }); // [50, 150]
+    // just after it ([150, 250]) the top would be under the plinth; before it there is no room
+    const copy = duplicate(p1, [id]).copies[0]!;
+    expect(copy.offset).toBe(300);
+    // nowhere fits: the plinth message, not a silent placement
+    const { p: p2 } = withCupboard(p1, top, 330, { width: 100, depth: 60 }); // [280, 380]
+    expect(refuse(p2, duplicateCupboards(levelId(p2), [id]))).toBe(PLINTH);
   });
 
   it('refuses an unknown cupboard; no ids is a no-op', () => {

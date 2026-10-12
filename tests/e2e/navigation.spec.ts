@@ -109,6 +109,23 @@ test.describe('plan', () => {
     expect(worldAt(v1, at).x).toBeCloseTo(worldAt(v0, at).x, 6);
   });
 
+  test('Ctrl + mouse wheel (Control down) zooms at the wheel rate, a Chromium pinch (Control up) at the pinch rate (nav review M7)', async ({ page }) => {
+    await roomAndBox(page);
+    const at = { x: 260, y: 210 };
+    // a slow macOS wheel notch with Control down, and a pinch as Chromium sends it (wheelDeltaY +-120)
+    const notch = { deltaY: 4.000244140625, wheelDeltaY: -120, ctrlKey: true };
+    let v0 = await view(page);
+    await page.keyboard.down('Control');
+    await wheelOn(page, 'plan-canvas', at, [notch]);
+    await page.keyboard.up('Control');
+    let v1 = await view(page);
+    expect(v1.pxPerCm / v0.pxPerCm).toBeCloseTo(Math.exp(-4.000244140625 * 0.0015), 9);
+    v0 = v1;
+    await wheelOn(page, 'plan-canvas', at, [{ deltaY: -100 * Math.log(1.2), wheelDeltaY: 120, ctrlKey: true }]);
+    v1 = await view(page);
+    expect(v1.pxPerCm / v0.pxPerCm).toBeCloseTo(1.2, 6);
+  });
+
   test('Shift + wheel pans sideways', async ({ page }) => {
     await roomAndBox(page);
     const box = (await page.getByTestId('plan-canvas').boundingBox())!;
@@ -191,12 +208,21 @@ test.describe('3D view', () => {
   const KEPT = 0.03;
   const PANNED = 0.1;
 
-  async function open3d(page: Page, mode: '3d' | 'split' = '3d'): Promise<void> {
-    await roomAndBox(page);
+  /** The room and its box (roomAndBox, the id of the box), shown in the 3D view or in Plan + 3D. */
+  async function open3d(page: Page, mode: '3d' | 'split' = '3d'): Promise<string> {
+    const id = await roomAndBox(page);
     await page.getByTestId(`view-${mode}`).click();
     await expect(page.getByTestId('scene3d-canvas')).toBeVisible(LOAD);
     await expect.poll(() => page.evaluate(() => window.__planMaison3D!.frames), LOAD).toBeGreaterThan(0);
+    return id;
   }
+
+  const boxAt = (page: Page, id: string) =>
+    page.evaluate((id) => {
+      const o = window.__planMaison!.store.getState().project!.levels[0]!.objects[id]!;
+      return { x: o.x, y: o.y };
+    }, id);
+  const historyLength = (page: Page) => page.evaluate(() => window.__planMaison!.store.getState().history.past.length);
 
   test('a trackpad scroll moves the target, not the distance; a pinch and a wheel change the distance', async ({ page }) => {
     await open3d(page);
@@ -267,6 +293,60 @@ test.describe('3D view', () => {
     expect((await view(page)).tx).toBeLessThan(v0.tx);
     const p3 = await pose(page);
     expect(moved(p3.tgt, p2.tgt)).toBeLessThan(KEPT);
+  });
+
+  test('in Plan + 3D, Space + drag over the plan pans it after a click in the 3D, and never moves the object under it (nav review I1)', async ({ page }) => {
+    const id = await open3d(page, 'split');
+    const canvas3d = page.getByTestId('scene3d-canvas');
+    await canvas3d.click({ position: { x: 20, y: 300 } });
+    await expect(canvas3d).toBeFocused();
+    const v0 = await view(page);
+    const past = await historyLength(page);
+    const plan = (await page.getByTestId('plan-canvas').boundingBox())!;
+    // the screen point of the box center (200, 150)
+    const at = { x: plan.x + v0.tx + 200 * v0.pxPerCm, y: plan.y + v0.ty + 150 * v0.pxPerCm };
+    await page.keyboard.down('Space');
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 60, at.y + 40, { steps: 6 });
+    await page.mouse.up();
+    await page.keyboard.up('Space');
+    expect(await boxAt(page, id)).toEqual({ x: 200, y: 150 });
+    expect(await historyLength(page)).toBe(past);
+    const v1 = await view(page);
+    expect(v1.pxPerCm).toBe(v0.pxPerCm);
+    expect(v1.tx).toBeCloseTo(v0.tx + 60, 6);
+    expect(v1.ty).toBeCloseTo(v0.ty + 40, 6);
+  });
+
+  test('with a selection, the arrows nudge it in the 3D view too; without one they move the camera (nav review M5)', async ({ page }) => {
+    const id = await open3d(page, 'split');
+    const canvas3d = page.getByTestId('scene3d-canvas');
+    await canvas3d.click({ position: { x: 20, y: 300 } });
+    await expect(canvas3d).toBeFocused();
+    await page.evaluate((id) => window.__planMaison!.store.getState().setSelection([{ kind: 'object', id }]), id);
+    const p0 = await pose(page);
+    const v0 = await view(page);
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Shift+ArrowDown');
+    await expect.poll(() => boxAt(page, id)).toEqual({ x: 201, y: 160 });
+    const p1 = await pose(page);
+    expect(moved(p1.tgt, p0.tgt)).toBeLessThan(KEPT);
+    expect(moved(p1.cam, p0.cam)).toBeLessThan(KEPT);
+    expect(await view(page)).toEqual(v0);
+    // the 3D view alone: the same
+    await page.getByTestId('view-3d').click();
+    await canvas3d.click({ position: { x: 20, y: 300 } });
+    await page.evaluate((id) => window.__planMaison!.store.getState().setSelection([{ kind: 'object', id }]), id);
+    await page.keyboard.press('ArrowLeft');
+    await expect.poll(() => boxAt(page, id)).toEqual({ x: 200, y: 160 });
+    // nothing selected: the camera moves, the box stays
+    await page.evaluate(() => window.__planMaison!.store.getState().setSelection([]));
+    const p2 = await pose(page);
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+    const p3 = await pose(page);
+    expect(moved(p3.tgt, p2.tgt)).toBeGreaterThan(PANNED);
+    expect(await boxAt(page, id)).toEqual({ x: 200, y: 160 });
   });
 
   test('the 3D view has its navigation help', async ({ page }) => {

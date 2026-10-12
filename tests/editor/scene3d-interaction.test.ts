@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, type MeshStandardMaterial, type Object3D } from 'three';
+import { Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Vector3, type MeshStandardMaterial, type Object3D } from 'three';
 import { getCatalogEntry } from '@/catalog/catalog';
 import { ceilingWithoutBeams } from '@/core/geometry/ceiling';
 import { deriveLevel, deriveVolumes } from '@/core/geometry/derived';
@@ -261,6 +261,90 @@ describe('camera rig: orbit bound (task 11 review)', () => {
     expect(change.defaultPrevented).toBe(true);
     expect(dist(rig)).toBeCloseTo(d0 / 1.25, 3);
     expect(rig.preset).toBeNull();
+    rig.dispose();
+  });
+
+  it('a Safari pinch also sending ctrlKey wheels dollies once: the wheels of the gesture are ignored (nav review M4)', () => {
+    const { dom, rig } = atPreset();
+    const d0 = dist(rig);
+    const gesture = (type: string, scale: number) => Object.assign(new Event(type, { cancelable: true }), { scale, clientX: 500, clientY: 350 });
+    dom.dispatchEvent(gesture('gesturestart', 1));
+    const wheels = [-10, -12, -8].map((deltaY) => ev('wheel', { deltaY, ctrlKey: true }));
+    for (const w of wheels) dom.dispatchEvent(w);
+    dom.dispatchEvent(gesture('gesturechange', 1.25));
+    dom.dispatchEvent(gesture('gestureend', 1.25));
+    settle(rig);
+    expect(dist(rig)).toBeCloseTo(d0 / 1.25, 3);
+    // the browser must not zoom the page either
+    expect(wheels.every((w) => w.defaultPrevented)).toBe(true);
+    // after the gesture, a ctrlKey wheel (Chrome pinch) dollies again
+    dom.dispatchEvent(ev('wheel', { deltaY: -10, ctrlKey: true }));
+    settle(rig);
+    expect(dist(rig)).toBeLessThan(d0 / 1.25 - 1e-3);
+    rig.dispose();
+  });
+
+  /** An element whose document and window are distinct targets (pointerup outside the view, window blur). */
+  class DocDom extends EventDom {
+    readonly win = new EventTarget();
+    readonly doc = Object.assign(new EventTarget(), { defaultView: this.win });
+    override get ownerDocument() {
+      return this.doc as unknown as this;
+    }
+  }
+
+  it('a press that ends outside the view (pointerup elsewhere, capture lost, cancel, window blur) no longer blocks the trackpad pan (nav review M6)', () => {
+    const ends: Array<[string, (d: DocDom) => void]> = [
+      ['window blur', (d) => d.win.dispatchEvent(new Event('blur'))],
+      ['pointerup on the document', (d) => d.doc.dispatchEvent(ev('pointerup'))],
+      ['lostpointercapture', (d) => d.dispatchEvent(ev('lostpointercapture'))],
+      ['pointercancel', (d) => d.dispatchEvent(ev('pointercancel'))],
+    ];
+    for (const [name, end] of ends) {
+      const dom = new DocDom();
+      const rig = new CameraRig(dom as unknown as HTMLElement, () => {});
+      rig.setAspect(1000 / 700);
+      const b = boundsOf([[{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 400 }]], 0, 2.4);
+      rig.setBounds(b);
+      rig.goTo(presetPose('top', b, null, 1000 / 700), true, 0, 'top');
+      dom.dispatchEvent(ev('pointerdown'));
+      end(dom);
+      const d0 = dist(rig);
+      const t0 = target(rig);
+      for (let i = 0; i < 5; i++) dom.dispatchEvent(ev('wheel', { deltaX: 6, deltaY: 10, wheelDeltaX: -18, wheelDeltaY: -30 }));
+      settle(rig);
+      expect(target(rig).distanceTo(t0), name).toBeGreaterThan(0.05);
+      expect(dist(rig), name).toBeCloseTo(d0, 3);
+      rig.dispose();
+    }
+  });
+
+  it('with a selection, the arrows are left to the editor (nudge): no pan, no preventDefault (nav review M5)', () => {
+    let selected = true;
+    const dom = new EventDom();
+    const rig = new CameraRig(dom as unknown as HTMLElement, () => {}, { arrowsMoveSelection: () => selected });
+    rig.setAspect(1000 / 700);
+    const b = boundsOf([[{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 400 }]], 0, 2.4);
+    rig.setBounds(b);
+    rig.goTo(presetPose('top', b, null, 1000 / 700), true, 0, 'top');
+    const t0 = target(rig);
+    const key = (f: Record<string, unknown> = {}) =>
+      Object.assign(new Event('keydown', { cancelable: true }), { code: 'ArrowRight', key: 'ArrowRight', ctrlKey: false, metaKey: false, shiftKey: false, ...f });
+    for (const k of [key(), key({ shiftKey: true })]) {
+      dom.dispatchEvent(k);
+      settle(rig);
+      expect(k.defaultPrevented).toBe(false);
+      expect(target(rig).distanceTo(t0)).toBeLessThan(1e-9);
+      expect(rig.camera.position.distanceTo(new Vector3(...presetPose('top', b, null, 1000 / 700).pos))).toBeLessThan(1e-9);
+    }
+    expect(rig.preset).toBe('top');
+    // nothing selected: the arrows pan the view again
+    selected = false;
+    const k = key();
+    dom.dispatchEvent(k);
+    settle(rig);
+    expect(k.defaultPrevented).toBe(true);
+    expect(target(rig).distanceTo(t0)).toBeGreaterThan(1e-3);
     rig.dispose();
   });
 
