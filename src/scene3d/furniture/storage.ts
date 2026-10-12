@@ -40,7 +40,8 @@ export const wardrobe: Builder = (s, kit) => {
   const body = d - 0.03;
   g.add(p.rbox(w, h, body, 0.01, main(s, '#e5d9c6'), 0, h / 2, -0.015, { roughness: 0.6 }));
   const front = d / 2 - 0.03;
-  const n = wardrobeDoorCount(w * 100);
+  // the 2D count, from the width in cm cleared of the float error of the meters (5.1 * 100 < 510)
+  const n = wardrobeDoorCount(Math.round(w * 100 * 1e6) / 1e6);
   for (let i = 0; i < n; i++) {
     const x = -w / 2 + (w / n) * (i + 0.5);
     g.add(p.box(w / n - 0.012, h - 0.08, 0.01, s.custom ? s.color : '#efe6d6', x, h / 2 + 0.02, front + 0.005));

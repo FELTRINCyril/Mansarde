@@ -69,7 +69,9 @@ describe('3D furniture proportions follow the 2D symbols', () => {
     kit.dispose();
   });
 
-  it.each([60, 90, 120, 150, 200, 240])('wardrobe %i cm wide: as many doors (handles) as the symbol', (w) => {
+  // 510: the 3D width 5.1 m gives 5.1 * 100 = 509.99999999999994 cm, just under 8.5 doors: it must be
+  // rounded back; 509.6 (a typed width): rounding to the whole cm would give 9 doors instead of 8
+  it.each([60, 90, 120, 150, 200, 240, 510, 509.6])('wardrobe %s cm wide: as many doors (handles) as the symbol', (w) => {
     const markup = svg('wardrobe', w, 60);
     // the door separations: vertical lines from the door leaf line to the front edge
     const separations = [...markup.matchAll(/<line x1="([^"]+)" y1="[^"]+" x2="([^"]+)" y2="30"/g)].filter((m) => m[1] === m[2]).length;
