@@ -258,3 +258,27 @@ test('narrow Plan + 3D pane: a structure edit does not move the camera; narrowin
   expect(far(narrow)).toBeGreaterThan(far(kept));
   expect(errors).toEqual([]);
 });
+
+test('a selection click keeps the preset: switching to Plan + 3D still refits the top view (review I1)', async ({ page }) => {
+  const errors = watchErrors(page);
+  await createProject(page, 'Clic puis volet');
+  const bed = await roomWithBed(page);
+  await page.evaluate(() => window.__planMaison!.store.getState().setSelection([]));
+  await open(page, '3d');
+  await page.getByTestId('preset-top').click();
+  await settle(page);
+  const full = (await stats(page)).camera;
+  await clickObject(page, bed);
+  await expect.poll(() => selection(page), LOAD).toEqual([{ kind: 'object', id: bed }]);
+  await settle(page);
+  // the click did not move the camera
+  const clicked = (await stats(page)).camera;
+  for (let i = 0; i < 3; i++) expect(clicked[i]!).toBeCloseTo(full[i]!, 4);
+  // half the width: the top view moves up to keep the whole room in view
+  await page.getByTestId('view-split').click();
+  await expect.poll(async () => (await stats(page)).camera[1]!, LOAD).toBeGreaterThan(full[1]! * 1.3);
+  await settle(page);
+  // the bed at the room center is still drawn inside the narrower view (null when off screen)
+  expect(await page.evaluate((id) => window.__planMaison3DProbe!.objectScreen!(id), bed)).not.toBeNull();
+  expect(errors).toEqual([]);
+});

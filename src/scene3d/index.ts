@@ -389,10 +389,11 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
         rig.setBounds(fitBox);
       }
       const objectsChanged = furniture.sync(input.level, input.project.customObjects, input.showLabels);
-      cupboards.sync(input.level, shown!.d);
+      const cupboardsChanged = cupboards.sync(input.level, shown!.d);
       tints.sync(alertTargets(input.alerts));
-      // kit materials of rebuilt or removed objects (a color changed): disposed once unused
+      // materials of rebuilt or removed objects and cupboards (a color changed): disposed once unused
       if (objectsChanged) furniture.purge(tints.originals());
+      if (cupboardsChanged) cupboards.purge(tints.originals());
       outline.sync(selectedTargets());
       scene3dStats.objectBuilds = furniture.buildCount;
       scene3dStats.cupboardBuilds = cupboards.buildCount;

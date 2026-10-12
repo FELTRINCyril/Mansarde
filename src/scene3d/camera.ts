@@ -4,6 +4,7 @@ import { objectFootprint, objectShape } from '@/core/geometry/objects';
 import { distanceToRing, pointInRing, ringEdges, vertexCentroid } from '@/core/geometry/polygon';
 import type { Room } from '@/core/geometry/rooms';
 import { segmentIntersection } from '@/core/geometry/vec';
+import { CLICK_SLOP } from './picking';
 import type { CustomObjectDef, Id, Level, Ring, Vec2 } from '@/core/model/types';
 
 export type Preset = 'overview' | 'top' | 'room';
@@ -266,10 +267,16 @@ export class CameraRig {
   readonly controls: OrbitControls;
   private tween: { t0: number; from: Pose; to: Pose } | null = null;
   /**
-   * The preset the camera was last sent to, until a user gesture moves it: a view left on a
-   * fitted preset is fitted again when its size changes (split separator, window).
+   * The preset the camera was last sent to, until the user really moves the camera (a drag beyond
+   * CLICK_SLOP, a pinch, a wheel zoom; a click to select does not): a view left on a fitted preset
+   * is fitted again when its size changes (split separator, window).
    */
   preset: Preset | null = null;
+  /** Orbit bound of the level (maxDistance(b), 1.5 x its fitted overview) and of the last preset (1.5 x its distance). */
+  private levelBound = 16;
+  private presetBound = 0;
+  private readonly pressed = new Map<number, { x: number; y: number }>();
+  private readonly offDom: () => void;
 
   constructor(dom: HTMLElement, onChange: () => void) {
     this.controls = new OrbitControls(this.camera, dom);
@@ -278,11 +285,38 @@ export class CameraRig {
     this.controls.minDistance = MIN_DISTANCE;
     this.controls.maxDistance = 16;
     this.controls.addEventListener('change', onChange);
-    // a user gesture stops the animation (plan-chambre) and leaves the preset
-    this.controls.addEventListener('start', () => {
-      this.tween = null;
-      this.preset = null;
-    });
+    // OrbitControls emits 'start' on every press, a click included: the rig watches the pointer
+    // itself and leaves the preset (and stops the animation, as plan-chambre) only on a real move
+    const down = (e: PointerEvent) => {
+      this.pressed.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pressed.size > 1) this.userMoved();
+    };
+    const move = (e: PointerEvent) => {
+      const p = this.pressed.get(e.pointerId);
+      if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > CLICK_SLOP) this.userMoved();
+    };
+    const up = (e: PointerEvent) => {
+      this.pressed.delete(e.pointerId);
+    };
+    const wheel = () => this.userMoved();
+    dom.addEventListener('pointerdown', down);
+    dom.addEventListener('pointermove', move);
+    dom.addEventListener('pointerup', up);
+    dom.addEventListener('pointercancel', up);
+    dom.addEventListener('wheel', wheel);
+    this.offDom = () => {
+      dom.removeEventListener('pointerdown', down);
+      dom.removeEventListener('pointermove', move);
+      dom.removeEventListener('pointerup', up);
+      dom.removeEventListener('pointercancel', up);
+      dom.removeEventListener('wheel', wheel);
+    };
+  }
+
+  /** The user moves the camera: the animation stops and the camera leaves its preset. */
+  private userMoved(): void {
+    this.tween = null;
+    this.preset = null;
   }
 
   /** Distance (m) from the camera, or from where its animation ends, to its target. */
@@ -294,14 +328,25 @@ export class CameraRig {
   }
 
   /**
-   * Orbit bound for a new box (after a structure change): maxDistance(b), but never less than the
-   * fitted overview distance for this view (with the 1.5 margin of goTo) nor than where the camera
-   * is, else OrbitControls would pull the camera in at its next update (a jump, the house cropped).
+   * The orbit bound: the level's and the last preset's, but never less than where the camera is
+   * (else OrbitControls would pull the camera in at its next update: a jump, the house cropped).
+   * A bound left above them by a farther camera comes down as the camera comes closer (tick).
+   */
+  private clampBound(): void {
+    this.controls.maxDistance = Math.max(this.levelBound, this.presetBound, this.distance);
+  }
+
+  /**
+   * Orbit bound for a new box (after a structure change): maxDistance(b), but at least the fitted
+   * overview distance for this view with the 1.5 margin of goTo; it replaces the bound of the
+   * previous box (a smaller level gets a smaller bound) without pulling the camera in.
    */
   setBounds(b: Bounds): void {
     const fit = presetPose('overview', b, null, this.camera.aspect);
     const fitted = Math.hypot(fit.pos[0] - fit.tgt[0], fit.pos[1] - fit.tgt[1], fit.pos[2] - fit.tgt[2]);
-    this.controls.maxDistance = Math.max(maxDistance(b), 1.5 * fitted, this.distance);
+    this.levelBound = Math.max(maxDistance(b), 1.5 * fitted);
+    this.presetBound = 0;
+    this.clampBound();
   }
 
   /** Moves to a pose, animated over PRESET_MS unless `instant` or the user prefers reduced motion. */
@@ -309,7 +354,8 @@ export class CameraRig {
     this.preset = preset;
     // a preset fitted to a large level or a narrow view may lie beyond the orbit bound
     const dist = Math.hypot(to.pos[0] - to.tgt[0], to.pos[1] - to.tgt[1], to.pos[2] - to.tgt[2]);
-    this.controls.maxDistance = Math.max(this.controls.maxDistance, 1.5 * dist);
+    this.presetBound = 1.5 * dist;
+    this.controls.maxDistance = Math.max(this.controls.maxDistance, this.presetBound);
     const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (instant || reduce) {
       this.tween = null;
@@ -339,6 +385,8 @@ export class CameraRig {
       else moving = true;
     }
     if (this.controls.update()) moving = true;
+    // a bound kept for a farther camera follows it down to the level's and preset's
+    if (!this.tween && this.controls.maxDistance > Math.max(this.levelBound, this.presetBound)) this.clampBound();
     return moving;
   }
 
@@ -346,10 +394,11 @@ export class CameraRig {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
     // a narrower view may need a farther camera: never clamp the current one
-    this.controls.maxDistance = Math.max(this.controls.maxDistance, this.distance);
+    this.clampBound();
   }
 
   dispose(): void {
+    this.offDom();
     this.controls.dispose();
   }
 }

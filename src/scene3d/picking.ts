@@ -50,24 +50,38 @@ export function pickAt(camera: Camera, ndc: { x: number; y: number }, roots: Obj
 }
 
 /**
- * Calls `onClick` with the view point (ndc) of a primary-button click on `dom`: released within
- * CLICK_SLOP of where it was pressed (an orbit or pan gesture moves farther). Returns the remover.
+ * Calls `onClickAt` with the view point (ndc) of a primary-button click on `dom`: released within
+ * CLICK_SLOP of where it was pressed (an orbit or pan gesture moves farther), with no other pointer
+ * down at any time during the gesture (a pinch with one still finger, a mouse held while a finger
+ * taps). Returns the remover.
  */
 export function onClick(dom: HTMLElement, onClickAt: (ndc: { x: number; y: number }) => void): () => void {
-  let down: { x: number; y: number; id: number } | null = null;
+  /** Pointers down now; the gesture lasts until none is left. */
+  const active = new Set<number>();
+  let start: { x: number; y: number; id: number } | null = null;
+  let multi = false;
   const press = (e: PointerEvent) => {
-    down = e.button === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null;
+    if (active.size === 0) {
+      multi = false;
+      start = e.button === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null;
+    } else {
+      multi = true;
+    }
+    active.add(e.pointerId);
   };
   const release = (e: PointerEvent) => {
-    const d = down;
-    down = null;
-    if (!d || e.pointerId !== d.id || e.button !== 0 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > CLICK_SLOP) return;
+    if (!active.delete(e.pointerId)) return;
+    const s = start;
+    if (active.size === 0) start = null;
+    if (multi || !s || e.pointerId !== s.id || e.button !== 0 || Math.hypot(e.clientX - s.x, e.clientY - s.y) > CLICK_SLOP) return;
     const r = dom.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return;
     onClickAt({ x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 });
   };
-  const cancel = () => {
-    down = null;
+  const cancel = (e: PointerEvent) => {
+    active.delete(e.pointerId);
+    multi = true; // the rest of this gesture is not a click
+    if (active.size === 0) start = null;
   };
   dom.addEventListener('pointerdown', press);
   dom.addEventListener('pointerup', release);

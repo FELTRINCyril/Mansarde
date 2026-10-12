@@ -1,4 +1,4 @@
-import { Color, DoubleSide, MeshStandardMaterial, type Texture } from 'three';
+import { Color, DoubleSide, MeshStandardMaterial, type Material, type Texture } from 'three';
 
 /** Colors of the 3D view (spec 8.2, taken from plan-chambre). */
 export const COLORS = {
@@ -24,7 +24,8 @@ export const LOWER_LEVEL_OPACITY = 0.6;
 
 /**
  * The shared materials of a scene. Every mesh of the view uses one of them (cupboards: one per
- * color, created on demand); they are disposed with the scene, never with a mesh.
+ * color, created on demand, disposed by purgeCupboards once no cupboard uses that color); they
+ * are disposed with the scene, never with a mesh.
  */
 export interface Materials {
   wall: MeshStandardMaterial;
@@ -38,6 +39,8 @@ export interface Materials {
   handle: MeshStandardMaterial;
   windowSill: MeshStandardMaterial;
   cupboard(color: string): MeshStandardMaterial;
+  /** Disposes and forgets the cupboard materials not in `used` (CupboardLayer.purge). */
+  purgeCupboards(used: ReadonlySet<Material>): void;
   dispose(): void;
 }
 
@@ -53,7 +56,7 @@ const standard = (color: string, extra: ConstructorParameters<typeof MeshStandar
 export function createMaterials(parquet: Texture | null, opacity = 1): Materials {
   const see = opacity < 1 ? { transparent: true, opacity, depthWrite: false } : {};
   const cupboards = new Map<string, MeshStandardMaterial>();
-  const m: Omit<Materials, 'cupboard' | 'dispose'> = {
+  const m: Omit<Materials, 'cupboard' | 'purgeCupboards' | 'dispose'> = {
     wall: standard(COLORS.wall, see),
     ceiling: standard(COLORS.ceiling, { emissive: new Color(COLORS.ceilingEmissive), ...see }),
     floor: parquet ? new MeshStandardMaterial({ map: parquet, roughness: 0.7, ...see }) : standard('#d8b98f', { roughness: 0.7, ...see }),
@@ -82,6 +85,13 @@ export function createMaterials(parquet: Texture | null, opacity = 1): Materials
         cupboards.set(color, c);
       }
       return c;
+    },
+    purgeCupboards(used) {
+      for (const [color, c] of cupboards) {
+        if (used.has(c)) continue;
+        c.dispose();
+        cupboards.delete(color);
+      }
     },
     dispose() {
       for (const x of Object.values(m)) x.dispose();

@@ -1,4 +1,4 @@
-import { Group, Mesh } from 'three';
+import { Group, Mesh, type Material } from 'three';
 import type { DerivedLevel } from '@/core/geometry/derived';
 import { buildLevelMeshes, type CupboardParts } from '@/core/mesh';
 import type { Id, Level } from '@/core/model/types';
@@ -65,6 +65,19 @@ export class CupboardLayer {
       changed = true;
     }
     return changed;
+  }
+
+  /**
+   * Disposes the cupboard materials (one per color, materials.ts) no cupboard uses any more, after
+   * a cupboard was recolored or removed; `alsoUsed` are the originals held by the alert tints.
+   */
+  purge(alsoUsed: Iterable<Material>): void {
+    const used = new Set<Material>(alsoUsed);
+    this.root.traverse((n) => {
+      if (!(n instanceof Mesh)) return;
+      for (const m of Array.isArray(n.material) ? n.material : [n.material]) used.add(m);
+    });
+    this.mats.purgeCupboards(used);
   }
 
   groupOf(id: Id): Group | undefined {
