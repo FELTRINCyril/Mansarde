@@ -47,12 +47,14 @@ export function wallsInside(d: DerivedLevel, clip: Ring, box: Box): Shape {
 }
 
 /**
- * Wall overlap (spec 5.4): an object, other than a rug, whose footprint enters the wall shape
- * (without openings) by more than 1 cm2. Cupboards stand against their wall and are not checked.
+ * Wall overlap (spec 5.4): an object, other than a rug, or a cupboard whose footprint enters the
+ * wall shape (without openings) by more than 1 cm2. A cupboard stands against its wall face and
+ * the commands keep it on the free stretch of that face; one inside a wall comes from an import
+ * or an older version (ruling V2-R39): same message, "Placard : empiète sur un mur.".
  */
 export function wallOverlapChecks(ctx: CheckContext): Check[] {
   const out: Check[] = [];
-  for (const item of ctx.objects) {
+  for (const item of ctx.items) {
     if (item.pose === 'covering') continue;
     const { crossing, inside } = wallsNear(ctx.derived, item.box);
     const overlap = inside ? area(item.footprint) : crossing.length > 0 ? overlapArea(crossing, item.footprint, item.convex) : 0;

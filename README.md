@@ -167,7 +167,7 @@ Exemples de messages :
 - "Armoire : monte à 2,00 m, plafond à 1,54 m à cet endroit." (hauteur sous un rampant, une
   poutre ou le plafond) ;
 - "Lit et Bureau se chevauchent." ;
-- "Commode : empiète sur un mur." ;
+- "Commode : empiète sur un mur." (aussi pour un placard venu d'un fichier importé) ;
 - "Fauteuil : gêne l'ouverture de la porte." ;
 - "Placard : devant une fenêtre." ;
 - "Placard : pas assez de hauteur sous le plafond." (placard jusqu'au plafond dont le haut passe

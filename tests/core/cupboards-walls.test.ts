@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { computeChecks } from '@/core/checks/computeChecks';
 import { overlapArea } from '@/core/checks/overlap';
 import { addCupboard, moveCupboard, updateCupboard } from '@/core/commands/cupboards';
 import type { Recipe } from '@/core/commands/apply';
@@ -39,6 +40,10 @@ const inWalls = (p: Project, id: Id): number => {
   return overlapArea(deriveLevel(level).shapeNoOpenings, cupboardFootprint(level, level.cupboards[id]!), true);
 };
 const maxX = (p: Project, id: Id): number => Math.max(...cupboardFootprint(lvl(p), lvl(p).cupboards[id]!).map((q) => q.x));
+const messages = (p: Project): string[] => {
+  const level = structuredClone(lvl(p));
+  return computeChecks(level, deriveLevel(level), {}).map((k) => k.message);
+};
 
 describe('every path keeps a cupboard out of the walls (V2-R39)', () => {
   // top wall (0,0) -> (300,0) then (300,0) -> (400,0); a T partition goes up (outside) from (300, 0)
@@ -122,5 +127,15 @@ describe('the reconciliation never refuses an edit for a conflict it did not cau
     run(p, updateCupboard(levelId(p), c.id, { color: '#000000' }));
     const narrow = run(p, updateCupboard(levelId(p), c.id, { width: 370 }));
     expect(inWalls(narrow, c.id)).toBeLessThan(1e-6);
+  });
+
+  it('it is flagged by the checks: "Placard : empiète sur un mur."; a cupboard against its wall is not', () => {
+    const { p, c } = legacy(120, 330);
+    const level = structuredClone(lvl(p));
+    expect(computeChecks(level, deriveLevel(level), {}).filter((k) => k.kind === 'wallOverlap')).toEqual([
+      expect.objectContaining({ severity: 'error', message: 'Placard : empiète sur un mur.', targets: [{ kind: 'cupboard', id: c.id }] }),
+    ]);
+    const fine = withCupboard(rectRoom(0, 0, 400, 300), [0, 0, 400, 0], 330);
+    expect(messages(fine.p)).toEqual([]);
   });
 });
