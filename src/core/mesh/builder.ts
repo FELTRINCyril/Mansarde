@@ -11,7 +11,6 @@ export const at3 = (p: Vec2, h: number): V3 => [p.x / 100, h / 100, p.y / 100];
 export const horizontal = (d: Vec2): V3 => [d.x, 0, d.y];
 
 export const UP: V3 = [0, 1, 0];
-export const DOWN: V3 = [0, -1, 0];
 
 const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross3 = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];

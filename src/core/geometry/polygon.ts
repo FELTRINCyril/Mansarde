@@ -1,5 +1,5 @@
 import type { PolygonWithHoles, Ring, Vec2 } from '../model/types';
-import { cross, deg2rad, dist, dot, len, projectOnSegment, rotate, segmentIntersection, sub } from './vec';
+import { cross, dist, dot, len, projectOnSegment, segmentIntersection, sub } from './vec';
 
 /** Shoelace formula; sign depends on ring orientation. */
 export function signedArea(r: Ring): number {
@@ -58,23 +58,6 @@ export function distanceToRing(p: Vec2, r: Ring): number {
     best = Math.min(best, projectOnSegment(p, a, b).distance);
   }
   return best;
-}
-
-/** Rectangle centered on (cx, cy), corners TL, TR, BR, BL (local -w/2,-h/2 first), rotated clockwise on screen. */
-export function rectRing(cx: number, cy: number, w: number, h: number, rotationDeg: number): Ring {
-  const rad = deg2rad(rotationDeg);
-  const hw = w / 2;
-  const hh = h / 2;
-  const local: Vec2[] = [
-    { x: -hw, y: -hh },
-    { x: hw, y: -hh },
-    { x: hw, y: hh },
-    { x: -hw, y: hh },
-  ];
-  return local.map((p) => {
-    const q = rotate(p, rad);
-    return { x: cx + q.x, y: cy + q.y };
-  });
 }
 
 /**

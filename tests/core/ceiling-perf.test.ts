@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ceilingUnder } from '@/core/geometry/ceiling';
-import { rectRing } from '@/core/geometry/polygon';
+import { rectRing } from './fixtures';
 import { createBeam, createLevel, createSlope } from '@/core/model/factory';
 
 const RUNS = 9; // warm runs, the minimum is kept

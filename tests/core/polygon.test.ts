@@ -6,10 +6,10 @@ import {
   mergeCollinear,
   pointInPolygon,
   pointInRing,
-  rectRing,
   ringEdges,
   signedArea,
 } from '@/core/geometry/polygon'
+import { rectRing } from './fixtures'
 import type { Ring } from '@/core/model/types'
 
 const square: Ring = [

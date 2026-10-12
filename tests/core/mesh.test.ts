@@ -5,14 +5,14 @@ import { openingCutRing } from '@/core/geometry/openings';
 import { ceilingWithoutBeams } from '@/core/geometry/ceiling';
 import { cupboardFrame, cupboardTopProfile } from '@/core/geometry/cupboards';
 import { deriveLevel } from '@/core/geometry/derived';
-import { area, pointInPolygon, pointInRing, rectRing, signedArea } from '@/core/geometry/polygon';
+import { area, pointInPolygon, pointInRing, signedArea } from '@/core/geometry/polygon';
 import { buildLevelMeshes } from '@/core/mesh';
 import { triangulate, triangulatePolygon } from '@/core/mesh/triangulate';
 import { splitByLines, toCell } from '@/core/mesh/cells';
 import type { LevelMeshes, MeshData } from '@/core/mesh/types';
 import { createBeam, createCupboard, createOpening, createSlope } from '@/core/model/factory';
 import type { Level, Ring, Vec2 } from '@/core/model/types';
-import { findWall, levelFromWalls, rectRoom } from './fixtures';
+import { findWall, levelFromWalls, rectRing, rectRoom } from './fixtures';
 
 type V3 = [number, number, number];
 
