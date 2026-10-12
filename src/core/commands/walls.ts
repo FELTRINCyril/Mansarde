@@ -7,7 +7,7 @@ import { openingFitsWall, openingsOverlap } from '../geometry/openings';
 import { dist, dot, lerp, projectOnSegment, sub } from '../geometry/vec';
 import { wallFrame, wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
-import { reconcileCupboards, reconcileOpenings } from './reconcile';
+import { reconcileOpenings } from './reconcile';
 
 export type WallPoint =
   | { kind: 'node'; nodeId: Id }
@@ -234,7 +234,6 @@ function moveNodesIn(level: DLevel, moves: Array<{ nodeId: Id; to: Vec2 }>): voi
   requireMinLength(level, affected);
   followStartMoves(level, before);
   reconcileOpenings(level);
-  reconcileCupboards(level);
 }
 
 /**
@@ -474,7 +473,6 @@ export function mergeNode(levelId: Id, sourceNodeId: Id, targetNodeId: Id): Reci
       rewired.filter((id) => !doomed.has(id)),
     );
     reconcileOpenings(level);
-    reconcileCupboards(level);
     touch(draft);
   };
 }

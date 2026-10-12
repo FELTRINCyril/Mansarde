@@ -1,4 +1,4 @@
-import type { Level, Opening, PlacedObject, Vec2 } from '../model/types';
+import type { Cupboard, Level, Opening, PlacedObject, Vec2 } from '../model/types';
 import { deriveLevel, type DerivedLevel } from './derived';
 import { openingFrame, openingInterval } from './openings';
 import { pointInPolygon, ringEdges } from './polygon';
@@ -182,6 +182,12 @@ export function fitCupboardOnWall(
   if (hi - lo < width - CUPBOARD_FIT_EPS) return { offset: (lo + hi) / 2, fits: false };
   const at = raw ? along : Math.round(along);
   return { offset: Math.min(hi - width / 2, Math.max(lo + width / 2, at)), fits: true };
+}
+
+/** The cupboard lies on the free stretch of its face (wallFaceInterval on its side, CUPBOARD_FIT_EPS tolerance): no wall in the way. */
+export function cupboardOnFreeStretch(level: Level, c: Pick<Cupboard, 'wallId' | 'side' | 'offset' | 'width'>, d: DerivedLevel = deriveLevel(level)): boolean {
+  const [lo, hi] = wallFaceInterval(level, c.wallId, c.offset, d, c.side);
+  return c.offset - c.width / 2 >= lo - CUPBOARD_FIT_EPS && c.offset + c.width / 2 <= hi + CUPBOARD_FIT_EPS;
 }
 
 /**

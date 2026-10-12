@@ -204,10 +204,11 @@ describe('cupboard follows, clamps or refuses with its wall', () => {
     const wall = Object.keys(level.walls)[0]!;
     const c = createCupboard(wall, 280, 'left');
     level.cupboards[c.id] = c;
-    reconcileCupboards(level);
+    // even a cupboard that did not fit before is kept within the length of its wall
+    reconcileCupboards(level, structuredClone(level));
     expect(c.offset).toBe(240);
     c.width = 301;
-    expect(() => reconcileCupboards(level)).toThrow(TOO_SHORT);
+    expect(() => reconcileCupboards(level, structuredClone(level))).toThrow(TOO_SHORT);
   });
 });
 

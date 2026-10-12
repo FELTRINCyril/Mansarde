@@ -185,7 +185,7 @@ describe('setRoomInteriorSize', () => {
   it('cupboards on the moved walls are reconciled', () => {
     const p0 = interior(0, 0, 400, 300);
     const top = findWall(lvl(p0), -10, -10, 410, -10);
-    const c = createCupboard(top, 360, 'left'); // [300, 420] on the 420 cm axis
+    const c = createCupboard(top, 350, 'left'); // [290, 410] on the 420 cm axis: up to the right face (x = 400)
     const p = run(p0, addCupboard(levelId(p0), c));
     const next = run(p, setRoomInteriorSize(levelId(p), onlyRoomKey(lvl(p)), 'width', 300, 'max'));
     // top axis now 320 long; the free stretch of the inner face ends at the right face x = 300, i.e.

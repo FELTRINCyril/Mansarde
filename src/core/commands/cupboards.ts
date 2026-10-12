@@ -76,12 +76,32 @@ export function addCupboard(levelId: Id, c: Cupboard): Recipe {
   };
 }
 
-/** Moves a cupboard along its wall or onto another wall (and face); the heights are not re-validated (see requireValidCupboard). */
+/**
+ * Offset of the cupboard on the free stretch of its face, as the cupboard tool places it
+ * (fitCupboardOnWall, rulings V2-R32 and V2-R39): pushed back from a wall in the way, refused
+ * (ERR_NO_ROOM) when the stretch is shorter than the cupboard. For a cupboard whose width, face or
+ * wall changes; the numbers must be valid.
+ */
+function offsetOnFace(level: DLevel, c: Cupboard): number {
+  const snap = levelSnapshot(level);
+  if (!Object.hasOwn(snap.walls, c.wallId)) throw new CommandError(ERR_WALL_NOT_FOUND);
+  const fit = fitCupboardOnWall(snap, c.wallId, c.side, c.width, c.offset, true);
+  if (!fit.fits) throw new CommandError(ERR_NO_ROOM);
+  return Math.abs(fit.offset - c.offset) > OFFSET_EPS ? fit.offset : c.offset;
+}
+
+/**
+ * Moves a cupboard along its wall or onto another wall (and face); onto another wall or face
+ * ("Changer de face") it is kept on the free stretch of that face (offsetOnFace). The heights are
+ * not re-validated (see requireValidCupboard).
+ */
 export function moveCupboard(levelId: Id, id: Id, wallId: Id, offset: number, side?: 'left' | 'right'): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
     const c = requireCupboard(level, id);
     const candidate: Cupboard = { ...c, wallId, offset, side: side ?? c.side };
+    requireValidNumbers(candidate);
+    if (candidate.wallId !== c.wallId || candidate.side !== c.side) candidate.offset = offsetOnFace(level, candidate);
     requireValidCupboard(level, candidate, false);
     if (c.wallId === candidate.wallId && c.offset === candidate.offset && c.side === candidate.side) return;
     c.wallId = candidate.wallId;
@@ -106,14 +126,10 @@ export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard
     const next: Cupboard = { ...c, ...Object.fromEntries(entries) };
     requireValidNumbers(next);
     if (next.width !== c.width || next.side !== c.side) {
-      // a wider cupboard (or one on the other face) stays on the free stretch of its face, as the
-      // cupboard tool places it (ruling V2-R32): pushed back from a corner wall, refused when too long
-      const snap = levelSnapshot(level);
-      if (!Object.hasOwn(snap.walls, next.wallId)) throw new CommandError(ERR_WALL_NOT_FOUND);
-      const fit = fitCupboardOnWall(snap, next.wallId, next.side, next.width, next.offset, true);
-      if (!fit.fits) throw new CommandError(ERR_NO_ROOM);
-      if (Math.abs(fit.offset - next.offset) > OFFSET_EPS) entries.push(['offset', fit.offset]);
-      next.offset = fit.offset;
+      // a wider cupboard (or one on the other face) stays on the free stretch of its face
+      const offset = offsetOnFace(level, next);
+      if (offset !== next.offset) entries.push(['offset', offset]);
+      next.offset = offset;
     }
     const heightsChange = entries.some(([key, value]) => HEIGHT_KEYS.has(key) && value !== c[key]);
     requireValidCupboard(level, next, heightsChange);
