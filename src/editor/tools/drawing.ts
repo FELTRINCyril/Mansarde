@@ -92,6 +92,12 @@ export function fieldScreen(cursor: Vec2, toward: Vec2 | undefined): Vec2 {
   return toward && toward.y > -0.3 ? add(cursor, { x: 0, y: FIELD_DROP_PX }) : cursor;
 }
 
+/** What a snapped point stuck to: a snapPoint kind, or 'face' (a wall face, volume tools). */
+export type MarkerKind = SnapKind | 'face';
+
+/** Snapped cursor marker (SnapMarker in the render): where the point lands and what it stuck to. */
+export interface CursorMarker { at: Vec2; snap: MarkerKind }
+
 /**
  * Ghost of the drawing tools (wall, rectangular room) in `overlay.ghost`, drawn by DrawGhostView:
  * wall axes stroked with their thickness (polylines, closed for a rectangle), the snapped cursor
@@ -101,7 +107,7 @@ export function fieldScreen(cursor: Vec2, toward: Vec2 | undefined): Vec2 {
 export interface DrawGhost {
   kind: 'draw';
   paths: { points: Vec2[]; closed: boolean; thickness: number; axis?: false }[];
-  marker: { at: Vec2; snap: SnapKind } | null;
+  marker: CursorMarker | null;
   /** Text next to `at`, offset in screen px along the unit vector `toward` (default: up-right). */
   label: { at: Vec2; lines: string[]; toward?: Vec2 } | null;
 }

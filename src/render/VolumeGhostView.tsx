@@ -6,6 +6,7 @@ import type { Vec2 } from '@/core/model/types';
 import { isVolumeGhost, type BeamGhost, type CupboardGhost, type SlopeGhost } from '@/editor/tools/volumeTools';
 import { CupboardDoors } from './layers/CupboardsLayer';
 import { ringsPath } from './path';
+import { SnapMarker } from './SnapMarker';
 import { dashArray, num, STYLE } from './style';
 
 const GHOST_FILL_OPACITY = 0.12;
@@ -24,7 +25,7 @@ function Line({ a, b, width, kind, dashed }: { a: Vec2; b: Vec2; width: number; 
   return <line data-kind={kind} x1={num(a.x)} y1={num(a.y)} x2={num(b.x)} y2={num(b.y)} strokeWidth={width} strokeDasharray={dashed} />;
 }
 
-/** The start line so far, then the band: start line thick, end line thin, lateral edges dashed. */
+/** The start line so far (and the snapped cursor marker), then the band: start line thick, end line thin, lateral edges dashed. */
 function SlopeGhostView({ ghost, lineUnit }: { ghost: SlopeGhost; lineUnit: number }): JSX.Element {
   const color = STYLE.selection;
   const s = ghost.slope;
@@ -43,11 +44,12 @@ function SlopeGhostView({ ghost, lineUnit }: { ghost: SlopeGhost; lineUnit: numb
       )}
       <Line a={ghost.a} b={ghost.b} width={w} kind="slope-ghost-start" />
       <Marks points={ghost.marks} lineUnit={lineUnit} color={color} />
+      {ghost.marker && <SnapMarker marker={ghost.marker} lineUnit={lineUnit} />}
     </g>
   );
 }
 
-/** The snapped point(s), then the beam footprint dashed like a real beam. */
+/** The first point and the beam footprint dashed like a real beam, with the snapped cursor marker. */
 function BeamGhostView({ ghost, lineUnit }: { ghost: BeamGhost; lineUnit: number }): JSX.Element {
   const color = STYLE.selection;
   return (
@@ -62,6 +64,7 @@ function BeamGhostView({ ghost, lineUnit }: { ghost: BeamGhost; lineUnit: number
         />
       )}
       <Marks points={ghost.marks} lineUnit={lineUnit} color={color} />
+      {ghost.marker && <SnapMarker marker={ghost.marker} lineUnit={lineUnit} />}
     </g>
   );
 }

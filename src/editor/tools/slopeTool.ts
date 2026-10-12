@@ -11,7 +11,7 @@ import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import { activeLevel, type EditorStore } from '../store';
 import { undoKeyOf } from './drawing';
 import type { PointerInfo, Tool, ToolContext } from './types';
-import { snapVolumePoint, type SlopeGhost } from './volumeTools';
+import { markerGhost, markerOf, snapVolumePoint, type SlopeGhost } from './volumeTools';
 
 const LABEL_START = 'Hauteur au départ';
 const LABEL_END = "Hauteur à l'arrivée";
@@ -47,8 +47,8 @@ type State =
   | { step: 'heights'; levelId: Id; slope: Slope; field: 'start' | 'end'; open: boolean; screen: Vec2 };
 
 /**
- * Slope tool (T, spec 7.1): a click, a click: the start line (snapped by snapVolumePoint, Alt =
- * free); moving then sets the side and the depth (dynamic dimension); a third click fixes them and
+ * Slope tool (T, spec 7.1): a click, a click: the start line (snapped by snapVolumePoint and shown
+ * by the snapped cursor marker like the wall tool, Shift = horizontal or vertical, Alt = free); moving then sets the side and the depth (dynamic dimension); a third click fixes them and
  * opens the numeric field: height at the start (the level height preselected), Tab, height at the
  * end (150), Enter adds the slope (one addSlope, one history entry) and selects it. Escape (or
  * leaving the field) during the heights keeps the values given so far, defaults for the others,
@@ -79,8 +79,8 @@ export function createSlopeTool(): Tool {
       gridStep: c.store.getState().project?.settings.gridStep ?? 0,
       enabled: !e.alt,
       from,
+      ortho: e.shift,
     });
-
 
   /** The slope of the depth step for the cursor at p (the future id is set at the commit). */
   const slopeFor = (level: Level, a: Vec2, b: Vec2, p: Vec2, raw: boolean): Slope => {
@@ -93,12 +93,12 @@ export function createSlopeTool(): Tool {
     if (state.step === 'heights') return e.world;
     if (state.step === 'a') {
       const p = snap(e, c, level);
-      st.setOverlay({ ghost: null, guides: p.guides, dynamicDims: [] });
+      st.setOverlay({ ghost: markerGhost(p), guides: p.guides, dynamicDims: [] });
       return p.point;
     }
     if (state.step === 'b') {
       const p = snap(e, c, level, state.a);
-      const ghost: SlopeGhost = { kind: 'volume-slope', a: state.a, b: p.point, slope: null, marks: [state.a, p.point] };
+      const ghost: SlopeGhost = { kind: 'volume-slope', a: state.a, b: p.point, slope: null, marks: [state.a, p.point], marker: markerOf(p) };
       const line: DimLine = { a: state.a, b: p.point, offset: 0, value: dist(state.a, p.point), kind: 'dynamic' };
       st.setOverlay({ ghost, guides: p.guides, dynamicDims: [line] });
       return p.point;

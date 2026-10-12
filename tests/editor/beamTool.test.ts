@@ -77,3 +77,35 @@ describe('beam tool', () => {
     expect(beams(store)).toHaveLength(0);
   });
 });
+
+describe('beam tool: snapped cursor marker and Shift', () => {
+  const ghost = (store: EditorStore) => store.getState().overlay.ghost;
+
+  it('before the first click, the marker shows the snap: grid, node, wall face', () => {
+    const { store, ctx, tool } = setup();
+    tool.onPointerMove!(at(153, 147), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 150, y: 150 }, snap: 'grid' } });
+    tool.onPointerMove!(at(3, -4), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 0, y: 0 }, snap: 'node' } });
+    tool.onPointerMove!(at(15, 140), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 10, y: 140 }, snap: 'face' } });
+  });
+
+  it('while placing the second point: the marker and the dynamic length', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, 100, 100);
+    tool.onPointerMove!(at(397, 103), ctx);
+    expect(ghost(store)).toMatchObject({ kind: 'volume-beam', marker: { at: { x: 400, y: 103 }, snap: 'wallAxis' } });
+    expect(store.getState().overlay.dynamicDims[0]!.value).toBeCloseTo(Math.hypot(300, 3), 9);
+  });
+
+  it('Shift: the beam is horizontal or vertical from its first point', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, 100, 100);
+    tool.onPointerMove!(at(302, 128, { shift: true }), ctx);
+    expect(ghost(store)).toMatchObject({ kind: 'volume-beam', marker: { at: { x: 300, y: 100 }, snap: 'ortho' } });
+    expect(store.getState().overlay.dynamicDims[0]).toMatchObject({ value: 200 });
+    click(tool, ctx, 302, 128, { shift: true });
+    expect(beams(store)[0]).toMatchObject({ a: { x: 100, y: 100 }, b: { x: 300, y: 100 } });
+  });
+});

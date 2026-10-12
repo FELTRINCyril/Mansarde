@@ -120,6 +120,39 @@ describe('select tool: slopes', () => {
   });
 });
 
+describe('select tool: snapped cursor marker on the slope and beam end handles', () => {
+  it('dragging an end handle shows the marker of the snap (node, face, ortho with Shift), cleared at the release', () => {
+    const { store, levelId, ctx, tool } = setup();
+    const s = createSlope({ x: 100, y: 100 }, { x: 300, y: 100 }, 'left', 60, 250, 150);
+    exec(store, addSlope(levelId, s));
+    click(tool, ctx, { x: 200, y: 100 });
+    tool.onPointerDown!(at(100, 100), ctx); // on the handle: no grab offset
+    tool.onPointerMove!(at(3, -4), ctx);
+    expect(store.getState().overlay.ghost).toMatchObject({ marker: { at: { x: 0, y: 0 }, snap: 'node' } });
+    tool.onPointerMove!(at(13, 150), ctx);
+    expect(store.getState().overlay.ghost).toMatchObject({ marker: { at: { x: 10, y: 150 }, snap: 'face' } });
+    // Shift: horizontal or vertical from the other end (300, 100)
+    tool.onPointerMove!(at(152, 127, { shift: true }), ctx);
+    expect(store.getState().overlay.ghost).toMatchObject({ marker: { at: { x: 150, y: 100 }, snap: 'ortho' } });
+    expect(level(store).slopes[s.id]).toMatchObject({ a: { x: 150, y: 100 } });
+    tool.onPointerUp!(at(152, 127, { shift: true }), ctx);
+    expect(store.getState().overlay.ghost).toBeNull();
+    expect(level(store).slopes[s.id]).toMatchObject({ a: { x: 150, y: 100 }, b: { x: 300, y: 100 } });
+  });
+
+  it('the same marker on a beam end handle', () => {
+    const { store, levelId, ctx, tool } = setup();
+    const b = createBeam({ x: 100, y: 200 }, { x: 300, y: 200 });
+    exec(store, addBeam(levelId, b));
+    click(tool, ctx, { x: 200, y: 200 });
+    tool.onPointerDown!(at(300, 200), ctx);
+    tool.onPointerMove!(at(397, 296), ctx);
+    expect(store.getState().overlay.ghost).toMatchObject({ marker: { at: { x: 400, y: 300 }, snap: 'node' } });
+    tool.onPointerUp!(at(397, 296), ctx);
+    expect(store.getState().overlay.ghost).toBeNull();
+  });
+});
+
 describe('select tool: beams', () => {
   it('an end handle snaps to a wall node; dragging the body moves the beam', () => {
     const { store, levelId, ctx, tool } = setup();

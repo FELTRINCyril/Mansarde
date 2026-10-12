@@ -1,9 +1,9 @@
 import type { JSX } from 'react';
 import type { DrawGhost } from '@/editor/tools/drawing';
 import type { Vec2 } from '@/core/model/types';
+import { SnapMarker } from './SnapMarker';
 import { CAP_HEIGHT, FONT_FAMILY, num, STYLE } from './style';
 
-const MARKER_PX = 5; // half size of the snapped cursor marker
 const LABEL_DISTANCE_PX = 16;
 const DEFAULT_TOWARD: Vec2 = { x: Math.SQRT1_2, y: -Math.SQRT1_2 };
 const LABEL_LINE_PX = 14;
@@ -28,23 +28,6 @@ const WALL_OPACITY = 0.35;
 
 const pts = (points: Vec2[]): string => points.map((p) => `${num(p.x)},${num(p.y)}`).join(' ');
 
-/** Marker of the snapped point: square on a node, diamond on a wall (middle or axis), cross elsewhere. */
-function Marker({ at, snap, lineUnit, color }: { at: Vec2; snap: string; lineUnit: number; color: string }): JSX.Element {
-  const h = MARKER_PX * lineUnit;
-  const { x, y } = at;
-  if (snap === 'node') return <rect data-snap={snap} x={num(x - h)} y={num(y - h)} width={num(2 * h)} height={num(2 * h)} fill="none" />;
-  if (snap === 'wallMid' || snap === 'wallAxis') {
-    return <polygon data-snap={snap} points={pts([{ x, y: y - h }, { x: x + h, y }, { x, y: y + h }, { x: x - h, y }])} fill="none" />;
-  }
-  return (
-    <path
-      data-snap={snap}
-      d={`M${num(x - h)} ${num(y)}H${num(x + h)}M${num(x)} ${num(y - h)}V${num(y + h)}`}
-      stroke={color}
-    />
-  );
-}
-
 /**
  * Ghost of the wall and rectangle tools (overlay.ghost of kind 'draw'): the wall axes stroked with
  * the wall thickness (translucent, mitered joints like the real walls) and the axis itself dashed
@@ -66,11 +49,7 @@ export function DrawGhostView({ ghost, lineUnit }: { ghost: DrawGhost; lineUnit:
           </g>
         );
       })}
-      {ghost.marker && (
-        <g data-kind="snap-marker" strokeWidth={STYLE.handleWidth * lineUnit}>
-          <Marker at={ghost.marker.at} snap={ghost.marker.snap} lineUnit={lineUnit} color={color} />
-        </g>
-      )}
+      {ghost.marker && <SnapMarker marker={ghost.marker} lineUnit={lineUnit} />}
       {label && (
         <text
           data-kind="draw-label"

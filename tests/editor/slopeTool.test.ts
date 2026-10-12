@@ -149,3 +149,46 @@ describe('slope tool', () => {
     expect(slopes(store)[0]).toMatchObject({ depth: 60, heightStart: 240 });
   });
 });
+
+describe('slope tool: snapped cursor marker and Shift', () => {
+  const ghost = (store: EditorStore) => store.getState().overlay.ghost;
+
+  it('before the first click, the marker shows where the point lands: grid, node, wall face, free with Alt', () => {
+    const { store, ctx, tool } = setup();
+    tool.onPointerMove!(at(153, 147), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 150, y: 150 }, snap: 'grid' } });
+    tool.onPointerMove!(at(3, -4), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 0, y: 0 }, snap: 'node' } });
+    tool.onPointerMove!(at(13, 150), ctx); // 3 cm from the inner face x = 10
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 10, y: 150 }, snap: 'face' } });
+    tool.onPointerMove!(at(153, 147), ctx);
+    tool.onPointerMove!(at(153.5, 147.2, { alt: true }), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 153.5, y: 147.2 }, snap: 'none' } });
+  });
+
+  it('while placing the second point, the start line ghost carries the marker and the length', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, 100, 100);
+    tool.onPointerMove!(at(397, 103), ctx); // 3 cm from the axis x = 400
+    expect(ghost(store)).toMatchObject({ kind: 'volume-slope', marker: { at: { x: 400, y: 103 }, snap: 'wallAxis' } });
+    tool.onPointerMove!(at(302, 128), ctx);
+    expect(ghost(store)).toMatchObject({ kind: 'volume-slope', marker: { at: { x: 300, y: 130 }, snap: 'grid' } });
+  });
+
+  it('Shift: the start line is horizontal or vertical from the first point, a wall face crossing it snaps', () => {
+    const { store, ctx, tool } = setup();
+    click(tool, ctx, 100, 100);
+    tool.onPointerMove!(at(302, 128, { shift: true }), ctx);
+    expect(ghost(store)).toMatchObject({ kind: 'volume-slope', b: { x: 300, y: 100 }, marker: { at: { x: 300, y: 100 }, snap: 'ortho' } });
+    expect(store.getState().overlay.dynamicDims[0]).toMatchObject({ value: 200 });
+    // 6 cm from the inner face x = 390 along the line y = 100, 20 cm off the line
+    tool.onPointerMove!(at(384, 120, { shift: true }), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 390, y: 100 }, snap: 'face' } });
+    tool.onPointerMove!(at(130, 251, { shift: true }), ctx);
+    expect(ghost(store)).toMatchObject({ marker: { at: { x: 100, y: 250 }, snap: 'ortho' } });
+    click(tool, ctx, 130, 251, { shift: true });
+    click(tool, ctx, 200, 175);
+    tool.onNumericSubmit!(250, ctx);
+    expect(slopes(store)[0]).toMatchObject({ a: { x: 100, y: 100 }, b: { x: 100, y: 250 } });
+  });
+});

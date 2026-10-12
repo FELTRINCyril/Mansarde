@@ -30,10 +30,10 @@ import { worldToScreen } from '../view';
 import { beamLengthDim } from './beamTool';
 import { slopeDepthDim } from './slopeTool';
 import { ERR_NO_ROOM, measureObject, measureOpening, measureTarget, nextSide, typedPlacement, type MeasureTarget } from './clearanceDims';
-import { undoKeyOf } from './drawing';
+import { undoKeyOf, type DrawGhost } from './drawing';
 import { hoveredWall } from './hover';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
-import { snapVolumePoint, type CupboardGhost } from './volumeTools';
+import { markerGhost, snapVolumePoint, type CupboardGhost } from './volumeTools';
 
 /** A press becomes a drag once the pointer has moved this far (screen px). */
 export const DRAG_THRESHOLD_PX = 3;
@@ -365,7 +365,8 @@ export function createSelectTool(): Tool {
   /**
    * Handles of a slope (ends of the start line, snapped like the slope tool; middle of the end
    * line: depth, 1 cm steps, at least MIN_WALL_LENGTH) and of a beam (ends of its axis, snapped).
-   * Alt: free. The dynamic dimension shows the length or the depth.
+   * An end shows the snapped cursor marker like the tools; Shift: horizontal or vertical from the
+   * other end; Alt: free. The dynamic dimension shows the length or the depth.
    */
   function dragVolumeHandle(s: Session, plan: Extract<DragPlan, { kind: 'volumeHandle' }>, e: PointerInfo, c: ToolContext): void {
     const base = baseLevel(s, c.store);
@@ -377,6 +378,7 @@ export function createSelectTool(): Tool {
     if (!item) return;
     let dims: DimLine[] = [];
     let guides: Guide[] = [];
+    let ghost: DrawGhost | null = null;
     if (plan.role === 'depth' && plan.target === 'slope') {
       const sl = base.slopes[plan.id]!;
       const f = slopeFrame(sl);
@@ -386,16 +388,17 @@ export function createSelectTool(): Tool {
       dims = [slopeDepthDim({ ...sl, depth })];
     } else if (plan.role !== 'depth') {
       const other = plan.role === 'a' ? item.b : item.a;
-      const p = snapVolumePoint(base, add(item[plan.role], delta), { ...env, from: other });
+      const p = snapVolumePoint(base, add(item[plan.role], delta), { ...env, from: other, ortho: e.shift });
       const patch = { [plan.role]: p.point };
       st.updateGesture(plan.target === 'slope' ? updateSlope(s.levelId, plan.id, patch) : updateBeam(s.levelId, plan.id, patch));
       guides = p.guides;
+      ghost = markerGhost(p);
       dims =
         plan.target === 'beam'
           ? [beamLengthDim(other, p.point, base.beams[plan.id]!.width)]
           : [{ a: other, b: p.point, offset: 0, value: dist(other, p.point), kind: 'dynamic' }];
     }
-    st.setOverlay({ dynamicDims: dims, guides });
+    st.setOverlay({ dynamicDims: dims, guides, ghost });
   }
 
   /**
