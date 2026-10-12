@@ -1,8 +1,10 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { pointInRing, vertexCentroid } from '@/core/geometry/polygon';
+import { objectFootprint, objectShape } from '@/core/geometry/objects';
+import { distanceToRing, pointInRing, ringEdges, vertexCentroid } from '@/core/geometry/polygon';
 import type { Room } from '@/core/geometry/rooms';
-import type { Ring } from '@/core/model/types';
+import { segmentIntersection } from '@/core/geometry/vec';
+import type { CustomObjectDef, Id, Level, Ring, Vec2 } from '@/core/model/types';
 
 export type Preset = 'overview' | 'top' | 'room';
 
@@ -51,6 +53,18 @@ export function boundsOf(rings: Ring[], bottom = 0, top = 2.5): Bounds {
   const maxY = Number.isFinite(top) && top > minY ? top : minY + 2.5;
   if (!(maxX >= minX)) return { minX: 0, maxX: 4, minZ: 0, maxZ: 4, minY, maxY };
   return { minX, maxX, minZ, maxZ, minY, maxY };
+}
+
+/** The box around both boxes (the active level and the lower levels shown under it). */
+export function unionBounds(a: Bounds, b: Bounds): Bounds {
+  return {
+    minX: Math.min(a.minX, b.minX),
+    maxX: Math.max(a.maxX, b.maxX),
+    minZ: Math.min(a.minZ, b.minZ),
+    maxZ: Math.max(a.maxZ, b.maxZ),
+    minY: Math.min(a.minY, b.minY),
+    maxY: Math.max(a.maxY, b.maxY),
+  };
 }
 
 /** Largest distance the orbit allows (m); CameraRig.goTo raises it for a preset farther away. */
@@ -122,27 +136,114 @@ export function fitPose(b: Bounds, direction: V3, aspect: number): Pose {
   return { pos: addScaled(tgt, dir, d), tgt };
 }
 
+/** Objects whose top is above this height (cm) block the eye of the room preset (task 12 review). */
+export const TALL = 120;
+/** Objects whose top is above this height (cm) would fill the foreground when the eye is next to them. */
+export const MEDIUM = 60;
+/** The eye prefers to be this far (cm) from medium objects (a chair back right under the eye hides the room). */
+const NEAR = 45;
+/** The eye of the room preset is this far (cm) from the walls, and this far from tall obstacles. */
+const EYE_INSET = 40;
+const OBSTACLE_GAP = 15;
+/** Space (cm) kept between the eye and the ceiling above it. */
+const HEAD_ROOM = 25;
+/** Spacing (cm) of the candidate eye positions along the room outline. */
+const EYE_STEP = 25;
+/** What a crowded eye position loses (cm of distance to the target) against a free one. */
+const CROWDED_PENALTY = 100;
+
+/**
+ * What the room preset avoids: the footprints (plan, cm) of everything taller than TALL (objects
+ * by their top, cupboards; the room islands come with the room), and the ceiling height at a
+ * point (cm), so that the eye stays under a slope.
+ */
+export interface RoomSurroundings { obstacles: Ring[]; ceiling?: (p: Vec2) => number; medium?: Ring[] }
+
+/** Footprints of the objects and cupboards of a level whose top is above `above` (cm, TALL by default). */
+export function tallFootprints(level: Level, customObjects: Record<Id, CustomObjectDef>, cupboards: Map<Id, Ring>, above = TALL): Ring[] {
+  const out: Ring[] = [];
+  for (const o of Object.values(level.objects)) {
+    if (o.elevation + o.height > above) out.push(objectFootprint(o, objectShape(o, customObjects)));
+  }
+  for (const [id, ring] of cupboards) {
+    const c = level.cupboards[id];
+    if (c && (c.heightMode === 'ceiling' || c.height > above)) out.push(ring);
+  }
+  return out;
+}
+
+const meets = (p: Vec2, q: Vec2, ring: Ring): boolean =>
+  pointInRing(p, ring) || pointInRing(q, ring) || ringEdges(ring).some(([a, b]) => segmentIntersection(p, q, a, b) !== null);
+
+/**
+ * Eye of the room preset (plan, cm): candidates every EYE_STEP along the room outline, each moved
+ * towards the target until it is EYE_INSET from the walls; kept when it is clear of the tall
+ * obstacles, under a ceiling high enough for the eye and, preferably, with a free line of sight to
+ * the target. The farthest from the target wins (the widest view of the room), a position next to
+ * a medium object counting CROWDED_PENALTY less; without any acceptable candidate, the conditions
+ * are dropped one by one (line of sight, then obstacles).
+ */
+export function roomEye(room: Pick<Room, 'ring' | 'islands'>, target: Vec2, around: RoomSurroundings = { obstacles: [] }): Vec2 {
+  const ring = room.ring;
+  const blocks = [...around.obstacles, ...room.islands];
+  const inRoom = (p: Vec2) => pointInRing(p, ring) && !room.islands.some((i) => pointInRing(p, i));
+  const candidates: Array<{ p: Vec2; clear: boolean; free: boolean; far: number }> = [];
+  for (const [a, b] of ringEdges(ring)) {
+    const l = Math.hypot(b.x - a.x, b.y - a.y);
+    const n = Math.max(1, Math.ceil(l / EYE_STEP));
+    for (let i = 0; i < n; i++) {
+      const s = { x: a.x + ((b.x - a.x) * i) / n, y: a.y + ((b.y - a.y) * i) / n };
+      const far = Math.hypot(target.x - s.x, target.y - s.y);
+      if (far < 1) continue;
+      // along the line towards the target until the eye is EYE_INSET away from every wall
+      let eye: Vec2 | null = null;
+      for (let k = EYE_INSET; k < far; k += 10) {
+        const p = { x: s.x + ((target.x - s.x) * k) / far, y: s.y + ((target.y - s.y) * k) / far };
+        if (inRoom(p) && distanceToRing(p, ring) >= EYE_INSET - 1e-6) {
+          eye = p;
+          break;
+        }
+      }
+      if (!eye) continue;
+      if (around.ceiling && around.ceiling(eye) < EYE * 100 + HEAD_ROOM) continue;
+      const free = blocks.every((r) => !pointInRing(eye, r) && distanceToRing(eye, r) >= OBSTACLE_GAP);
+      const clear = free && blocks.every((r) => !meets(eye, target, r));
+      // next to a medium object (chair back, desk), the eye is worth less: it would fill the foreground
+      const crowded = (around.medium ?? []).some((r) => pointInRing(eye, r) || distanceToRing(eye, r) < NEAR);
+      candidates.push({ p: eye, clear, free, far: Math.hypot(target.x - eye.x, target.y - eye.y) - (crowded ? CROWDED_PENALTY : 0) });
+    }
+  }
+  for (const pick of [(c: (typeof candidates)[number]) => c.clear, (c: (typeof candidates)[number]) => c.free, () => true]) {
+    let best: (typeof candidates)[number] | null = null;
+    for (const c of candidates) if (pick(c) && (!best || c.far > best.far + 1e-6)) best = c;
+    if (best) return best.p;
+  }
+  return legacyEye(ring, target);
+}
+
+/** The eye of a room too small for the inset: 75 % of the way to its farthest corner, closer until inside. */
+function legacyEye(ring: Ring, c: Vec2): Vec2 {
+  let far = ring[0]!;
+  for (const q of ring) if (Math.hypot(q.x - c.x, q.y - c.y) > Math.hypot(far.x - c.x, far.y - c.y)) far = q;
+  for (let t = 0.75; t > 0; t -= 0.05) {
+    const e = { x: c.x + (far.x - c.x) * t, y: c.y + (far.y - c.y) * t };
+    if (pointInRing(e, ring)) return e;
+  }
+  return c;
+}
+
 /**
  * Pose of a preset (spec 8.3) for a view of the given aspect (width / height). 'overview' and
- * 'top' look along plan-chambre's directions and fit the level's box (footprint and height, at
- * its elevation); 'room' puts the eye 1.60 m above the floor of the level inside the room, towards
- * its farthest corner from the center, looking at its center; without a room it is the overview.
+ * 'top' look along plan-chambre's directions and fit the box (footprint and height, at its
+ * elevation); 'room' puts the eye 1.60 m above the floor of the level (b.minY) inside the room
+ * (roomEye: near its outline, clear of tall furniture, under the ceiling), looking at its center;
+ * without a room it is the overview.
  */
-export function presetPose(p: Preset, b: Bounds, room: Room | null = null, aspect = 16 / 9): Pose {
+export function presetPose(p: Preset, b: Bounds, room: Room | null = null, aspect = 16 / 9, around?: RoomSurroundings): Pose {
   if (p === 'top') return fitPose(b, TOP_DIR, aspect);
   if (p === 'room' && room) {
     const c = room.labelPoint ?? vertexCentroid(room.ring);
-    let far = room.ring[0]!;
-    for (const q of room.ring) if (Math.hypot(q.x - c.x, q.y - c.y) > Math.hypot(far.x - c.x, far.y - c.y)) far = q;
-    // the eye from 75 % of the way towards that corner, closer to the center until it is inside
-    let eye = c;
-    for (let t = 0.75; t > 0; t -= 0.05) {
-      const e = { x: c.x + (far.x - c.x) * t, y: c.y + (far.y - c.y) * t };
-      if (pointInRing(e, room.ring)) {
-        eye = e;
-        break;
-      }
-    }
+    const eye = roomEye(room, c, around);
     return { pos: [eye.x / 100, b.minY + EYE, eye.y / 100], tgt: [c.x / 100, b.minY + ROOM_TARGET, c.y / 100] };
   }
   return fitPose(b, OVERVIEW_DIR, aspect);
@@ -164,6 +265,11 @@ export class CameraRig {
   readonly camera = new PerspectiveCamera(45, 1, 0.05, 200);
   readonly controls: OrbitControls;
   private tween: { t0: number; from: Pose; to: Pose } | null = null;
+  /**
+   * The preset the camera was last sent to, until a user gesture moves it: a view left on a
+   * fitted preset is fitted again when its size changes (split separator, window).
+   */
+  preset: Preset | null = null;
 
   constructor(dom: HTMLElement, onChange: () => void) {
     this.controls = new OrbitControls(this.camera, dom);
@@ -172,18 +278,35 @@ export class CameraRig {
     this.controls.minDistance = MIN_DISTANCE;
     this.controls.maxDistance = 16;
     this.controls.addEventListener('change', onChange);
-    // a user gesture stops the animation (plan-chambre)
+    // a user gesture stops the animation (plan-chambre) and leaves the preset
     this.controls.addEventListener('start', () => {
       this.tween = null;
+      this.preset = null;
     });
   }
 
+  /** Distance (m) from the camera, or from where its animation ends, to its target. */
+  get distance(): number {
+    const to = this.tween?.to;
+    const d = (p: V3, t: V3) => Math.hypot(p[0] - t[0], p[1] - t[1], p[2] - t[2]);
+    const now = d(this.camera.position.toArray() as V3, this.controls.target.toArray() as V3);
+    return to ? Math.max(now, d(to.pos, to.tgt)) : now;
+  }
+
+  /**
+   * Orbit bound for a new box (after a structure change): maxDistance(b), but never less than the
+   * fitted overview distance for this view (with the 1.5 margin of goTo) nor than where the camera
+   * is, else OrbitControls would pull the camera in at its next update (a jump, the house cropped).
+   */
   setBounds(b: Bounds): void {
-    this.controls.maxDistance = maxDistance(b);
+    const fit = presetPose('overview', b, null, this.camera.aspect);
+    const fitted = Math.hypot(fit.pos[0] - fit.tgt[0], fit.pos[1] - fit.tgt[1], fit.pos[2] - fit.tgt[2]);
+    this.controls.maxDistance = Math.max(maxDistance(b), 1.5 * fitted, this.distance);
   }
 
   /** Moves to a pose, animated over PRESET_MS unless `instant` or the user prefers reduced motion. */
-  goTo(to: Pose, instant: boolean, now: number): void {
+  goTo(to: Pose, instant: boolean, now: number, preset: Preset | null = null): void {
+    this.preset = preset;
     // a preset fitted to a large level or a narrow view may lie beyond the orbit bound
     const dist = Math.hypot(to.pos[0] - to.tgt[0], to.pos[1] - to.tgt[1], to.pos[2] - to.tgt[2]);
     this.controls.maxDistance = Math.max(this.controls.maxDistance, 1.5 * dist);
@@ -222,6 +345,8 @@ export class CameraRig {
   setAspect(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    // a narrower view may need a farther camera: never clamp the current one
+    this.controls.maxDistance = Math.max(this.controls.maxDistance, this.distance);
   }
 
   dispose(): void {

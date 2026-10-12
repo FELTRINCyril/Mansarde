@@ -2,8 +2,8 @@ import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Group, Light, 
 import { ceilingWithoutBeams } from '@/core/geometry/ceiling';
 import type { DerivedLevel } from '@/core/geometry/derived';
 import { signedArea } from '@/core/geometry/polygon';
-import { buildLevelMeshes, type MeshData } from '@/core/mesh';
-import type { Id, Level, Ring } from '@/core/model/types';
+import { buildLevelMeshes, type CupboardParts, type MeshData } from '@/core/mesh';
+import type { Cupboard, Id, Level, Ring } from '@/core/model/types';
 import type { Materials } from './materials';
 import { buildOpening } from './openings';
 
@@ -31,8 +31,12 @@ const FLOOR_LIFT = 0.001;
  */
 const LAMP = { color: '#ffd9a0', intensity: 2.2, below: 25, max: 6 } as const;
 
-/** Options of a level view; `lower`: a lower level (walls, slab and floors only, spec 8.3). */
-export interface LevelViewOptions { lower?: boolean }
+/**
+ * Options of a level view; `lower`: a lower level (walls, slab and floors only, spec 8.3);
+ * `cupboards: false`: the cupboards are left to a CupboardLayer (sync.ts), which rebuilds them one
+ * by one.
+ */
+export interface LevelViewOptions { lower?: boolean; cupboards?: boolean }
 
 /**
  * The 3D view of one level, at its elevation. Walls are one group per wall (`wall:<id>`, with its
@@ -144,23 +148,11 @@ export function buildLevelView(level: Level, d: DerivedLevel, mats: Materials, o
     for (const { id, mesh } of lm.beams) {
       const m = meshOf(mesh, mats.beam, { cast: false });
       if (!m) continue;
+      m.name = `beam:${id}`;
       m.userData = { beamId: id };
       beams.add(m);
     }
-    for (const { id, parts } of lm.cupboards) {
-      const c = level.cupboards[id];
-      const g = group(`cupboard:${id}`);
-      g.userData = { cupboardId: id };
-      const body = meshOf(parts.body, mats.cupboard(c?.color ?? '#e8e1d4'), { cast: true });
-      if (body) g.add(body);
-      for (const door of parts.doors) {
-        const m = meshOf(door, mats.cupboard(c?.color ?? '#e8e1d4'), { cast: true });
-        if (m) g.add(m);
-      }
-      const handles = meshOf(parts.handles, mats.handle, { cast: true });
-      if (handles) g.add(handles);
-      cupboards.add(g);
-    }
+    if (opts.cupboards !== false) for (const { id, parts } of lm.cupboards) cupboards.add(buildCupboardGroup(id, level.cupboards[id], parts, mats));
   }
   return {
     root,
@@ -175,6 +167,22 @@ export function buildLevelView(level: Level, d: DerivedLevel, mats: Materials, o
     lamps,
     dispose: () => disposeTree(root),
   };
+}
+
+/** The group of a cupboard (`cupboard:<id>`): body and doors in its color, handles; in the level frame. */
+export function buildCupboardGroup(id: Id, c: Cupboard | undefined, parts: CupboardParts, mats: Materials): Group {
+  const g = group(`cupboard:${id}`);
+  g.userData = { cupboardId: id };
+  const material = mats.cupboard(c?.color ?? '#e8e1d4');
+  const body = meshOf(parts.body, material, { cast: true });
+  if (body) g.add(body);
+  for (const door of parts.doors) {
+    const m = meshOf(door, material, { cast: true });
+    if (m) g.add(m);
+  }
+  const handles = meshOf(parts.handles, mats.handle, { cast: true });
+  if (handles) g.add(handles);
+  return g;
 }
 
 /** Disposes the geometries and lights of a tree (materials are shared: disposed with the scene) and detaches it. */

@@ -679,6 +679,12 @@ select {
   white-space: nowrap;
 }
 
+/* a narrow Plan + 3D pane: the presets wrap instead of being cut off */
+.scene3d-bar .segmented {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
 .scene3d-bar .check {
   padding: 3px 8px;
   border-radius: var(--radius);
