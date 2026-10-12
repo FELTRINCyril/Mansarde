@@ -144,10 +144,15 @@ modification du mur est refusée. Supprimer le mur supprime le placard.
 ### Dupliquer un placard
 
 Le bouton "Dupliquer" du panneau (ou Ctrl+D) crée un placard identique (largeur, profondeur,
-hauteur, socle, portes, couleur) contre la même face du mur : juste après l'original, sinon
-juste avant, sans jamais chevaucher un autre placard. S'il n'y a de place d'aucun côté, la copie
-est refusée avec le message "Pas assez de place sur ce mur pour un autre placard.". Les pentes
-et les poutres se dupliquent aussi, décalées de 20 cm.
+hauteur, socle, portes, couleur) contre la même face du mur, au plus près de l'original : juste
+après, sinon juste avant, sinon dans le premier espace libre de la face. La copie ne chevauche
+jamais un autre placard, y compris un placard d'angle posé sur le mur voisin. Plusieurs
+placards sélectionnés sont copiés à la suite les uns des autres. Si aucun espace de la largeur
+du placard ne reste sur cette face, la copie est refusée avec le message "Pas assez de place sur
+ce mur pour un autre placard.".
+
+Sous un rampant, un placard "Jusqu'au plafond" est copié au premier emplacement où sa hauteur
+tient. Les pentes et les poutres se dupliquent aussi, décalées de 20 cm.
 
 ### Sur le plan
 

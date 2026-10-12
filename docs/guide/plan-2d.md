@@ -34,8 +34,8 @@ la sélection, les niveaux et l'image de fond. Les pentes, poutres et placards o
 - **Trackpad** : deux doigts pour déplacer la vue, pincer pour zoomer.
 - **Souris** : la molette zoome autour du curseur ; glisser avec le clic droit (ou le bouton du
   milieu) déplace la vue ; Maj + molette déplace horizontalement.
-- **Clavier** : Espace + glisser déplace la vue ; sans sélection, les flèches la déplacent ; 0
-  affiche tout le niveau.
+- **Clavier** : Espace + glisser déplace la vue (toujours le plan, même juste après un clic dans
+  la 3D) ; sans sélection, les flèches la déplacent ; 0 affiche tout le niveau.
 - Le "?" en bas à gauche du plan rappelle ces gestes.
 
 ## Réglages du projet

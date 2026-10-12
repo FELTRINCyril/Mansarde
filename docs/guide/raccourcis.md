@@ -94,7 +94,8 @@ ces gestes.
 | Glisser avec le bouton gauche | Tourner autour de la scène |
 | Deux doigts sur le trackpad, glisser avec le bouton droit, ou Maj + glisser | Déplacer la vue |
 | Pincer (trackpad) ou molette | Zoomer |
-| Flèches, après un clic dans la 3D | Déplacer la vue (Maj + flèches : tourner) |
+| Flèches, après un clic dans la 3D, rien de sélectionné | Déplacer la vue (Maj + flèches : tourner) |
+| Flèches avec une sélection | Décalent la sélection de 1 cm (10 cm avec Maj), même quand la 3D a le focus |
 | Clic sur un meuble, un placard ou une poutre | Le sélectionner |
 | Glisser la séparation (Plan + 3D) | Partager l'écran entre le plan et la 3D ; quand elle a le focus (touche Tab), les flèches gauche et droite la déplacent aussi |
 
