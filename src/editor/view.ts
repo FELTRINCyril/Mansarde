@@ -44,6 +44,18 @@ export function zoomAt(view: View, screenPoint: Vec2, factor: number): View {
 }
 
 /**
+ * The view after the viewport went from `before` to `after` (px): same zoom, the world point that
+ * was at the center of the viewport stays at its center (switching to Plan + 3D, moving the split
+ * separator, resizing the window). An empty viewport (the plan hidden behind the 3D view) on either
+ * side, or an unchanged size, gives the view back as is.
+ */
+export function keepCenterOnResize(view: View, before: { width: number; height: number }, after: { width: number; height: number }): View {
+  const visible = (s: { width: number; height: number }) => s.width > 0 && s.height > 0;
+  if (!visible(before) || !visible(after) || (before.width === after.width && before.height === after.height)) return view;
+  return { ...view, tx: view.tx + (after.width - before.width) / 2, ty: view.ty + (after.height - before.height) / 2 };
+}
+
+/**
  * View that shows the bounds inside the viewport with a margin (px) on each side, centered.
  * Null, non-finite or point-like bounds give the default view: 1 px per cm, world origin at the
  * viewport center. A box flat on one axis is fitted on the other axis.

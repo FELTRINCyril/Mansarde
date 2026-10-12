@@ -9,7 +9,7 @@ import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
 import { activeLevel, useEditor } from '@/editor/store';
 import { TOOLS } from '@/editor/tools/registry';
 import type { PointerInfo, ToolContext } from '@/editor/tools/types';
-import { fitView, screenToWorld, zoomAt, type View } from '@/editor/view';
+import { fitView, keepCenterOnResize, screenToWorld, zoomAt, type View } from '@/editor/view';
 import { levelBounds } from '@/export/pageLayout';
 import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
@@ -85,12 +85,22 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const [panning, setPanning] = useState(false);
   const { onResize } = p;
 
-  // container size
+  // container size; the view keeps its center when the visible size changes (Plan + 3D, split
+  // separator, window), measured against the last visible size (hidden behind the 3D view: 0 x 0)
+  const lastVisible = useRef<Size | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const next = { width: el.clientWidth, height: el.clientHeight };
+      if (next.width > 0 && next.height > 0) {
+        const s = useEditor.getState();
+        if (lastVisible.current) {
+          const v = keepCenterOnResize(s.view, lastVisible.current, next);
+          if (v !== s.view) s.setView(v);
+        }
+        lastVisible.current = next;
+      }
       setSize(next);
       onResize(next);
     });

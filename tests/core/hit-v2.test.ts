@@ -127,3 +127,19 @@ describe('pruneSelection with volumes', () => {
     expect(pruneSelection(sel, level, [])).toEqual([]);
   });
 });
+
+describe('rugs lie under the furniture', () => {
+  it('a rug added after the bed it lies under: a click on both hits the bed, on the rug alone the rug', () => {
+    const level = setup();
+    level.objects['bed'] = createObjectFromSize({ kind: 'catalog', catalogId: 'bed-140' }, 200, 95, { width: 140, depth: 190, height: 90 }, 'Lit', '#999', { id: 'bed' });
+    level.objects['rug'] = createObjectFromSize({ kind: 'catalog', catalogId: 'rug-rect' }, 200, 200, { width: 170, depth: 120, height: 1 }, 'Tapis', '#999', {
+      id: 'rug',
+      pose: 'covering',
+    });
+    expect(hit(level, 200, 160)).toEqual({ kind: 'object', id: 'bed' });
+    expect(hit(level, 200, 240)).toEqual({ kind: 'object', id: 'rug' });
+    // two objects that are not rugs keep the record order (the last one on top)
+    addBox(level, 'box', 200, 160, 40, 40);
+    expect(hit(level, 200, 160)).toEqual({ kind: 'object', id: 'box' });
+  });
+});
