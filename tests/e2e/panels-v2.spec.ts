@@ -469,6 +469,43 @@ test('room panel: "La pièce voisine sera modifiée." when the moving wall is sh
   await expect(page.getByTestId('room-width')).toHaveValue('260');
 });
 
+test('a slope added over a ceiling cupboard: "pas assez de hauteur" alert, the cupboard stays editable (V2-R36)', async ({ page }) => {
+  await createProject(page, 'Placard sous rampant');
+  await interiorRoom(page);
+  await page.evaluate(async () => {
+    const mod = (path: string): Promise<any> => import(/* @vite-ignore */ path);
+    const { addSlope } = await mod('/src/core/commands/slopes.ts');
+    const { addCupboard } = await mod('/src/core/commands/cupboards.ts');
+    const { createCupboard, createSlope } = await mod('/src/core/model/factory.ts');
+    const s = () => window.__planMaison!.store.getState();
+    const levelId = s().activeLevelId!;
+    const level = s().project!.levels.find((l) => l.id === levelId)!;
+    const wall = Object.values(level.walls).find((w) => level.nodes[w.startNodeId]!.x === -10 && level.nodes[w.endNodeId]!.x === -10)!;
+    const a = level.nodes[wall.startNodeId]!;
+    const dirY = Math.sign(level.nodes[wall.endNodeId]!.y - a.y); // left = +perp(dir) = (-dirY, 0)
+    const c = createCupboard(wall.id, Math.abs(110 - a.y), -dirY > 0 ? 'left' : 'right', { heightMode: 'ceiling', plinth: 10, gap: 2, doorType: 'sliding' });
+    s().execute('Placard', addCupboard(levelId, c));
+    // ceiling 250 at x = 0 down to 8 at x = 60 (the front of the cupboard): its top is 6, under its 10 cm plinth
+    s().execute('Pente', addSlope(levelId, createSlope({ x: 0, y: -50 }, { x: 0, y: 350 }, 'right', 60, 250, 8)));
+  });
+  await expect(page.getByTestId('alert-counter')).toHaveText('1 alerte');
+  await page.getByTestId('alert-counter').click();
+  const row = page.getByTestId('check-row');
+  await expect(row).toContainText('Placard : pas assez de hauteur sous le plafond.');
+  await expect(row).toHaveAttribute('data-severity', 'error');
+  await expect(page.locator('[data-kind="alert"]')).toHaveCount(1);
+  // the row selects the cupboard; a change that leaves its heights alone is accepted
+  await row.click();
+  await expect(page.getByTestId('cupboard-door-type')).toBeVisible();
+  await page.getByTestId('cupboard-door-type').selectOption('hinged');
+  await expect.poll(async () => (await levelState(page)).cupboards[0]!.doorType).toBe('hinged');
+  await expect(page.getByTestId('toast')).toHaveCount(0);
+  // a lower plinth clears the alert
+  await page.getByTestId('cupboard-plinth').fill('0');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('alert-counter')).toHaveCount(0);
+});
+
 test('wall panel: the length of each face of the wall, read only (spec 6)', async ({ page }) => {
   await createProject(page, 'Faces');
   await interiorRoom(page);
