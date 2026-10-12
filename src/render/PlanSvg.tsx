@@ -98,7 +98,7 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
       <LowerLevelLayer level={p.lowerLevel} />
       {screen && p.showGrid && <GridLayer viewBox={vb} gridStep={p.project.settings.gridStep} lineUnit={lineUnit} />}
       <RoomsLayer rooms={derived.rooms} translucent={imageShown} />
-      <SlopesLayer slopes={level.slopes} labels={volumeLabels.slopes} lineUnit={lineUnit} />
+      <SlopesLayer slopes={level.slopes} labels={volumeLabels.slopes} lineUnit={lineUnit} levelHeight={level.height} />
       <CupboardsLayer level={level} footprints={volumes.cupboardFootprints} selectedIds={selectedCupboards} lineUnit={lineUnit} />
       <ObjectsLayer objects={level.objects} customObjects={p.project.customObjects} lineUnit={lineUnit} />
       <WallsLayer shape={derived.shapeWithOpenings} degraded={derived.degraded} />

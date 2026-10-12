@@ -60,10 +60,12 @@ export interface Isoline { a: Vec2; b: Vec2; height: number; kind: 'start' | 'en
 
 /**
  * The start line, a 'level' line at every multiple of stepCm strictly between heightStart and
- * heightEnd (ordered from the start line), and the end line. No level line when stepCm <= 0 or
- * when there would be more than MAX_LEVEL_LINES of them.
+ * heightEnd and under `below` (ordered from the start line), and the end line. `below` is the
+ * level height: the ceiling is capped by it (ceilingAt), so it never reaches a level line at or
+ * above it. No level line when stepCm <= 0 or when there would be more than MAX_LEVEL_LINES of
+ * them.
  */
-export function slopeIsolines(s: Slope, stepCm = 20): Isoline[] {
+export function slopeIsolines(s: Slope, stepCm = 20, below = Infinity): Isoline[] {
   const f = slopeFrame(s);
   const at = (d: number, height: number, kind: Isoline['kind']): Isoline => {
     const off = scale(f.normal, d);
@@ -76,7 +78,7 @@ export function slopeIsolines(s: Slope, stepCm = 20): Isoline[] {
   if (stepCm > 0 && hi - lo > eps && (hi - lo) / stepCm <= MAX_LEVEL_LINES) {
     const heights: number[] = [];
     for (let k = Math.floor(lo / stepCm) + 1; k * stepCm < hi - eps; k++) {
-      if (k * stepCm > lo + eps) heights.push(k * stepCm);
+      if (k * stepCm > lo + eps && k * stepCm < below - eps) heights.push(k * stepCm);
     }
     if (s.heightStart > s.heightEnd) heights.reverse();
     for (const h of heights) out.push(at((s.depth * (h - s.heightStart)) / (s.heightEnd - s.heightStart), h, 'level'));

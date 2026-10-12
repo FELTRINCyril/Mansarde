@@ -95,6 +95,22 @@ describe('slopes', () => {
     });
   });
 
+  it('isolines: no level line at or above the level height, the ceiling never reaches it', () => {
+    const steep = createSlope({ x: 0, y: 0 }, { x: 100, y: 0 }, 'left', 100, 300, 150);
+    expect(slopeIsolines(steep, 20, 240).map((l) => [l.kind, l.height])).toEqual([
+      ['start', 300],
+      ['level', 220],
+      ['level', 200],
+      ['level', 180],
+      ['level', 160],
+      ['end', 150],
+    ]);
+    const rising = createSlope({ x: 0, y: 0 }, { x: 100, y: 0 }, 'left', 100, 150, 300);
+    expect(slopeIsolines(rising, 20, 250).map((l) => l.height)).toEqual([150, 160, 180, 200, 220, 240, 300]);
+    // without a level height: every multiple of 20
+    expect(slopeIsolines(steep).filter((l) => l.kind === 'level')).toHaveLength(7);
+  });
+
   it('isolines of a rising slope go up; equal heights give start and end only', () => {
     const rising = createSlope({ x: 0, y: 0 }, { x: 100, y: 0 }, 'left', 100, 150, 200);
     expect(slopeIsolines(rising).map((l) => l.height)).toEqual([150, 160, 180, 200]);

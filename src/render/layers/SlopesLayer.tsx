@@ -43,7 +43,7 @@ function LevelLine({ line, lineUnit, at }: { line: Isoline; lineUnit: number; at
   );
 }
 
-function SlopeView({ s, lineUnit, labels }: { s: Slope; lineUnit: number; labels: Map<string, Vec2> }): JSX.Element {
+function SlopeView({ s, lineUnit, labels, levelHeight }: { s: Slope; lineUnit: number; labels: Map<string, Vec2>; levelHeight: number }): JSX.Element {
   const f = slopeFrame(s);
   const end = add(s.a, scale(f.normal, s.depth));
   const id = gradientId(s);
@@ -68,7 +68,7 @@ function SlopeView({ s, lineUnit, labels }: { s: Slope; lineUnit: number; labels
       </defs>
       <path d={ringsPath([slopeBand(s)])} fill={`url(#${id})`} stroke="none" />
       <g stroke={STYLE.volumeInk} strokeOpacity={STYLE.slopeLineOpacity} fill="none">
-        {slopeIsolines(s).map((line, i) =>
+        {slopeIsolines(s, undefined, levelHeight).map((line, i) =>
           line.kind === 'level' ? (
             <LevelLine key={i} line={line} lineUnit={lineUnit} at={labels.get(slopeLabelKey(s.id, i)) ?? line.a} />
           ) : (
@@ -90,16 +90,27 @@ function SlopeView({ s, lineUnit, labels }: { s: Slope; lineUnit: number; labels
 
 /**
  * Roof slopes (spec 7.3), above the rooms and under the furniture: a light blue gradient across
- * the band, darker towards the lower ceiling, the level lines every 20 cm dashed with their height
- * (placed by layoutVolumeLabels: `labels`), the start and end lines solid.
+ * the band, darker towards the lower ceiling, the level lines every 20 cm under the level height
+ * (the ceiling never reaches the others) dashed with their height (placed by layoutVolumeLabels:
+ * `labels`, same slopeIsolines call so the indexes match), the start and end lines solid.
  * A degenerate slope (start line without length, depth <= 0) is not drawn. svg2pdf flattens a
  * gradient with stop opacities to its mean opacity: the PDF shows an even tint of the band.
  */
-export function SlopesLayer({ slopes, labels, lineUnit }: { slopes: Record<Id, Slope>; labels: Map<string, Vec2>; lineUnit: number }): JSX.Element {
+export function SlopesLayer({
+  slopes,
+  labels,
+  lineUnit,
+  levelHeight,
+}: {
+  slopes: Record<Id, Slope>;
+  labels: Map<string, Vec2>;
+  lineUnit: number;
+  levelHeight: number;
+}): JSX.Element {
   return (
     <g data-kind="slopes">
       {drawnSlopes(slopes).map((s) => (
-        <SlopeView key={s.id} s={s} lineUnit={lineUnit} labels={labels} />
+        <SlopeView key={s.id} s={s} lineUnit={lineUnit} labels={labels} levelHeight={levelHeight} />
       ))}
     </g>
   );

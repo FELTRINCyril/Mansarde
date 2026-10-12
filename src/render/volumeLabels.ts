@@ -66,7 +66,7 @@ export function layoutVolumeLabels(
   const placed: Obstacle[] = [];
   const slopes = new Map<string, Vec2>();
   for (const s of drawnSlopes(level.slopes)) {
-    slopeIsolines(s).forEach((line, i) => {
+    slopeIsolines(s, undefined, level.height).forEach((line, i) => {
       if (line.kind !== 'level') return;
       const l = slopeLabel(line, lineUnit);
       const at = labelAlong(line.a, line.b, l.width, l.height, l.angle, { hiding, labels: placed, masking, covering: overSlopes }, l.shift);

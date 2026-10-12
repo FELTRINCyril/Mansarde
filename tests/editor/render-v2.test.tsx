@@ -99,6 +99,16 @@ describe('PlanSvg volumes', () => {
     expect(slope).toContain(`fill="url(#${id})"`);
   });
 
+  it('slope: no level line nor label at or above the level height (the ceiling stops at 2,40 m)', () => {
+    const p = chambre();
+    lvl(p).slopes['slope']!.heightStart = 300; // 300 -> 150 under a 240 ceiling
+    const markup = render(p);
+    const slope = group(markup, 'slope', 'slope');
+    for (const label of ['2,20 m', '2,00 m', '1,80 m', '1,60 m']) expect(slope).toContain(`>${label}</text>`);
+    for (const label of ['2,40 m', '2,60 m', '2,80 m']) expect(markup).not.toContain(`>${label}</text>`);
+    expect(count(slope, 'data-kind="slope-level"')).toBe(4);
+  });
+
   it('slope label: moved along its line off the furniture drawn over it', () => {
     const at = (markup: string) => /<text x="287.22" y="([^"]+)"[^>]*>2,00 m<\/text>/.exec(group(markup, 'slope', 'slope'))?.[1];
     expect(at(render(chambre()))).toBe('200');
