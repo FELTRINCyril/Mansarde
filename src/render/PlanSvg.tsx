@@ -18,6 +18,9 @@ import { RoomLabelsLayer } from './layers/RoomLabelsLayer';
 import { RoomsLayer } from './layers/RoomsLayer';
 import { SelectionLayer } from './layers/SelectionLayer';
 import { SlopesLayer } from './layers/SlopesLayer';
+import { layoutVolumeLabels } from './volumeLabels';
+import { layoutDimensions } from './dimensionsLayout';
+import { dimText, dimTextBox } from './dimLayout';
 import { WallsLayer } from './layers/WallsLayer';
 import { roomLabelBox } from './roomLabelLayout';
 import { num, STYLE } from './style';
@@ -61,18 +64,22 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
   // room names are drawn above the slopes and beams, the furniture (rugs aside) and cupboards
   // above the slopes: the labels of slopes and beams keep clear of them
   const roomNames = derived.rooms.map((r) => roomLabelBox(r, lineUnit));
-  const overSlopes = {
-    hiding: roomNames,
-    covering:
-      Object.keys(level.slopes).length === 0
-        ? []
-        : [
-            ...Object.values(level.objects)
-              .filter((o) => o.pose !== 'covering')
-              .map((o) => bbox(objectCorners(o))!),
-            ...[...volumes.cupboardFootprints.values()].map((r) => bbox(r)!),
-          ],
-  };
+  const overSlopes =
+    Object.keys(level.slopes).length === 0
+      ? []
+      : [
+          ...Object.values(level.objects)
+            .filter((o) => o.pose !== 'covering')
+            .map((o) => bbox(objectCorners(o))!),
+          ...[...volumes.cupboardFootprints.values()].map((r) => bbox(r)!),
+        ];
+  const dims = layoutDimensions(level, derived, p.dimMode, lineUnit);
+  // dimension texts are drawn above the slopes and beams with an opaque mask, like the room names
+  const dimTexts = [
+    ...dims.auto.map((d) => (d ? dimText(d.dim, lineUnit, d.textInside, d.fontScale) : null)),
+    ...dims.manual.map((d) => dimText(d.dim, lineUnit, false, 1)),
+  ].flatMap((t) => (t ? [dimTextBox(t)] : []));
+  const volumeLabels = layoutVolumeLabels(level, volumes.beamFootprints, lineUnit, { roomNames, dimTexts, overSlopes });
   const selectedCupboards = screen && p.selection ? new Set(p.selection.filter((i) => i.kind === 'cupboard').map((i) => i.id)) : NO_IDS;
   const selectedKeys = screen && p.selection ? new Set(p.selection.map((i) => `${i.kind}:${i.id}`)) : NO_IDS;
   const bg = level.background;
@@ -91,13 +98,13 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
       <LowerLevelLayer level={p.lowerLevel} />
       {screen && p.showGrid && <GridLayer viewBox={vb} gridStep={p.project.settings.gridStep} lineUnit={lineUnit} />}
       <RoomsLayer rooms={derived.rooms} translucent={imageShown} />
-      <SlopesLayer slopes={level.slopes} labelObstacles={overSlopes} lineUnit={lineUnit} />
+      <SlopesLayer slopes={level.slopes} labels={volumeLabels.slopes} lineUnit={lineUnit} />
       <CupboardsLayer level={level} footprints={volumes.cupboardFootprints} selectedIds={selectedCupboards} lineUnit={lineUnit} />
       <ObjectsLayer objects={level.objects} customObjects={p.project.customObjects} lineUnit={lineUnit} />
       <WallsLayer shape={derived.shapeWithOpenings} degraded={derived.degraded} />
       <OpeningsLayer level={level} lineUnit={lineUnit} />
-      <BeamsLayer level={level} footprints={volumes.beamFootprints} labelObstacles={roomNames} lineUnit={lineUnit} />
-      <DimensionsLayer level={level} derived={derived} dimMode={p.dimMode} lineUnit={lineUnit} />
+      <BeamsLayer level={level} footprints={volumes.beamFootprints} labels={volumeLabels.beams} lineUnit={lineUnit} />
+      <DimensionsLayer level={level} derived={derived} dimMode={p.dimMode} lineUnit={lineUnit} layout={dims} />
       <RoomLabelsLayer rooms={derived.rooms} lineUnit={lineUnit} />
       {screen && p.alerts && (
         <AlertsLayer alerts={p.alerts} selected={selectedKeys} level={level} volumes={volumes} customObjects={p.project.customObjects} lineUnit={lineUnit} />

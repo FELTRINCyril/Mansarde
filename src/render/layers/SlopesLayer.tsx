@@ -1,30 +1,20 @@
 import type { JSX } from 'react';
 import { slopeBand, slopeFrame, slopeIsolines, type Isoline } from '@/core/geometry/slopes';
-import { add, angleOf, rad2deg, scale } from '@/core/geometry/vec';
-import { formatLength } from '@/core/model/format';
-import type { Id, Slope } from '@/core/model/types';
-import type { Box } from '../dimLayout';
-import { labelAlong } from '../labelAlong';
+import { add, scale } from '@/core/geometry/vec';
+import type { Id, Slope, Vec2 } from '@/core/model/types';
 import { ringsPath } from '../path';
-import { CAP_HEIGHT, dashArray, FONT_FAMILY, num, readableAngle, STYLE, textWidth } from '../style';
-
-/** Room names (opaque, must be avoided) and furniture drawn over the labels (avoided if possible). */
-export interface LabelObstacles { hiding: Box[]; covering: Box[] }
+import { dashArray, FONT_FAMILY, num, STYLE } from '../style';
+import { drawnSlopes, slopeLabel, slopeLabelKey } from '../volumeLabels';
 
 /** Gradient id of a slope (ids are unique within a project; the same slope always gives the same gradient). */
 const gradientId = (s: Slope): string => `slope-gradient-${s.id}`;
 
 /**
- * A level line with its height, the text just above the line in its reading direction: at
- * mid-line unless a room name or furniture is there (labelAlong).
+ * A level line with its height, the text just above the line in its reading direction, at `at`
+ * (layoutVolumeLabels: mid-line unless a room name, furniture or another label is there).
  */
-function LevelLine({ line, lineUnit, obstacles }: { line: Isoline; lineUnit: number; obstacles: LabelObstacles }): JSX.Element {
-  const angle = num(readableAngle(rad2deg(angleOf({ x: line.b.x - line.a.x, y: line.b.y - line.a.y }))));
-  const text = formatLength(line.height);
-  const fontSize = STYLE.slopeText * lineUnit;
-  // the text box straddles the line: it may sit on either side once turned
-  const reach = 2 * (STYLE.slopeTextGap * lineUnit + CAP_HEIGHT * fontSize);
-  const at = labelAlong(line.a, line.b, textWidth(text, fontSize), reach, angle, obstacles);
+function LevelLine({ line, lineUnit, at }: { line: Isoline; lineUnit: number; at: Vec2 }): JSX.Element {
+  const { text, angle, fontSize } = slopeLabel(line, lineUnit);
   return (
     <>
       <line
@@ -53,7 +43,7 @@ function LevelLine({ line, lineUnit, obstacles }: { line: Isoline; lineUnit: num
   );
 }
 
-function SlopeView({ s, lineUnit, obstacles }: { s: Slope; lineUnit: number; obstacles: LabelObstacles }): JSX.Element {
+function SlopeView({ s, lineUnit, labels }: { s: Slope; lineUnit: number; labels: Map<string, Vec2> }): JSX.Element {
   const f = slopeFrame(s);
   const end = add(s.a, scale(f.normal, s.depth));
   const id = gradientId(s);
@@ -80,7 +70,7 @@ function SlopeView({ s, lineUnit, obstacles }: { s: Slope; lineUnit: number; obs
       <g stroke={STYLE.volumeInk} strokeOpacity={STYLE.slopeLineOpacity} fill="none">
         {slopeIsolines(s).map((line, i) =>
           line.kind === 'level' ? (
-            <LevelLine key={i} line={line} lineUnit={lineUnit} obstacles={obstacles} />
+            <LevelLine key={i} line={line} lineUnit={lineUnit} at={labels.get(slopeLabelKey(s.id, i)) ?? line.a} />
           ) : (
             <line
               key={i}
@@ -101,27 +91,16 @@ function SlopeView({ s, lineUnit, obstacles }: { s: Slope; lineUnit: number; obs
 /**
  * Roof slopes (spec 7.3), above the rooms and under the furniture: a light blue gradient across
  * the band, darker towards the lower ceiling, the level lines every 20 cm dashed with their height
- * (kept clear of the room names, and of the furniture when possible: `labelObstacles`), the start
- * and end lines solid.
+ * (placed by layoutVolumeLabels: `labels`), the start and end lines solid.
  * A degenerate slope (start line without length, depth <= 0) is not drawn. svg2pdf flattens a
  * gradient with stop opacities to its mean opacity: the PDF shows an even tint of the band.
  */
-export function SlopesLayer({
-  slopes,
-  labelObstacles,
-  lineUnit,
-}: {
-  slopes: Record<Id, Slope>;
-  labelObstacles: LabelObstacles;
-  lineUnit: number;
-}): JSX.Element {
+export function SlopesLayer({ slopes, labels, lineUnit }: { slopes: Record<Id, Slope>; labels: Map<string, Vec2>; lineUnit: number }): JSX.Element {
   return (
     <g data-kind="slopes">
-      {Object.values(slopes)
-        .filter((s) => s.depth > 0 && slopeFrame(s).length > 0)
-        .map((s) => (
-          <SlopeView key={s.id} s={s} lineUnit={lineUnit} obstacles={labelObstacles} />
-        ))}
+      {drawnSlopes(slopes).map((s) => (
+        <SlopeView key={s.id} s={s} lineUnit={lineUnit} labels={labels} />
+      ))}
     </g>
   );
 }

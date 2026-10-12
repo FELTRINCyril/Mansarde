@@ -6,6 +6,8 @@ import { polygonClippingEnv, polygonClippingLimits, polygonClippingLimitsDeps } 
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages serves the app under /<repo>/: the deploy workflow sets BASE_PATH=/plan-maison/
+  base: process.env.BASE_PATH ?? '/',
   plugins: [react(), polygonClippingLimits()],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },

@@ -3,7 +3,14 @@ import type { IDBPDatabase } from 'idb';
 import type { Id, Project } from '@/core/model/types';
 import { canMigrateFrom, migrateStoredProject } from '@/core/persistence/migrate';
 
-export interface ProjectMeta { id: Id; name: string; updatedAt: string; levelCount: number }
+/**
+ * A project of the home list. An unreadable one (format version this app cannot read, or a record
+ * without levels) is listed too, so that it can be deleted: its name and date only when they are
+ * strings in the record.
+ */
+export type ProjectMeta =
+  | { readable: true; id: Id; name: string; updatedAt: string; levelCount: number }
+  | { readable: false; id: Id; name: string | null; updatedAt: string | null };
 export interface StoredImage { id: Id; projectId: Id; mime: string; blob: Blob; widthPx: number; heightPx: number }
 
 const DEFAULT_DB_NAME = 'plan-maison';
@@ -19,14 +26,42 @@ export function openDb(name: string = DEFAULT_DB_NAME): Promise<IDBPDatabase> {
   });
 }
 
-/** Stored record as read from IndexedDB: possibly written by an older (or unknown) version of the app. */
-type StoredRecord = { id: Id; name: string; updatedAt: string; levels: unknown[]; formatVersion?: unknown };
+/** Stored record as read from IndexedDB: possibly written by an older (or unknown) version of the app, or damaged. */
+type StoredRecord = { id: Id; name?: unknown; updatedAt?: unknown; levels?: unknown; formatVersion?: unknown };
 
-/** False (with a console error) for a record whose format version cannot be read by this version of the app. */
-function readableVersion(r: StoredRecord): boolean {
-  if (canMigrateFrom(r.formatVersion)) return true;
-  console.error(`Stored project ${String(r.id)} has an unreadable format version: ${String(r.formatVersion)}`);
-  return false;
+/**
+ * False (with a console error) for a record this version of the app cannot read: unknown format
+ * version, or no levels array (every format version has one).
+ */
+function readableRecord(r: StoredRecord): boolean {
+  if (!canMigrateFrom(r.formatVersion)) {
+    console.error(`Stored project ${String(r.id)} has an unreadable format version: ${String(r.formatVersion)}`);
+    return false;
+  }
+  if (!Array.isArray(r.levels)) {
+    console.error(`Stored project ${String(r.id)} has no levels array`);
+    return false;
+  }
+  return true;
+}
+
+const stringOrNull = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+function metaOf(r: StoredRecord): ProjectMeta {
+  const name = stringOrNull(r.name);
+  const updatedAt = stringOrNull(r.updatedAt);
+  if (readableRecord(r) && name !== null && updatedAt !== null) {
+    return { readable: true, id: r.id, name, updatedAt, levelCount: (r.levels as unknown[]).length };
+  }
+  return { readable: false, id: r.id, name, updatedAt };
+}
+
+/** Most recent first; a project without a date last. */
+function byUpdatedAtDesc(a: ProjectMeta, b: ProjectMeta): number {
+  if (a.updatedAt === b.updatedAt) return 0;
+  if (a.updatedAt === null) return 1;
+  if (b.updatedAt === null) return -1;
+  return a.updatedAt < b.updatedAt ? 1 : -1;
 }
 
 export class ProjectStore {
@@ -37,16 +72,13 @@ export class ProjectStore {
   }
 
   /**
-   * Metadata of every readable project. The fields read here (id, name, updatedAt, levels) exist in
-   * every format version, so nothing is migrated; a record of unreadable version is left out (and
-   * logged) instead of breaking the whole list.
+   * Metadata of every stored project. The fields read here (id, name, updatedAt, levels) exist in
+   * every format version, so nothing is migrated. A record this app cannot read is listed as
+   * unreadable (and logged) instead of breaking the whole list or being hidden: it can be deleted.
    */
   async listProjects(): Promise<ProjectMeta[]> {
     const all = (await this.db.getAll('projects')) as StoredRecord[];
-    return all
-      .filter(readableVersion)
-      .map((p) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt, levelCount: p.levels.length }))
-      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
+    return all.map(metaOf).sort(byUpdatedAtDesc);
   }
 
   /**
@@ -56,7 +88,7 @@ export class ProjectStore {
    */
   async getProject(id: Id): Promise<Project | null> {
     const stored = (await this.db.get('projects', id)) as StoredRecord | undefined;
-    if (!stored || !readableVersion(stored)) return null;
+    if (!stored || !readableRecord(stored)) return null;
     try {
       return migrateStoredProject(stored as { formatVersion: number }) as Project;
     } catch (e) {

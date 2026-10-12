@@ -58,14 +58,14 @@ export function ObjectProperties({ level, id }: { level: Level; id: string }): J
   /**
    * Pose menu (spec 7.2), one history entry. Choosing "Posé sur un meuble" also lifts the object
    * onto the furniture under its center, as a drop does (spec 5.3, ruling V2-R31); without one its
-   * laying height is kept. Leaving "Posé sur un meuble" for a pose standing on the floor (Au sol,
-   * Revêtement, Rangé dessous) puts it back at 0; "Mural" keeps the laying height.
+   * laying height is kept. Leaving "Posé sur un meuble" or "Mural" for a pose standing on the floor
+   * (Au sol, Revêtement, Rangé dessous) puts it back at 0; "Mural" keeps the laying height.
    */
   const setPose = (pose: ObjectPose) => {
     if (pose === 'onTop') {
       const support = supportElevation(level, id, { x: o.x, y: o.y }, customObjects);
       update(support > 0 ? { pose, elevation: support } : { pose });
-    } else if (o.pose === 'onTop' && FLOOR_POSES.has(pose)) {
+    } else if ((o.pose === 'onTop' || o.pose === 'wall') && FLOOR_POSES.has(pose)) {
       update({ pose, elevation: 0 });
     } else {
       update({ pose });

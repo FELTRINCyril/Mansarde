@@ -4,7 +4,7 @@ import { CUPBOARDS_DO_NOT_FIT, reconcileCupboards } from '@/core/commands/reconc
 import { addWallChain, deleteWalls, joinNodeToWall, mergeNode, moveNodes, moveWalls, setWallLength, setWallThickness, splitWall } from '@/core/commands/walls';
 import { cupboardFootprint } from '@/core/geometry/cupboards';
 import { MAX_CUPBOARD_DOORS } from '@/core/model/defaults';
-import { createCupboard, createOpening } from '@/core/model/factory';
+import { createCupboard, createOpening, createSlope } from '@/core/model/factory';
 import type { Cupboard, Id, Level, Project } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from './fixtures';
 import { levelId, lvl, noop, projectFrom, refuse, run } from './helpers';
@@ -312,12 +312,37 @@ describe('plinth and gap bounds (T8 fix round)', () => {
     run(q, updateCupboard(levelId(q), id, { plinth: 219 }));
   });
 
-  it('ceiling mode: the gap must stay under the level height, the plinth is not compared with height', () => {
+  it('ceiling mode: the plinth must stay under the real top (ceiling minus gap), its height field is unused', () => {
     const { p, top } = setup();
-    const { p: q, id } = withCupboard(p, top, 200, { heightMode: 'ceiling' });
+    const { p: q, id } = withCupboard(p, top, 200, { heightMode: 'ceiling', plinth: 10, gap: 2 });
     const h = lvl(q).height;
     expect(refuse(q, updateCupboard(levelId(q), id, { gap: h }))).toBe('Dimension invalide');
-    run(q, updateCupboard(levelId(q), id, { gap: h - 1 }));
+    // top = h - gap must stay above the plinth (10)
+    expect(refuse(q, updateCupboard(levelId(q), id, { gap: h - 10 }))).toBe('Dimension invalide');
+    run(q, updateCupboard(levelId(q), id, { gap: h - 11 }));
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: h - 2 }))).toBe('Dimension invalide');
+    run(q, updateCupboard(levelId(q), id, { plinth: h - 3 }));
     run(q, updateCupboard(levelId(q), id, { height: 5 })); // unused in ceiling mode
+    // switching a fixed cupboard with a high plinth to the ceiling mode is checked too
+    const { p: r, id: fixed } = withCupboard(p, top, 200, { plinth: 200, height: 220 });
+    expect(refuse(r, updateCupboard(levelId(r), fixed, { heightMode: 'ceiling', gap: h - 150 }))).toBe('Dimension invalide');
+    expect(refuse(p, addCupboard(levelId(p), createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: h - 2, gap: 2 })))).toBe('Dimension invalide');
+  });
+
+  it('ceiling mode under a slope: the plinth is compared with the lowest top under the cupboard', () => {
+    // the ceiling goes down from 250 at y = 0 to 150 at y = 100 (the cupboard is 60 deep, from y = 0;
+    // 'left' of the top wall is the room side, as for the cupboard)
+    const p = projectFrom(rectRoom(0, 0, 400, 300), (level) => {
+      level.height = 250;
+      const s = createSlope({ x: 0, y: 0 }, { x: 400, y: 0 }, 'left', 100, 250, 150);
+      level.slopes[s.id] = s;
+    });
+    const top = findWall(lvl(p), 0, 0, 400, 0);
+    const { p: q, id } = withCupboard(p, top, 200, { heightMode: 'ceiling', plinth: 10, gap: 2, depth: 60 });
+    // 20 cm walls: the cupboard runs from y = 10 to 70, lowest ceiling 250 - 70 = 180, top 178
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 178 }))).toBe('Dimension invalide');
+    run(q, updateCupboard(levelId(q), id, { plinth: 177 }));
+    // a level height of 250 alone would have accepted 200
+    expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 200 }))).toBe('Dimension invalide');
   });
 });

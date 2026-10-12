@@ -50,7 +50,7 @@ describe('catalog data', () => {
   it('contains the 44 expected entries with exact values', () => {
     expect(CATALOG).toHaveLength(44);
     const e = (id: string) => getCatalogEntry(id);
-    expect(e('bed-140')).toMatchObject({ name: 'Lit 140', category: 'Chambre', width: 140, depth: 190, height: 50 });
+    expect(e('bed-140')).toMatchObject({ name: 'Lit 140', category: 'Chambre', width: 140, depth: 190, height: 90 }); // V2-R33: headboard
     expect(e('crib')).toMatchObject({ name: 'Berceau', width: 60, depth: 120, height: 90 });
     expect(e('sofa-corner')).toMatchObject({ name: "Canapé d'angle", category: 'Séjour', width: 250, depth: 200 });
     expect(e('table-round')).toMatchObject({ category: 'Bureau et repas', width: 110, depth: 110, height: 75 });
@@ -240,10 +240,17 @@ describe('V2 symbols', () => {
     expect(ticks(fringe(120, 170)).every((t) => /y1="-?85"/.test(t))).toBe(true);
   });
 
-  it('draws the wall TV as a thick back line with dashes', () => {
+  it('draws the wall TV as a thick back line with dashes, the thick line inside the body', () => {
     const m = render('tv-wall', 110, 8);
     expect(m).toContain('stroke-dasharray');
     expect(m).toContain('data-thick');
+    // a stroke of width sw centered on y spans y +- sw / 2: from the back edge (-4) inwards
+    for (const [d, lineUnit] of [[8, 1], [8, 2.5], [2, 1]] as const) {
+      const t = /<g data-thick="1" stroke-width="([^"]+)"[^>]*><line x1="[^"]+" y1="([^"]+)"/.exec(render('tv-wall', 110, d, lineUnit))!;
+      const [sw, y] = [Number(t[1]), Number(t[2])];
+      expect(y - sw / 2, `d ${d}, lineUnit ${lineUnit}`).toBeCloseTo(-d / 2, 9);
+      expect(y + sw / 2).toBeLessThanOrEqual(d / 2);
+    }
   });
 
   it('draws a stand under the TV screen on the back side only', () => {

@@ -23,10 +23,18 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element {
   );
 }
 
+const headerIcon = (d: string): JSX.Element => (
+  <svg className="header-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
+
 /**
  * Editor header: back to projects, project name, undo/redo, view switch with the alert counter,
  * the "Affichage" menu (ruling V2-R30), save status (fixed width: the name never moves), settings,
- * export.
+ * export. Below 1300 px wide, undo and redo show an icon instead of their word (same accessible
+ * name and title) and the spacing tightens, so that the header fits down to 1100 px with at least
+ * 12 characters of the project name visible.
  */
 export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings(): void; onExport(): void }): JSX.Element | null {
   const name = useEditor((s) => s.project?.name);
@@ -58,11 +66,27 @@ export function Header(p: { saveStatus: SaveStatus; onBack(): void; onSettings()
         }}
       />
       <div className="header-group">
-        <button type="button" className="btn" disabled={!canUndo} title={`Annuler (${MOD_LABEL}+Z)`} onClick={() => useEditor.getState().undo()}>
-          Annuler
+        <button
+          type="button"
+          className="btn btn-icon-compact"
+          disabled={!canUndo}
+          aria-label="Annuler"
+          title={`Annuler (${MOD_LABEL}+Z)`}
+          onClick={() => useEditor.getState().undo()}
+        >
+          {headerIcon('M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11')}
+          <span className="header-label">Annuler</span>
         </button>
-        <button type="button" className="btn" disabled={!canRedo} title={`Rétablir (${MOD_LABEL}+Maj+Z)`} onClick={() => useEditor.getState().redo()}>
-          Rétablir
+        <button
+          type="button"
+          className="btn btn-icon-compact"
+          disabled={!canRedo}
+          aria-label="Rétablir"
+          title={`Rétablir (${MOD_LABEL}+Maj+Z)`}
+          onClick={() => useEditor.getState().redo()}
+        >
+          {headerIcon('m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13')}
+          <span className="header-label">Rétablir</span>
         </button>
       </div>
       <div className="header-group">

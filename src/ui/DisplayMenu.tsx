@@ -10,8 +10,8 @@ const DIM_MODES: Array<[EditorState['display']['dimMode'], string]> = [
 /**
  * "Affichage" button of the header (ruling V2-R30): a small menu with the dimension mode, the lower
  * level watermark and the grid, so that the header keeps room for the project name. The menu
- * closes on a press outside it, on Escape (focus back on the button) or on the button again; the
- * options apply at once.
+ * closes on a press outside it, when the focus leaves it (Tab), on Escape (focus back on the
+ * button) or on the button again; the options apply at once.
  */
 export function DisplayMenu(): JSX.Element {
   const display = useEditor((s) => s.display);
@@ -39,6 +39,11 @@ export function DisplayMenu(): JSX.Element {
           setOpen(false);
           button.current?.focus();
         }
+      }}
+      onBlur={(e) => {
+        // the focus went to another element outside the menu (Tab, Shift+Tab). A null relatedTarget
+        // (a press on a label of the menu, or outside: handled by the pointerdown above) keeps it open.
+        if (open && e.relatedTarget instanceof Node && !e.currentTarget.contains(e.relatedTarget)) setOpen(false);
       }}
     >
       <button

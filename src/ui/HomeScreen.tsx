@@ -17,7 +17,10 @@ import { ProjectThumbnail } from './ProjectThumbnail';
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-type Dialog = { kind: 'new' } | { kind: 'rename'; meta: ProjectMeta } | { kind: 'delete'; meta: ProjectMeta };
+type ReadableMeta = Extract<ProjectMeta, { readable: true }>;
+type UnreadableMeta = Extract<ProjectMeta, { readable: false }>;
+
+type Dialog = { kind: 'new' } | { kind: 'rename'; meta: ReadableMeta } | { kind: 'delete'; meta: ProjectMeta };
 
 /** Shown instead of a thumbnail whose rendering threw: the project can still be opened, exported or deleted. */
 const ThumbnailError = (): JSX.Element => (
@@ -27,6 +30,41 @@ const ThumbnailError = (): JSX.Element => (
 );
 
 const levelCount = (n: number): string => (n > 1 ? `${n} niveaux` : `${n} niveau`);
+
+/**
+ * A stored project this version cannot read (newer or damaged format): listed rather than hidden,
+ * with what could be read of it (name, date), so that it can at least be deleted.
+ */
+function UnreadableItem(p: { meta: UnreadableMeta; onDelete(): void }): JSX.Element {
+  const known = [p.meta.name, p.meta.updatedAt === null ? null : formatModified(p.meta.updatedAt)].filter((t) => t !== null);
+  return (
+    <li className="project-card project-card-unreadable" data-testid="project-item" data-unreadable="true">
+      <div className="project-thumb project-thumb-empty">Aperçu indisponible</div>
+      <div className="project-info">
+        <span className="project-title" data-testid="project-name-cell">
+          Projet illisible
+        </span>
+        {known.length > 0 && <span className="project-meta">{known.join(' - ')}</span>}
+        <span className="project-meta">Format non reconnu par cette version de Plan Maison.</span>
+      </div>
+      <div className="project-actions">
+        <button type="button" className="btn btn-small btn-danger-outline" onClick={p.onDelete}>
+          Supprimer
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** The question of the delete confirmation. */
+function deleteMessage(m: ProjectMeta): string {
+  if (m.readable) {
+    return `Supprimer définitivement le projet "${m.name}" ? Cette action est irréversible : exportez-le d'abord en .json si vous voulez le garder.`;
+  }
+  return m.name === null
+    ? 'Supprimer définitivement ce projet illisible ? Cette action est irréversible.'
+    : `Supprimer définitivement le projet illisible "${m.name}" ? Cette action est irréversible.`;
+}
 
 /** Project list: create, open, rename, duplicate, export, import, delete. */
 export function HomeScreen(p: {
@@ -126,7 +164,10 @@ export function HomeScreen(p: {
         )}
         {projects && projects.length > 0 && (
           <ul className="project-list" aria-label="Projets">
-            {projects.map((m) => (
+            {projects.map((m) =>
+              !m.readable ? (
+                <UnreadableItem key={m.id} meta={m} onDelete={() => setDialog({ kind: 'delete', meta: m })} />
+              ) : (
               <li key={m.id} className="project-card" data-testid="project-item">
                 <ErrorBoundary resetKey={m.updatedAt} fallback={() => <ThumbnailError />}>
                   <ProjectThumbnail projectStore={projectStore} id={m.id} updatedAt={m.updatedAt} />
@@ -161,7 +202,8 @@ export function HomeScreen(p: {
                   </button>
                 </div>
               </li>
-            ))}
+              ),
+            )}
           </ul>
         )}
       </main>
@@ -198,12 +240,7 @@ export function HomeScreen(p: {
       {dialog?.kind === 'delete' && (
         <ConfirmDialog
           title="Supprimer le projet"
-          message={
-            <p>
-              Supprimer définitivement le projet "{dialog.meta.name}" ? Cette action est irréversible : exportez-le
-              d'abord en .json si vous voulez le garder.
-            </p>
-          }
+          message={<p>{deleteMessage(dialog.meta)}</p>}
           confirmLabel="Supprimer"
           danger
           onCancel={() => setDialog(null)}

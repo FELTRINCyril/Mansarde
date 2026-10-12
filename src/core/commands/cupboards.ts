@@ -1,7 +1,7 @@
 import type { Draft } from 'immer';
 import { MAX_CUPBOARD_DOORS } from '../model/defaults';
 import type { Cupboard, Id, Level } from '../model/types';
-import { cupboardFitsWall } from '../geometry/cupboards';
+import { cupboardFitsWall, cupboardTopProfile } from '../geometry/cupboards';
 import { wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
 import { ERR_POSITION, ERR_SIZE, SIDES, isNonNegative, isOneOf, isPositive, lookup, patchEntries, writeChanges } from './volumeHelpers';
@@ -32,16 +32,24 @@ function requireRoom(level: DLevel, c: Cupboard): void {
   if (!cupboardFitsWall(c, wallLength(level, c.wallId))) throw new CommandError(ERR_NO_ROOM);
 }
 
-/** Fixed mode: the plinth under the top; ceiling mode: the gap under the level ceiling. */
+/**
+ * Fixed mode: the plinth under the top. Ceiling mode: the gap under the level ceiling, and the
+ * plinth under the real top, i.e. the lowest point of the top under slopes and beams (ceiling
+ * minus gap, cupboardTopProfile); called once the wall is known to exist.
+ */
 function requireConsistentHeights(level: DLevel, c: Cupboard): void {
   if (c.heightMode === 'fixed' && !(c.plinth < c.height)) throw new CommandError(ERR_SIZE);
-  if (c.heightMode === 'ceiling' && !(c.gap < level.height)) throw new CommandError(ERR_SIZE);
+  if (c.heightMode === 'ceiling') {
+    if (!(c.gap < level.height)) throw new CommandError(ERR_SIZE);
+    const lowestTop = Math.min(...cupboardTopProfile(level as Level, c).map((p) => p.top));
+    if (!(c.plinth < lowestTop)) throw new CommandError(ERR_SIZE);
+  }
 }
 
 function requireValidCupboard(level: DLevel, c: Cupboard): void {
   requireValidNumbers(c);
-  requireConsistentHeights(level, c);
   requireRoom(level, c);
+  requireConsistentHeights(level, c);
 }
 
 /** Refused (CommandError) when the cupboard does not fit its wall or a value is invalid. */

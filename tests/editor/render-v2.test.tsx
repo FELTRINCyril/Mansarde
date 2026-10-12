@@ -6,6 +6,7 @@ import { deriveLevel } from '@/core/geometry/derived';
 import { labelAlong } from '@/render/labelAlong';
 import { roomLabelBox } from '@/render/roomLabelLayout';
 import { PlanSvg, type PlanSvgProps } from '@/render/PlanSvg';
+import { CAP_HEIGHT, textWidth } from '@/render/style';
 import { findWall, rectRoom } from '../core/fixtures';
 import { lvl, projectFrom } from '../core/helpers';
 
@@ -106,7 +107,7 @@ describe('PlanSvg volumes', () => {
     expect(at(render(p))).toBe('137');
   });
 
-  it('slope label: never under a room name, even when furniture leaves no clear spot (reviewer case)', () => {
+  it('slope and beam labels: never under a room name, even when furniture leaves no clear spot, at lineUnit 0.5, 1 and 2 (reviewer case)', () => {
     // a 300 x 250 room "Bureau" over a 300 x 200 room, a diagonal slope and beam, cupboards, a desk and a wardrobe
     const p = projectFrom([...rectRoom(-10, -10, 310, 260), [310, 260, 310, 460], [310, 460, -10, 460], [-10, 460, -10, 260]], (level) => {
       const s = createSlope({ x: 0, y: 150 }, { x: 150, y: 0 }, 'left', 180, 250, 140);
@@ -125,16 +126,46 @@ describe('PlanSvg volumes', () => {
       level.roomLabels.push({ id: 'l1', name: 'Bureau', anchor: { x: 150, y: 125 } });
       level.roomLabels.push({ id: 'l2', name: 'Salle de bain', anchor: { x: 150, y: 360 } });
     });
-    const level = lvl(p);
-    const room = deriveLevel(level).rooms.find((r) => r.name === 'Bureau')!;
-    for (const lineUnit of [1, 0.5]) {
-      const name = roomLabelBox(room, lineUnit);
-      const slope = group(render(p, { lineUnit }), 'slope', 'slope');
-      const labels = [...slope.matchAll(/<text x="([^"]+)" y="([^"]+)"[^>]*>([^<]+)<\/text>/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]), text: m[3] }));
-      expect(labels.map((l) => l.text)).toContain('2,00 m');
-      for (const l of labels) {
-        const inside = l.x > name.minX && l.x < name.maxX && l.y > name.minY && l.y < name.maxY;
-        expect(inside, `${l.text} at (${l.x}, ${l.y}), lineUnit ${lineUnit}`).toBe(false);
+    const names = deriveLevel(lvl(p)).rooms;
+    // the area actually drawn by a label: sampled points of its turned rectangle (local x0..x1, y0..y1)
+    const area = (at: { x: number; y: number }, angle: number, x0: number, x1: number, y0: number, y1: number) => {
+      const r = (angle * Math.PI) / 180;
+      const pts = [];
+      for (let i = 0; i <= 8; i++) {
+        for (let j = 0; j <= 4; j++) {
+          const lx = x0 + ((x1 - x0) * i) / 8;
+          const ly = y0 + ((y1 - y0) * j) / 4;
+          pts.push({ x: at.x + lx * Math.cos(r) - ly * Math.sin(r), y: at.y + lx * Math.sin(r) + ly * Math.cos(r) });
+        }
+      }
+      return pts;
+    };
+    const num = (re: RegExp, s: string) => Number(re.exec(s)![1]);
+    for (const lineUnit of [0.5, 1, 2]) {
+      const boxes = names.map((room) => roomLabelBox(room, lineUnit));
+      const markup = render(p, { lineUnit });
+      const drawn: Array<{ what: string; pts: Array<{ x: number; y: number }> }> = [];
+      for (const m of group(markup, 'slope', 'slope').matchAll(/<text [^>]*>[^<]+<\/text>/g)) {
+        const t = m[0];
+        const at = { x: num(/ x="([^"]+)"/, t), y: num(/ y="([^"]+)"/, t) };
+        const fs = num(/font-size="([^"]+)"/, t);
+        const text = />([^<]+)</.exec(t)![1]!;
+        const w = textWidth(text, fs);
+        // baseline dy above the line (negative), glyphs one cap height above it
+        const dy = num(/dy="([^"]+)"/, t);
+        drawn.push({ what: `slope ${text}`, pts: area(at, num(/rotate\(([^ ]+) /, t), -w / 2, w / 2, dy - CAP_HEIGHT * fs, dy) });
+      }
+      expect(drawn.map((d) => d.what)).toContain('slope 2,00 m');
+      for (const m of markup.matchAll(/<g data-kind="beam-label" transform="translate\(([^ ]+) ([^)]+)\) rotate\(([^)]+)\)"><rect [^>]*width="([^"]+)" height="([^"]+)"/g)) {
+        const [w, h] = [Number(m[4]), Number(m[5])];
+        drawn.push({ what: 'beam', pts: area({ x: Number(m[1]), y: Number(m[2]) }, Number(m[3]), -w / 2, w / 2, -h / 2, h / 2) });
+      }
+      expect(drawn.some((d) => d.what === 'beam')).toBe(true);
+      for (const d of drawn) {
+        for (const [i, b] of boxes.entries()) {
+          const hit = d.pts.find((q) => q.x > b.minX && q.x < b.maxX && q.y > b.minY && q.y < b.maxY);
+          expect(hit, `${d.what} under the name "${names[i]!.name}" at lineUnit ${lineUnit}`).toBeUndefined();
+        }
       }
     }
   });
@@ -236,6 +267,17 @@ describe('PlanSvg volumes', () => {
     for (const [x1, x2] of xs) expect(x1).toBe(x2);
     expect(xs[0]![0]).not.toBe(xs[1]![0]);
     for (const [x] of xs) expect(x! > 340 && x! < 350).toBe(true);
+    // each handle sits on its own panel (its door line), mid-panel, standing out towards the room (-x)
+    const doors = [...c.matchAll(/data-kind="cupboard-door" x1="([^"]+)" y1="([^"]+)" x2="[^"]+" y2="([^"]+)"/g)].map((m) => m.slice(1).map(Number));
+    const handles = [...c.matchAll(/data-kind="cupboard-handle" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/g)].map((m) => m.slice(1).map(Number));
+    expect(handles).toHaveLength(2);
+    for (const [i, [hx1, hy1, hx2, hy2]] of handles.entries()) {
+      const [dx, dy1, dy2] = doors[i]!;
+      expect(hx1).toBeCloseTo(dx!, 6);
+      expect(hy1! > Math.min(dy1!, dy2!) && hy1! < Math.max(dy1!, dy2!)).toBe(true);
+      expect(hy2).toBe(hy1);
+      expect(hx2! < hx1!).toBe(true);
+    }
   });
 
   it('cupboard clearance: 60 cm orange zone in front of a selected cupboard only, on screen only', () => {
@@ -339,6 +381,20 @@ describe('labelAlong', () => {
     expect(labelAlong(...line, 20, 10, 0, { hiding: [], covering: [box] })).toEqual({ x: 70, y: 0 });
     // turned by 90 degrees, 40 long: half extent 20 along y, 5 along x
     expect(labelAlong({ x: 100, y: -100 }, { x: 100, y: 100 }, 40, 10, 90, { hiding: [box] })).toEqual({ x: 100, y: -30 });
+  });
+  it('near the ends of the segment (0.1, 0.9) when every point closer to the middle is taken', () => {
+    const middle = { minX: 32, minY: -10, maxX: 168, maxY: 10 };
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [middle] })).toEqual({ x: 20, y: 0 });
+    expect(labelAlong(...line, 20, 10, 0, { hiding: [middle, { minX: 0, minY: -10, maxX: 31, maxY: 10 }] })).toEqual({ x: 180, y: 0 });
+  });
+  it('a turned label is tested as turned, not by its bounding box', () => {
+    const diagonal = [{ x: 0, y: 0 }, { x: 200, y: 200 }] as const;
+    // inside the bounding box of the 45 degree label at the middle (82.3..117.7) but beside the label itself
+    const beside = { minX: 112, minY: 80, maxX: 130, maxY: 92 };
+    expect(labelAlong(...diagonal, 40, 10, 45, { hiding: [beside] })).toEqual({ x: 100, y: 100 });
+    // across the label: moved
+    const across = { minX: 95, minY: 95, maxX: 105, maxY: 105 };
+    expect(labelAlong(...diagonal, 40, 10, 45, { hiding: [across] })).not.toEqual({ x: 100, y: 100 });
   });
   it('when nothing is clear of both, the first point clear of the hiding obstacles', () => {
     const furniture = { minX: -1000, minY: -10, maxX: 1000, maxY: 10 };

@@ -39,8 +39,8 @@ describe('ProjectStore and V1 data', () => {
     const v2 = (await store.getProject('p1'))!;
     await store.saveProject({ ...v2, id: 'p2', name: 'Copie', updatedAt: '2026-01-03T00:00:00.000Z' });
     expect(await store.listProjects()).toEqual([
-      { id: 'p2', name: 'Copie', updatedAt: '2026-01-03T00:00:00.000Z', levelCount: 2 },
-      { id: 'p1', name: 'Maison V1', updatedAt: '2026-01-02T00:00:00.000Z', levelCount: 2 },
+      { readable: true, id: 'p2', name: 'Copie', updatedAt: '2026-01-03T00:00:00.000Z', levelCount: 2 },
+      { readable: true, id: 'p1', name: 'Maison V1', updatedAt: '2026-01-02T00:00:00.000Z', levelCount: 2 },
     ]);
   });
 
@@ -64,16 +64,19 @@ describe('ProjectStore and unreadable stored records', () => {
     ['a newer version', 3],
   ];
   for (const [label, version] of unreadable) {
-    it(`skips a record with ${label} in the list and returns null for it, with a console error`, async () => {
+    it(`lists a record with ${label} as unreadable (name, date, no level count), returns null for it, with a console error`, async () => {
       const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
       const db = await openDb(newId());
       const store = new ProjectStore(db);
       await db.put('projects', v1Project()); // readable neighbour
-      const bad = { ...v1Project(), id: 'bad', name: 'Cassé', formatVersion: version };
+      const bad = { ...v1Project(), id: 'bad', name: 'Cassé', updatedAt: '2026-01-01T00:00:00.000Z', formatVersion: version };
       if (version === undefined) delete bad.formatVersion;
       await db.put('projects', bad);
 
-      expect((await store.listProjects()).map((m) => m.id)).toEqual(['p1']);
+      expect(await store.listProjects()).toEqual([
+        { readable: true, id: 'p1', name: 'Maison V1', updatedAt: '2026-01-02T00:00:00.000Z', levelCount: 1 },
+        { readable: false, id: 'bad', name: 'Cassé', updatedAt: '2026-01-01T00:00:00.000Z' },
+      ]);
       expect(errors).toHaveBeenCalledTimes(1);
       expect(String(errors.mock.calls[0]![0])).toContain('bad');
 
@@ -84,6 +87,31 @@ describe('ProjectStore and unreadable stored records', () => {
     });
   }
 
+  it('lists a record without a levels array as unreadable instead of throwing; odd name and date become null', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = await openDb(newId());
+    const store = new ProjectStore(db);
+    await db.put('projects', v1Project());
+    const noLevels: Record<string, unknown> = { ...v1Project(), id: 'nolevels', updatedAt: '2026-01-03T00:00:00.000Z' };
+    delete noLevels.levels;
+    await db.put('projects', noLevels);
+    await db.put('projects', { ...v1Project(), id: 'odd', name: 42, updatedAt: null, levels: 'x' });
+    await db.put('projects', { id: 'bare' });
+
+    expect(await store.listProjects()).toEqual([
+      { readable: false, id: 'nolevels', name: 'Maison V1', updatedAt: '2026-01-03T00:00:00.000Z' },
+      { readable: true, id: 'p1', name: 'Maison V1', updatedAt: '2026-01-02T00:00:00.000Z', levelCount: 1 },
+      // no date: last
+      { readable: false, id: 'bare', name: null, updatedAt: null },
+      { readable: false, id: 'odd', name: null, updatedAt: null },
+    ]);
+    expect(errors).toHaveBeenCalledTimes(3);
+    expect(await store.getProject('nolevels')).toBeNull();
+    // and it can be deleted like any project
+    await store.deleteProject('nolevels');
+    expect((await store.listProjects()).map((m) => m.id)).toEqual(['p1', 'bare', 'odd']);
+  });
+
   it('treats a version without a registered migration as unreadable', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const db = await openDb(newId());
@@ -92,7 +120,7 @@ describe('ProjectStore and unreadable stored records', () => {
     const step = migrations[1]!;
     delete migrations[1];
     try {
-      expect(await store.listProjects()).toEqual([]);
+      expect(await store.listProjects()).toEqual([{ readable: false, id: 'p1', name: 'Maison V1', updatedAt: '2026-01-02T00:00:00.000Z' }]);
       expect(await store.getProject('p1')).toBeNull();
       expect(errors).toHaveBeenCalledTimes(2);
     } finally {

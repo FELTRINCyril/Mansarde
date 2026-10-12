@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from 'react';
 import type { GenericShape, LShapeParams } from '../core/model/types';
+import { sofaParts, wardrobeDoorCount } from './proportions';
 
 /**
  * Parametric top-view symbols, drawn in centimeters, centered at (0,0) in the object's local axes.
@@ -157,7 +158,7 @@ const Wardrobe: SymbolComponent = (p) => {
   const hw = w / 2;
   const hd = d / 2;
   const e = Math.min(d * 0.3, 18); // door leaf depth: ticks stay readable at plan scale
-  const doors = Math.max(1, Math.round(w / 60));
+  const doors = wardrobeDoorCount(w);
   const lines: JSX.Element[] = [];
   for (let i = 1; i < doors; i++) {
     const x = -hw + (i * w) / doors;
@@ -216,8 +217,7 @@ function sofa(seats: number, corner = false): SymbolComponent {
     const { w, d } = p;
     const hw = w / 2;
     const hd = d / 2;
-    const bt = Math.min(d * 0.25, 25); // back thickness
-    const at = Math.min(w * 0.1, 18); // armrest thickness
+    const { back: bt, arm: at } = sofaParts(w, d); // back and armrest thicknesses
     const rx = Math.min(w, d) * 0.04;
     const seatTop = -hd + bt;
     const dividers: JSX.Element[] = [];
@@ -550,14 +550,19 @@ const Tv: SymbolComponent = (p) => {
   );
 };
 
-/** Wall-mounted TV: thin body, thick line along the back (the screen), dashes at the front edge. */
+/**
+ * Wall-mounted TV: thin body, a thick line inside it along the back (the side fixed to the wall,
+ * as the bracket of the 3D model), dashes at the front edge (the screen side, facing the room).
+ */
 const TvWall: SymbolComponent = (p) => {
   const { w, d, lineUnit } = p;
+  // the thick stroke starts at the back edge and stays inside the body
+  const sw = Math.min(3 * lineUnit, d);
   return (
     <Sym p={p}>
       <Box x={-w / 2} y={-d / 2} w={w} h={d} fill={p.fill} />
-      <g data-thick="1" strokeWidth={3 * lineUnit} strokeLinecap="butt">
-        <Line x1={-w / 2} y1={-d / 2 + (1.5 * lineUnit) / 2} x2={w / 2} y2={-d / 2 + (1.5 * lineUnit) / 2} />
+      <g data-thick="1" strokeWidth={sw} strokeLinecap="butt">
+        <Line x1={-w / 2} y1={-d / 2 + sw / 2} x2={w / 2} y2={-d / 2 + sw / 2} />
       </g>
       <Line x1={-w / 2} y1={d / 2} x2={w / 2} y2={d / 2} dashed={dash(lineUnit)} />
     </Sym>

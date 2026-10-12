@@ -60,9 +60,9 @@ describe('ProjectStore', () => {
     c.levels.push({ ...c.levels[0]!, id: newId() });
     for (const p of [a, b, c]) await store.saveProject(p);
     expect(await store.listProjects()).toEqual([
-      { id: b.id, name: 'B', updatedAt: b.updatedAt, levelCount: 1 },
-      { id: c.id, name: 'C', updatedAt: c.updatedAt, levelCount: 2 },
-      { id: a.id, name: 'A', updatedAt: a.updatedAt, levelCount: 1 },
+      { readable: true, id: b.id, name: 'B', updatedAt: b.updatedAt, levelCount: 1 },
+      { readable: true, id: c.id, name: 'C', updatedAt: c.updatedAt, levelCount: 2 },
+      { readable: true, id: a.id, name: 'A', updatedAt: a.updatedAt, levelCount: 1 },
     ]);
   });
 

@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react';
+import { Fragment, useId, useState, type JSX } from 'react';
 import { setRoomInteriorSize } from '@/core/commands/roomSize';
 import { deriveLevel } from '@/core/geometry/derived';
 import { rectangularRoom } from '@/core/geometry/roomRect';
@@ -22,16 +22,19 @@ const NEIGHBOUR = 'La pièce voisine sera modifiée.';
  * bouge": the right / bottom side by default (in the room frame, see RectRoom), or the left / top
  * one. Under a field, "La pièce voisine sera modifiée." when its moving wall is shared with another
  * room. A refused size stays in red in its field and the reason is written under the fields (the
- * store toasts it too) until Escape in the field or any change of the level.
+ * store toasts it too), linked to the field (aria-describedby), until Escape in the field or any
+ * change of the level (undo, redo, another edit), which also clears the field.
  */
 export function RoomSizeFields({ level, roomKey }: { level: Level; roomKey: string }): JSX.Element | null {
   const [side, setSide] = useState<MoveSide>('max');
   // the reason of a refused size, for the level it was refused on: any change of the level (undo,
   // another edit) or Escape in the field drops it
-  const [refusal, setRefusal] = useState<{ message: string; level: Level } | null>(null);
+  const [refusal, setRefusal] = useState<{ message: string; level: Level; axis: Axis } | null>(null);
+  const errorId = useId();
   const derived = deriveLevel(level);
   const rect = rectangularRoom(level, derived, roomKey);
   if (!rect) return null;
+  const shown = refusal && refusal.level === level ? refusal : null;
 
   const commit = (axis: Axis, value: number): boolean => {
     const store = useEditor.getState();
@@ -39,7 +42,7 @@ export function RoomSizeFields({ level, roomKey }: { level: Level; roomKey: stri
     const ok = store.execute('Dimensions de la pièce', setRoomInteriorSize(level.id, roomKey, axis, value, side));
     const toast = useEditor.getState().toast;
     const message = toast && toast !== before ? toast.message : 'Impossible de redimensionner cette pièce ainsi.';
-    setRefusal(ok ? null : { message, level });
+    setRefusal(ok ? null : { message, level, axis });
     return ok;
   };
   const neighbour = (axis: Axis) =>
@@ -51,14 +54,25 @@ export function RoomSizeFields({ level, roomKey }: { level: Level; roomKey: stri
 
   return (
     <>
-      <NumericInput label="Largeur intérieure" valueCm={rect.width} testId="room-width" keepRefused onCommit={(v) => commit('width', v)} onRevert={() => setRefusal(null)} />
-      {neighbour('width')}
-      <NumericInput label="Profondeur intérieure" valueCm={rect.depth} testId="room-depth" keepRefused onCommit={(v) => commit('depth', v)} onRevert={() => setRefusal(null)} />
-      {neighbour('depth')}
+      {(['width', 'depth'] as const).map((axis) => (
+        <Fragment key={axis}>
+          <NumericInput
+            label={axis === 'width' ? 'Largeur intérieure' : 'Profondeur intérieure'}
+            valueCm={rect[axis]}
+            testId={`room-${axis}`}
+            keepRefused
+            resetKey={level}
+            describedBy={shown?.axis === axis ? errorId : undefined}
+            onCommit={(v) => commit(axis, v)}
+            onRevert={() => setRefusal(null)}
+          />
+          {neighbour(axis)}
+        </Fragment>
+      ))}
       <Choice<MoveSide> label="Côté qui bouge" value={side} options={SIDES} testId="room-move-side" onChange={setSide} />
-      {refusal && refusal.level === level && (
-        <p className="panel-error" role="alert" data-testid="room-size-error">
-          {refusal.message}
+      {shown && (
+        <p className="panel-error" role="alert" id={errorId} data-testid="room-size-error">
+          {shown.message}
         </p>
       )}
     </>
