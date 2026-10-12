@@ -133,8 +133,8 @@ modifiable :
 |---|---|---|
 | Au sol | la plupart des meubles | se heurte aux autres objets |
 | Revêtement | tapis | ne se heurte à rien (sauf un autre tapis) |
-| Posé sur un meuble | TV, lampe de chevet, micro-ondes | posé à la hauteur du meuble qui est sous son centre ; alerte s'il ne repose sur rien |
-| Rangé dessous | chaises, tabourets, pouf | peut se glisser sous une table ou un bureau |
+| Posé sur un meuble | TV, lampe de chevet, micro-ondes | posé à la hauteur du meuble, du placard de hauteur fixe ou de l'étagère murale qui est sous son centre ; alerte s'il ne repose sur rien |
+| Rangé dessous | chaises, pouf | peut se glisser sous une table ou un bureau |
 | Mural | TV murale, étagère murale | plaqué contre le mur le plus proche, à sa hauteur de pose |
 
 Choisir "Posé sur un meuble" soulève l'objet sur le meuble placé sous lui ; revenir "Au sol" le
@@ -151,6 +151,7 @@ redescend. Sur le plan, les tapis sont dessinés sous les autres meubles.
   modifiables, avec le côté qui bouge ; un double-clic sur une cote intérieure fait de même. Si
   le mur déplacé est partagé, le panneau prévient que la pièce voisine sera modifiée. Une
   dimension impossible est refusée et reste en rouge avec sa raison.
+- Un mur sélectionné affiche aussi la longueur de chacune de ses faces (face gauche, face droite).
 
 ## Vérifications
 
@@ -169,6 +170,8 @@ Exemples de messages :
 - "Commode : empiète sur un mur." ;
 - "Fauteuil : gêne l'ouverture de la porte." ;
 - "Placard : devant une fenêtre." ;
+- "Placard : pas assez de hauteur sous le plafond." (placard jusqu'au plafond dont le haut passe
+  sous son socle après l'ajout d'un rampant ou d'une poutre) ;
 - "TV : aucun support en dessous." ;
 - "Placard : 40 cm de passage devant (60 cm conseillés)."
 
