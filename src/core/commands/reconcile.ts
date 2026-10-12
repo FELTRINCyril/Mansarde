@@ -1,5 +1,7 @@
-import type { Draft } from 'immer';
+import { current, isDraft, type Draft } from 'immer';
 import type { Id, Level, Opening } from '../model/types';
+import { fitCupboardOnWall } from '../geometry/clearances';
+import { deriveLevel } from '../geometry/derived';
 import { wallLength } from '../geometry/walls';
 import { CommandError } from './apply';
 
@@ -59,24 +61,35 @@ export function reconcileOpenings(level: Draft<Level>): void {
 
 export const CUPBOARDS_DO_NOT_FIT = 'Le mur est trop court pour ses placards';
 
+/** Plain snapshot of a level that may be an Immer draft (current() keeps the untouched parts shared, so deriveLevel can reuse its cache). */
+export const levelSnapshot = (level: Draft<Level> | Level): Level => (isDraft(level) ? (current(level) as Level) : (level as Level));
+
 /**
- * Makes every cupboard fit its wall again after the walls changed length (spec 4.4): its offset
- * is clamped into [width / 2, wallLength - width / 2], so a cupboard that still fits never moves
- * and one that went past the wall end is pulled back inside. Cupboards may overlap each other (a
- * check reports it, not an invariant), so each one is handled on its own. Throws CommandError when
- * a cupboard is wider than its wall. Every cupboard's wall must exist (removeWalls deletes the
- * cupboards of the walls it removes).
+ * Makes every cupboard fit its face again after the walls changed (spec 4.4): like the cupboard
+ * tool (fitCupboardOnWall, ruling V2-R32), its offset is clamped onto the free stretch of its
+ * face around it, between the faces of the walls met on that side, so a cupboard that still fits
+ * never moves and one that a shorter wall or a nearer corner wall would cut is pulled back
+ * beside it. Cupboards may overlap each other (a check reports it, not an invariant), so each one
+ * is handled on its own. Throws CommandError when a cupboard is longer than its free stretch. On
+ * a degraded level (no exact wall shape), the axis length of the wall is the stretch. Every
+ * cupboard's wall must exist (removeWalls deletes the cupboards of the walls it removes).
  */
 export function reconcileCupboards(level: Draft<Level>): void {
-  const lengths = new Map<Id, number>();
-  for (const c of Object.values(level.cupboards)) {
-    let len = lengths.get(c.wallId);
-    if (len === undefined) {
-      len = wallLength(level, c.wallId);
-      lengths.set(c.wallId, len);
-    }
+  const cupboards = Object.values(level.cupboards);
+  if (cupboards.length === 0) return;
+  const snap = levelSnapshot(level);
+  const d = deriveLevel(snap);
+  for (const c of cupboards) {
+    const len = wallLength(level, c.wallId);
     if (c.width > len + EPS) throw new CommandError(CUPBOARDS_DO_NOT_FIT);
-    const off = Math.min(Math.max(c.offset, c.width / 2), len - c.width / 2);
+    let off: number;
+    if (d.degraded) {
+      off = Math.min(Math.max(c.offset, c.width / 2), len - c.width / 2);
+    } else {
+      const fit = fitCupboardOnWall(snap, c.wallId, c.side, c.width, c.offset, true, d);
+      if (!fit.fits) throw new CommandError(CUPBOARDS_DO_NOT_FIT);
+      off = fit.offset;
+    }
     if (Math.abs(off - c.offset) > CHANGE_EPS) c.offset = off;
   }
 }

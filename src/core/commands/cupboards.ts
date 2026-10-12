@@ -1,15 +1,20 @@
 import type { Draft } from 'immer';
 import { MAX_CUPBOARD_DOORS } from '../model/defaults';
 import type { Cupboard, Id, Level } from '../model/types';
+import { fitCupboardOnWall } from '../geometry/clearances';
 import { cupboardFitsWall, cupboardTopProfile } from '../geometry/cupboards';
 import { wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
+import { levelSnapshot } from './reconcile';
 import { ERR_POSITION, ERR_SIZE, SIDES, isNonNegative, isOneOf, isPositive, lookup, patchEntries, writeChanges } from './volumeHelpers';
 
 const ERR_CUPBOARD_NOT_FOUND = 'Placard introuvable';
 const ERR_WALL_NOT_FOUND = 'Mur introuvable';
 const ERR_NO_ROOM = 'Pas assez de place sur ce mur';
 const ERR_DOORS = 'Nombre de portes invalide';
+
+/** Below this (cm), the offset given by the free stretch is the current one (no spurious patch). */
+const OFFSET_EPS = 1e-9;
 
 const HEIGHT_MODES = ['fixed', 'ceiling'] as const;
 const DOOR_TYPES = ['hinged', 'sliding'] as const;
@@ -88,8 +93,9 @@ export function moveCupboard(levelId: Id, id: Id, wallId: Id, offset: number, si
 
 /**
  * The patched cupboard must stay valid and fit its wall (the offset is the center, so a wider
- * cupboard grows on both sides); the heights are re-validated only when the patch changes one of
- * HEIGHT_KEYS. doorCount is not recomputed from a new width. No-op without touch
+ * cupboard grows on both sides, then is pushed back onto the free stretch of its face like the
+ * cupboard tool does, ruling V2-R32); the heights are re-validated only when the patch changes
+ * one of HEIGHT_KEYS. doorCount is not recomputed from a new width. No-op without touch
  * when nothing changes.
  */
 export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard, 'id' | 'wallId'>>): Recipe {
@@ -97,8 +103,20 @@ export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard
     const level = getLevel(draft, levelId);
     const c = requireCupboard(level, id);
     const entries = patchEntries<Cupboard>(patch, ['id', 'wallId']);
+    const next: Cupboard = { ...c, ...Object.fromEntries(entries) };
+    requireValidNumbers(next);
+    if (next.width !== c.width || next.side !== c.side) {
+      // a wider cupboard (or one on the other face) stays on the free stretch of its face, as the
+      // cupboard tool places it (ruling V2-R32): pushed back from a corner wall, refused when too long
+      const snap = levelSnapshot(level);
+      if (!Object.hasOwn(snap.walls, next.wallId)) throw new CommandError(ERR_WALL_NOT_FOUND);
+      const fit = fitCupboardOnWall(snap, next.wallId, next.side, next.width, next.offset, true);
+      if (!fit.fits) throw new CommandError(ERR_NO_ROOM);
+      if (Math.abs(fit.offset - next.offset) > OFFSET_EPS) entries.push(['offset', fit.offset]);
+      next.offset = fit.offset;
+    }
     const heightsChange = entries.some(([key, value]) => HEIGHT_KEYS.has(key) && value !== c[key]);
-    requireValidCupboard(level, { ...c, ...Object.fromEntries(entries) }, heightsChange);
+    requireValidCupboard(level, next, heightsChange);
     if (writeChanges(c, entries)) touch(draft);
   };
 }

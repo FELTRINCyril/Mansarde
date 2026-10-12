@@ -158,6 +158,32 @@ export function wallFaceInterval(
   return best;
 }
 
+/** A free stretch shorter than the cupboard by less than this (cm) still takes it (rounding of the cuts). */
+const CUPBOARD_FIT_EPS = 1e-6;
+
+/**
+ * Offset of a cupboard of that width centered as near as possible to `along` (rounded to 1 cm
+ * unless raw) on the free stretch of its face around `along` (wallFaceInterval on that side only:
+ * between the faces of the walls met on that side, the wall ends when nothing is met; ruling
+ * V2-R32). `fits` false when the stretch is shorter than the cupboard (the offset is then the
+ * stretch middle). The single rule of the cupboard tool, of a cupboard drag, of a wider cupboard
+ * and of the cupboards of a changed wall (reconcileCupboards).
+ */
+export function fitCupboardOnWall(
+  level: Level,
+  wallId: string,
+  side: 'left' | 'right',
+  width: number,
+  along: number,
+  raw = false,
+  d: DerivedLevel = deriveLevel(level),
+): { offset: number; fits: boolean } {
+  const [lo, hi] = wallFaceInterval(level, wallId, along, d, side);
+  if (hi - lo < width - CUPBOARD_FIT_EPS) return { offset: (lo + hi) / 2, fits: false };
+  const at = raw ? along : Math.round(along);
+  return { offset: Math.min(hi - width / 2, Math.max(lo + width / 2, at)), fits: true };
+}
+
 /**
  * Dynamic dimensions of an opening (spec 6.5, ruling R29), measured along the wall: from the
  * previous obstacle to the opening start, and from the opening end to the next obstacle. An

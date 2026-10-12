@@ -141,7 +141,13 @@ describe('cupboard follows, clamps or refuses with its wall', () => {
     const { p: p0, top } = setup();
     const { p, id } = withCupboard(p0, top, 300); // [240, 360]
     const next = run(p, setWallLength(levelId(p), top, 320, 'start'));
-    expect(lvl(next).cupboards[id]!.offset).toBeCloseTo(260, 9);
+    // the right wall now runs from A = (320, 0) along u = (80, 300) / n; its inner face is
+    // A + 10 m + t u with m = (-300, 80) / n. It meets the face y = 10 of the top wall at
+    // t = (10 - 800 / n) * n / 300, i.e. x = 312.32: the end of the free stretch (V2-R32), short
+    // of the axis end 320; the cupboard stops there
+    const n = Math.hypot(80, 300);
+    const faceEnd = 320 - 3000 / n + ((10 - 800 / n) * 80) / 300;
+    expect(lvl(next).cupboards[id]!.offset).toBeCloseTo(faceEnd - 60, 9);
     // a cupboard that still fits does not move
     const { p: p2, id: id2 } = withCupboard(p0, top, 100);
     expect(lvl(run(p2, setWallLength(levelId(p2), top, 320, 'start'))).cupboards[id2]!.offset).toBe(100);
@@ -162,7 +168,35 @@ describe('cupboard follows, clamps or refuses with its wall', () => {
     const wall = findWall(lvl(p0), 0, 0, 300, 0);
     const { p, id } = withCupboard(p0, wall, 240, { width: 100 });
     const next = run(p, mergeNode(levelId(p), nodeAt(lvl(p), 300, 0), nodeAt(lvl(p), 200, 50)));
-    expect(lvl(next).cupboards[id]!.offset).toBeCloseTo(Math.hypot(200, 50) - 50, 9);
+    // the wall now runs (0, 0) -> (200, 50); its face on the cupboard side meets the face x = 190 of
+    // the kept wall (200, 50) -> (200, 100) before the axis end: the cupboard stops there (V2-R32)
+    const len = Math.hypot(200, 50);
+    const [dx, dy] = [200 / len, 50 / len];
+    const nx = -dy; // x of the left normal (+perp): the face is 10 cm from the axis along it
+    const s = (190 - 10 * nx) / dx; // abscissa along the axis where that face reaches x = 190
+    expect(s).toBeLessThan(len);
+    expect(lvl(next).cupboards[id]!.offset).toBeCloseTo(s - 50, 9);
+  });
+
+  it('a room shrink keeps a corner cupboard on the free stretch of its face (V2-R32), or is refused', () => {
+    // inner faces x = 10 .. 390: the cupboard x 270..390 is in the top right corner
+    const { p: p0, top, right } = setup();
+    const { p, id } = withCupboard(p0, top, 330);
+    const shrunk = run(p, moveWalls(levelId(p), [right], { x: -50, y: 0 }));
+    // the right face is now at x = 340: x 220..340, not 230..350 inside the right wall
+    expect(lvl(shrunk).cupboards[id]!.offset).toBeCloseTo(280, 9);
+    // a cupboard over the whole face: 10 cm less of face is 10 cm too short, though the axis (390) is long enough
+    const { p: full } = withCupboard(p0, top, 200, { width: 380 });
+    expect(refuse(full, moveWalls(levelId(full), [right], { x: -10, y: 0 }))).toBe(TOO_SHORT);
+  });
+
+  it('a wider corner cupboard is pushed back onto the free stretch of its face, refused when the face is too short', () => {
+    const { p: p0, top } = setup();
+    const { p, id } = withCupboard(p0, top, 330); // x 270..390
+    const wider = run(p, updateCupboard(levelId(p), id, { width: 140 }));
+    expect(lvl(wider).cupboards[id]!).toMatchObject({ width: 140, offset: 320 }); // x 250..390
+    expect(refuse(p, updateCupboard(levelId(p), id, { width: 381 }))).toBe(NO_ROOM);
+    run(p, updateCupboard(levelId(p), id, { width: 380 }));
   });
 
   it('reconcileCupboards clamps in place and throws when a cupboard is wider than its wall', () => {

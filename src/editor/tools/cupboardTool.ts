@@ -1,5 +1,5 @@
 import { addCupboard } from '@/core/commands/cupboards';
-import { wallFaceInterval } from '@/core/geometry/clearances';
+import { fitCupboardOnWall } from '@/core/geometry/clearances';
 import { dot, sub } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
 import { CUPBOARD_DEFAULTS, SNAP_PX } from '@/core/model/defaults';
@@ -16,26 +16,6 @@ const ERR_NO_ROOM = 'Pas assez de place sur ce mur';
 
 /** Where the cupboard tool would place its cupboard, and whether it fits. */
 export interface CupboardPreview { cupboard: Cupboard; valid: boolean }
-
-/**
- * Offset of a cupboard of that width centered as near as possible to `along` (rounded to 1 cm
- * unless raw) on the free stretch of its face around `along` (wallFaceInterval on that side only:
- * between the faces of the walls met on that side, the wall ends when nothing is met). `fits`
- * false when the stretch is shorter than the cupboard (the offset is then the stretch middle).
- */
-export function fitCupboardOnWall(
-  level: Level,
-  wallId: Id,
-  side: 'left' | 'right',
-  width: number,
-  along: number,
-  raw = false,
-): { offset: number; fits: boolean } {
-  const [lo, hi] = wallFaceInterval(level, wallId, along, undefined, side);
-  if (hi - lo < width) return { offset: (lo + hi) / 2, fits: false };
-  const at = raw ? along : Math.round(along);
-  return { offset: Math.min(hi - width / 2, Math.max(lo + width / 2, at)), fits: true };
-}
 
 /**
  * Pure placement rule of the cupboard tool (spec 7.1): on the wall hovered at p (hoveredWall, as

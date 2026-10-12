@@ -188,7 +188,9 @@ describe('setRoomInteriorSize', () => {
     const c = createCupboard(top, 360, 'left'); // [300, 420] on the 420 cm axis
     const p = run(p0, addCupboard(levelId(p0), c));
     const next = run(p, setRoomInteriorSize(levelId(p), onlyRoomKey(lvl(p)), 'width', 300, 'max'));
-    expect(lvl(next).cupboards[c.id]!.offset).toBeCloseTo(260, 9); // top axis now 320 long
+    // top axis now 320 long; the free stretch of the inner face ends at the right face x = 300, i.e.
+    // 310 from the start node: the cupboard stops there (V2-R32), not at the axis end (offset 260)
+    expect(lvl(next).cupboards[c.id]!.offset).toBeCloseTo(250, 9);
   });
 
   it('moves every wall of a side made of collinear walls (V2-R7)', () => {
