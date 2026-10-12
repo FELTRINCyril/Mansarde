@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyWheel, wheelIntent, wheelPlanView, WheelSourceLatch, WHEEL_LATCH_MS, type WheelSample } from '@/editor/wheel';
+import { classifyWheel, trackControlKey, wheelIntent, wheelPlanView, WheelSourceLatch, WHEEL_LATCH_MS, type WheelSample } from '@/editor/wheel';
 import type { View } from '@/editor/view';
 
 /** A wheel event in pixel mode without modifiers and without the legacy fields (Firefox, synthetic). */
@@ -121,6 +121,38 @@ describe('wheelPlanView: the plan under the wheel', () => {
   it('a pinch zooms by about its own scale: delta = -100 ln(scale) (Chromium)', () => {
     const next = wheelPlanView(view, wheelIntent(w({ deltaY: -100 * Math.log(1.1), ctrlKey: true }), 'trackpad'), at);
     expect(next.pxPerCm / view.pxPerCm).toBeCloseTo(1.1, 6);
+  });
+
+  it('Ctrl + mouse wheel on macOS (Control held) zooms at the wheel rate, a pinch at the pinch rate (nav review M7)', () => {
+    // measured in Chromium: a pinch is a ctrlKey wheel with a small fractional delta and wheelDeltaY = +-120,
+    // exactly what a slow macOS wheel notch looks like (4.000244140625 px, wheelDeltaY -120): only the
+    // Control key tells them apart
+    const notch = w({ deltaY: 4.000244140625, wheelDeltaY: -120, ctrlKey: true });
+    expect(wheelIntent(notch, 'mouse', true)).toMatchObject({ kind: 'zoom', pinch: false });
+    expect(wheelPlanView(view, wheelIntent(notch, 'mouse', true), at).pxPerCm / view.pxPerCm).toBeCloseTo(Math.exp(-4.000244140625 * 0.0015), 9);
+    const pinch = w({ deltaY: -100 * Math.log(1.05), wheelDeltaY: 120, ctrlKey: true });
+    expect(wheelPlanView(view, wheelIntent(pinch, 'mouse', false), at).pxPerCm / view.pxPerCm).toBeCloseTo(1.05, 9);
+    // Control held over a trackpad scroll (legacy -3 x delta): the pinch rate
+    expect(wheelIntent(w({ deltaY: -3, wheelDeltaY: 9, ctrlKey: true }), 'trackpad', true)).toMatchObject({ kind: 'zoom', pinch: true });
+  });
+
+  it('trackControlKey follows the Control key (keydown, keyup, window blur)', () => {
+    const target = new EventTarget();
+    const key = (type: string, k: string) => target.dispatchEvent(Object.assign(new Event(type), { key: k }));
+    const ctrl = trackControlKey(target);
+    expect(ctrl.held()).toBe(false);
+    key('keydown', 'Control');
+    expect(ctrl.held()).toBe(true);
+    key('keydown', 'a');
+    expect(ctrl.held()).toBe(true);
+    key('keyup', 'Control');
+    expect(ctrl.held()).toBe(false);
+    key('keydown', 'Control');
+    target.dispatchEvent(new Event('blur'));
+    expect(ctrl.held()).toBe(false);
+    ctrl.dispose();
+    key('keydown', 'Control');
+    expect(ctrl.held()).toBe(false);
   });
 
   it('Shift + wheel pans along x only', () => {

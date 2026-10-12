@@ -258,8 +258,16 @@ export const ease = (k: number): number => (k < 0.5 ? 4 * k * k * k : 1 - Math.p
 const MIN_DISTANCE = 0.3;
 const MAX_POLAR = Math.PI * 0.495;
 
-/** Arrow keys OrbitControls pans with (rotates with Shift, Ctrl or Cmd) once listenToKeyEvents is on. */
-const ARROW_CODES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
+/** Arrow keys: pan the view (x, y: the keyPanSpeed steps of OrbitControls), rotate it with Shift, Ctrl or Cmd. */
+const ARROWS: Record<string, { pan: [number, number]; rotate: 'left' | 'up'; sign: number }> = {
+  ArrowUp: { pan: [0, 1], rotate: 'up', sign: 1 },
+  ArrowDown: { pan: [0, -1], rotate: 'up', sign: -1 },
+  ArrowLeft: { pan: [1, 0], rotate: 'left', sign: 1 },
+  ArrowRight: { pan: [-1, 0], rotate: 'left', sign: -1 },
+};
+
+/** Options of the rig. arrowsMoveSelection: true while the arrows nudge the selection (the editor's), not the camera. */
+export interface CameraRigOptions { arrowsMoveSelection?: () => boolean }
 
 /** Safari's pinch (GestureEvent, non-standard): its scale since the gesture started. */
 type GestureLike = Event & { scale?: number };
@@ -269,9 +277,12 @@ type GestureLike = Event & { scale?: number };
  * by the level size), and the animated presets. `tick` advances the animation and the damping; it
  * returns true while the camera still moves, so that the view renders only then (render on demand).
  * Navigation: left drag orbits; right drag, Shift (or Ctrl / Cmd) + left drag, a two-finger
- * trackpad scroll and the arrow keys (view focused) pan; the wheel, a pinch (wheel with ctrlKey,
- * or Safari's gesture events) dolly. The trackpad scroll is told from the wheel by the shared
- * heuristic of src/editor/wheel.ts.
+ * trackpad scroll and the arrow keys (view focused, nothing selected: with a selection they are
+ * left to the editor, which nudges it as in the plan; Shift, Ctrl or Cmd + arrow rotates) pan; the
+ * wheel, a pinch (wheel with ctrlKey, or Safari's gesture events, whose own ctrlKey wheels are then
+ * ignored) dolly. The trackpad scroll is told from the wheel by the shared heuristic of
+ * src/editor/wheel.ts; a press ended outside the view (pointerup elsewhere, capture lost, window
+ * blur) is forgotten, so that it never keeps the trackpad scroll from panning.
  */
 export class CameraRig {
   readonly camera = new PerspectiveCamera(45, 1, 0.05, 200);
@@ -291,7 +302,7 @@ export class CameraRig {
   private gestureScale: number | null = null;
   private readonly offDom: () => void;
 
-  constructor(dom: HTMLElement, onChange: () => void) {
+  constructor(dom: HTMLElement, onChange: () => void, options: CameraRigOptions = {}) {
     // connected after the rig's own wheel listener, so that a trackpad scroll can be kept from its dolly
     this.controls = new OrbitControls(this.camera);
     this.controls.enableDamping = true;
@@ -314,9 +325,17 @@ export class CameraRig {
     const up = (e: PointerEvent) => {
       this.pressed.delete(e.pointerId);
     };
+    // the window lost the focus during a press (Cmd+Tab, a button released outside it): no pointerup
+    const forgetPresses = () => this.pressed.clear();
     // a trackpad scroll pans (screen space, as a right drag), anything else is left to the
     // controls' dolly; OrbitControls ignores the wheel during a drag, so does the pan
     const wheel = (e: WheelEvent) => {
+      // Safari may send its pinch as gesture events and ctrlKey wheels: count it once (gestureChange)
+      if (this.gestureScale !== null && e.ctrlKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       this.userMoved();
       if (!this.controls.enabled || this.pressed.size > 0) return;
       const intent = wheelIntent(e, this.wheelSource.source(e, performance.now()));
@@ -325,8 +344,23 @@ export class CameraRig {
       e.stopImmediatePropagation();
       if (this.controls.enablePan) this.controls.pan(-intent.dx, -intent.dy);
     };
+    // the arrows of OrbitControls (listenToKeyEvents), but only with nothing selected: with a
+    // selection the key goes on to the editor's window handler, which nudges it (handleGlobalKey)
     const key = (e: KeyboardEvent) => {
-      if (ARROW_CODES.has(e.code)) this.userMoved();
+      const arrow = ARROWS[e.code];
+      if (!arrow || e.defaultPrevented || !this.controls.enabled || options.arrowsMoveSelection?.()) return;
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        if (!this.controls.enableRotate) return;
+        const angle = (arrow.sign * 2 * Math.PI * this.controls.keyRotateSpeed) / Math.max(1, dom.clientHeight);
+        if (arrow.rotate === 'up') this.controls.rotateUp(angle);
+        else this.controls.rotateLeft(angle);
+      } else {
+        if (!this.controls.enablePan) return;
+        this.controls.pan(arrow.pan[0] * this.controls.keyPanSpeed, arrow.pan[1] * this.controls.keyPanSpeed);
+      }
+      // prevent the browser from scrolling, and the editor from acting on the key too (isIgnoredKey)
+      e.preventDefault();
+      this.userMoved();
     };
     // Safari: a pinch comes as gesture events (scale since the start), not as a ctrlKey wheel
     const gestureStart = (e: GestureLike) => {
@@ -351,19 +385,25 @@ export class CameraRig {
     dom.addEventListener('pointermove', move);
     dom.addEventListener('pointerup', up);
     dom.addEventListener('pointercancel', up);
+    dom.addEventListener('lostpointercapture', up);
+    const doc = dom.ownerDocument as (Document & EventTarget) | null | undefined;
+    const win = doc?.defaultView as (Window & EventTarget) | null | undefined;
+    doc?.addEventListener('pointerup', up);
+    win?.addEventListener('blur', forgetPresses);
     dom.addEventListener('wheel', wheel, { passive: false });
     dom.addEventListener('keydown', key);
     dom.addEventListener('gesturestart', gestureStart);
     dom.addEventListener('gesturechange', gestureChange);
     dom.addEventListener('gestureend', gestureEnd);
     this.controls.connect(dom);
-    // arrows pan only while the view has the focus: the plan and the fields keep theirs
-    this.controls.listenToKeyEvents(dom);
     this.offDom = () => {
       dom.removeEventListener('pointerdown', down);
       dom.removeEventListener('pointermove', move);
       dom.removeEventListener('pointerup', up);
       dom.removeEventListener('pointercancel', up);
+      dom.removeEventListener('lostpointercapture', up);
+      doc?.removeEventListener('pointerup', up);
+      win?.removeEventListener('blur', forgetPresses);
       dom.removeEventListener('wheel', wheel);
       dom.removeEventListener('keydown', key);
       dom.removeEventListener('gesturestart', gestureStart);

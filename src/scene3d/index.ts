@@ -189,7 +189,8 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
     e.preventDefault();
     fail(new Error('webgl-context-lost'));
   });
-  const rig = new CameraRig(canvas, invalidate);
+  // with a selection the arrows nudge it (the editor's key handler, as in the plan), else they pan the camera
+  const rig = new CameraRig(canvas, invalidate, { arrowsMoveSelection: () => selection.length > 0 });
 
   let shown: Shown | null = null;
   const lower = new Map<Id, Shown>();

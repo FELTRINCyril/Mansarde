@@ -29,6 +29,14 @@ import { zoomAt, type View } from './view';
  *
  * WheelSourceLatch keeps the first decision while the events of a gesture keep coming (momentum
  * included), so that one gesture is never half pan, half zoom.
+ *
+ * A pinch arrives as a ctrlKey wheel (Chromium, Firefox) without the Control key being down. In
+ * Chromium it carries a small fractional delta and wheelDeltaY = +-120 (measured with
+ * Input.synthesizePinchGesture), just like a slow macOS wheel notch (4.000244140625 px, -120):
+ * neither the classifier nor the delta size tells them apart, the Control key does
+ * (trackControlKey, the same test as OrbitControls). Control not down: a pinch (pinch rate). Control
+ * down: Ctrl + wheel or Ctrl + two-finger scroll, told apart by classifyWheel (wheel rate for a
+ * wheel, pinch rate for a trackpad).
  */
 
 export type WheelSource = 'mouse' | 'trackpad';
@@ -98,20 +106,49 @@ export class WheelSourceLatch {
   }
 }
 
+/** The Control key, down or not, from the keydown / keyup of `target` (the window; blur releases it). */
+export function trackControlKey(target: EventTarget): { held(): boolean; dispose(): void } {
+  let down = false;
+  const onDown = (e: Event) => {
+    if ((e as KeyboardEvent).key === 'Control') down = true;
+  };
+  const onUp = (e: Event) => {
+    if ((e as KeyboardEvent).key === 'Control') down = false;
+  };
+  const onBlur = () => {
+    down = false;
+  };
+  // capture: a key handled (stopPropagation) on its way still counts
+  target.addEventListener('keydown', onDown, true);
+  target.addEventListener('keyup', onUp, true);
+  target.addEventListener('blur', onBlur);
+  return {
+    held: () => down,
+    dispose: () => {
+      target.removeEventListener('keydown', onDown, true);
+      target.removeEventListener('keyup', onUp, true);
+      target.removeEventListener('blur', onBlur);
+    },
+  };
+}
+
 /** What a wheel event asks for: a zoom (delta in px, > 0 zooms out) or a pan (px, the scroll direction). */
 export type WheelIntent = { kind: 'zoom'; delta: number; pinch: boolean } | { kind: 'pan'; dx: number; dy: number };
 
 /**
- * Ctrl / Cmd + wheel and a pinch (ctrlKey, small pixel delta) zoom; Shift + wheel pans sideways
- * (from deltaY, or from the deltaX the browser made of it); otherwise a trackpad pans on both
- * axes and a wheel zooms.
+ * Ctrl / Cmd + wheel and a pinch zoom; Shift + wheel pans sideways (from deltaY, or from the deltaX
+ * the browser made of it); otherwise a trackpad pans on both axes and a wheel zooms. A ctrlKey
+ * wheel zooms at the pinch rate when it is a pinch: Control not down (`ctrlHeld`, trackControlKey)
+ * and a small pixel delta, or Control down over a trackpad (classifyWheel); a wheel notch with
+ * Control down zooms at the wheel rate, as Cmd + wheel.
  */
-export function wheelIntent(e: WheelSample, source: WheelSource): WheelIntent {
+export function wheelIntent(e: WheelSample, source: WheelSource, ctrlHeld = false): WheelIntent {
   const unit = e.deltaMode === 1 ? LINE_PX : e.deltaMode === 2 ? PAGE_PX : 1;
   const dx = e.deltaX * unit;
   const dy = e.deltaY * unit;
   if (e.ctrlKey || e.metaKey) {
-    return { kind: 'zoom', delta: dy, pinch: e.ctrlKey && e.deltaMode === 0 && Math.abs(dy) < NOTCH_MIN_PX };
+    const pinch = e.ctrlKey && e.deltaMode === 0 && (ctrlHeld ? classifyWheel(e) === 'trackpad' : Math.abs(dy) < NOTCH_MIN_PX);
+    return { kind: 'zoom', delta: dy, pinch };
   }
   if (e.shiftKey) return { kind: 'pan', dx: dx !== 0 ? dx : dy, dy: 0 };
   if (source === 'trackpad') return { kind: 'pan', dx, dy };

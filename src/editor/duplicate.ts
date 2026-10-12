@@ -73,7 +73,7 @@ export function paste(store: EditorStore): boolean {
 /**
  * Mod+D and the "Dupliquer" button: copies the selected objects, slopes and beams at
  * +PASTE_OFFSET (an 'onTop' object copy posed on its support there, as a paste) and the selected
- * cupboards right next to themselves on the same face (duplicateCupboards), with all their
+ * cupboards on the same face, as near to themselves as it has room (duplicateCupboards), with all their
  * properties, in one history entry; the copies are then selected (objects, cupboards, slopes,
  * beams). Other items are ignored. A refusal (no room for a cupboard copy) is toasted by execute
  * and changes nothing. False when the selection has nothing to duplicate.

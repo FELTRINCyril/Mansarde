@@ -1,4 +1,5 @@
 import type { Cupboard, Level, Opening, PlacedObject, Vec2 } from '../model/types';
+import { cupboardFootprint } from './cupboards';
 import { deriveLevel, type DerivedLevel } from './derived';
 import { openingFrame, openingInterval } from './openings';
 import { pointInPolygon, ringEdges } from './polygon';
@@ -118,10 +119,33 @@ export function wallFaceInterval(
   d: DerivedLevel = deriveLevel(level),
   side?: 'left' | 'right',
 ): [number, number] {
+  const L = wallFrame(level, wallId).length;
+  const from = Math.min(L, Math.max(0, at ?? L / 2));
+  let best: [number, number] = [from, from];
+  let bestD = Infinity;
+  for (const [a, b] of wallFaceStretches(level, wallId, d, side)) {
+    const dd = from < a ? a - from : from > b ? from - b : 0;
+    if (dd < bestD) {
+      bestD = dd;
+      best = [a, b];
+    }
+  }
+  return best;
+}
+
+/**
+ * Every free stretch of the wall (or of one face with `side`), in order along the axis: the pieces
+ * wallFaceInterval chooses from (same cuts, same probes). Empty when the whole wall is covered.
+ */
+export function wallFaceStretches(
+  level: Level,
+  wallId: string,
+  d: DerivedLevel = deriveLevel(level),
+  side?: 'left' | 'right',
+): [number, number][] {
   const wall = wallFrame(level, wallId);
   const half = (level.walls[wallId]?.thickness ?? 0) / 2;
   const L = wall.length;
-  const from = Math.min(L, Math.max(0, at ?? L / 2));
   const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
   const probe = (side: number, s: number) => add(add(wall.start, scale(wall.dir, s)), scale(wall.normal, side * (half + FACE_PROBE)));
   const cuts = [0, L];
@@ -146,16 +170,7 @@ export function wallFaceInterval(
     if (last && Math.abs(last[1] - a) < EPS) last[1] = b;
     else free.push([a, b]);
   }
-  let best: [number, number] = [from, from];
-  let bestD = Infinity;
-  for (const [a, b] of free) {
-    const dd = from < a ? a - from : from > b ? from - b : 0;
-    if (dd < bestD) {
-      bestD = dd;
-      best = [a, b];
-    }
-  }
-  return best;
+  return free;
 }
 
 /** A free stretch shorter than the cupboard by less than this (cm) still takes it (rounding of the cuts). */
@@ -184,31 +199,98 @@ export function fitCupboardOnWall(
   return { offset: Math.min(hi - width / 2, Math.max(lo + width / 2, at)), fits: true };
 }
 
-/**
- * Offset of a copy of the cupboard right next to it on the same face: just after it along the
- * wall (offset + width), else just before it (offset - width), each kept on the free stretch of
- * the face (fitCupboardOnWall, raw). A place overlapping a cupboard of `level` standing against
- * that face (the original included) is not taken. Null when neither side has room.
- */
-export function cupboardCopyOffset(
-  level: Level,
-  c: Pick<Cupboard, 'wallId' | 'side' | 'offset' | 'width'>,
-  d: DerivedLevel = deriveLevel(level),
-): number | null {
-  const half = c.width / 2;
-  for (const along of [c.offset + c.width, c.offset - c.width]) {
-    const fit = fitCupboardOnWall(level, c.wallId, c.side, c.width, along, true, d);
-    if (!fit.fits) continue;
-    const taken = Object.values(level.cupboards).some(
-      (o) =>
-        o.wallId === c.wallId &&
-        o.side === c.side &&
-        fit.offset - half < o.offset + o.width / 2 - CUPBOARD_FIT_EPS &&
-        o.offset - o.width / 2 < fit.offset + half - CUPBOARD_FIT_EPS,
-    );
-    if (!taken) return fit.offset;
+/** A point of a cupboard footprint in the frame of a face: s along the wall axis, u away from the face. */
+interface FacePoint { s: number; u: number }
+
+/** The part of a convex polygon on one side of the line u = bound (above: u >= bound), Sutherland-Hodgman. */
+function clipFace(pts: FacePoint[], bound: number, above: boolean): FacePoint[] {
+  const inside = (p: FacePoint) => (above ? p.u >= bound : p.u <= bound);
+  const out: FacePoint[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!;
+    const b = pts[(i + 1) % pts.length]!;
+    if (inside(a)) out.push(a);
+    if (inside(a) !== inside(b)) {
+      const t = (bound - a.u) / (b.u - a.u);
+      out.push({ s: a.s + t * (b.s - a.s), u: bound });
+    }
   }
-  return null;
+  return out;
+}
+
+/**
+ * Stretches [s0, s1] along the wall axis that a cupboard standing against that face, `depth` deep,
+ * cannot overlap: for every cupboard of the level (any wall, any face), the axis span of the part
+ * of its footprint lying within the depth of the face (contacts up to CUPBOARD_FIT_EPS ignored).
+ * Exact for the convex footprints: a copy [s, s + width] overlaps a footprint iff the spans meet.
+ */
+function occupiedOnFace(level: Level, wallId: string, side: 'left' | 'right', depth: number): [number, number][] {
+  const wall = wallFrame(level, wallId);
+  const outward = side === 'left' ? wall.normal : scale(wall.normal, -1);
+  const face = add(wall.start, scale(outward, (level.walls[wallId]?.thickness ?? 0) / 2));
+  const out: [number, number][] = [];
+  for (const o of Object.values(level.cupboards)) {
+    const w = level.walls[o.wallId];
+    if (!w || !level.nodes[w.startNodeId] || !level.nodes[w.endNodeId]) continue;
+    const pts = cupboardFootprint(level, o).map((p) => ({ s: dot(sub(p, wall.start), wall.dir), u: dot(sub(p, face), outward) }));
+    const inDepth = clipFace(clipFace(pts, CUPBOARD_FIT_EPS, true), depth - CUPBOARD_FIT_EPS, false);
+    if (inDepth.length < 3) continue;
+    const ss = inDepth.map((p) => p.s);
+    const lo = Math.min(...ss);
+    const hi = Math.max(...ss);
+    if (hi - lo > CUPBOARD_FIT_EPS) out.push([lo, hi]);
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+
+/**
+ * Offsets where a copy of the cupboard can go on the same face, best first: anywhere on the free
+ * stretches of that face (wallFaceStretches on its side: the faces of the walls met bound them),
+ * never over any cupboard of the level (occupiedOnFace: the original, the cupboards of that face
+ * and those of the other walls, a corner cupboard of the perpendicular wall included). In each gap
+ * between them at least as long as the cupboard, the slot nearest to the original, then the
+ * following ones a width further away from it, then the far end of the gap. Sorted by distance to
+ * the original, the slot after it (towards the wall end) first at equal distance: so just after
+ * the original, else just before it, else the nearest gap anywhere on the face. Empty when no gap
+ * fits. Several slots, so that a copy refused at the first one (heights under a slope) can try
+ * the next.
+ */
+export function cupboardCopySlots(
+  level: Level,
+  c: Pick<Cupboard, 'wallId' | 'side' | 'offset' | 'width' | 'depth'>,
+  d: DerivedLevel = deriveLevel(level),
+): number[] {
+  const w = c.width;
+  const occupied = occupiedOnFace(level, c.wallId, c.side, c.depth);
+  const gaps: [number, number][] = [];
+  for (const [lo, hi] of wallFaceStretches(level, c.wallId, d, c.side)) {
+    let cursor = lo;
+    for (const [a, b] of occupied) {
+      if (b <= cursor) continue;
+      if (a >= hi) break;
+      if (a > cursor) gaps.push([cursor, a]);
+      cursor = Math.max(cursor, b);
+    }
+    if (cursor < hi) gaps.push([cursor, hi]);
+  }
+  const slots: Array<{ at: number; dist: number }> = [];
+  for (const [lo, hi] of gaps) {
+    if (hi - lo < w - CUPBOARD_FIT_EPS) continue;
+    let min = lo + w / 2;
+    let max = hi - w / 2;
+    if (max < min) min = max = (lo + hi) / 2; // shorter by less than CUPBOARD_FIT_EPS
+    const first = Math.min(max, Math.max(min, c.offset));
+    // away from the original: forward from the near end of a gap after it, backward otherwise
+    const step = max - first >= first - min ? w : -w;
+    const far = step > 0 ? max : min;
+    const ats = [first];
+    for (let at = first + step; step > 0 ? at < far - CUPBOARD_FIT_EPS : at > far + CUPBOARD_FIT_EPS; at += step) ats.push(at);
+    if (Math.abs(far - ats[ats.length - 1]!) > CUPBOARD_FIT_EPS) ats.push(far);
+    for (const at of ats) slots.push({ at, dist: Math.abs(at - c.offset) });
+  }
+  // equal distances (up to rounding): the slot after the original first
+  slots.sort((a, b) => (Math.abs(a.dist - b.dist) > CUPBOARD_FIT_EPS ? a.dist - b.dist : b.at - a.at));
+  return slots.map((s) => s.at);
 }
 
 /** The cupboard lies on the free stretch of its face (wallFaceInterval on its side, CUPBOARD_FIT_EPS tolerance): no wall in the way. */

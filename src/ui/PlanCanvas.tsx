@@ -4,13 +4,13 @@ import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
 import { fitBounds } from '@/editor/background';
 import { handleTarget, objectHandles, volumeHandles } from '@/editor/handles';
-import { handleGlobalKey, isIgnoredKey } from '@/editor/keyboard';
+import { handleGlobalKey, isIgnoredKey, isTypingTarget } from '@/editor/keyboard';
 import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
 import { activeLevel, useEditor } from '@/editor/store';
 import { TOOLS } from '@/editor/tools/registry';
 import type { PointerInfo, ToolContext } from '@/editor/tools/types';
 import { fitView, keepCenterOnResize, screenToWorld, zoomAt, type View } from '@/editor/view';
-import { wheelIntent, wheelPlanView, WheelSourceLatch } from '@/editor/wheel';
+import { trackControlKey, wheelIntent, wheelPlanView, WheelSourceLatch } from '@/editor/wheel';
 import { levelBounds } from '@/export/pageLayout';
 import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
@@ -63,7 +63,10 @@ function PlanOverlay(): JSX.Element | null {
  * without a pointerup (pointercancel, capture lost, window blur) calls the tool's onCancel. The single window key
  * handler of the editor is here too: guard (isIgnoredKey: typing in a field, key already handled,
  * dialog open), space for panning (released without a pan: the tool's onSpaceTap), then
- * handleGlobalKey (tool keys, shortcuts, 0 = fit). The wall tool's option bar sits on top.
+ * handleGlobalKey (tool keys, shortcuts, 0 = fit). Space is followed wherever the focus is (the 3D
+ * view takes it on a click, so does a button): Space + left press over the plan always pans, the
+ * press never reaches the tool; only a press made on the plan (or with nothing focused) is kept
+ * from the browser and can be a tap. The wall tool's option bar sits on top.
  */
 export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Size): void }): JSX.Element | null {
   const project = useEditor((s) => s.project);
@@ -82,6 +85,8 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const spaceRef = useRef(false);
   /** The view was panned with the current space press: its release is not a tap (Tool.onSpaceTap). */
   const spacePanned = useRef(false);
+  /** The current space press was made on the plan (or with nothing focused): its release may be a tap. */
+  const spaceTap = useRef(false);
   const pan = useRef<{ pointerId: number; start: Vec2; view: View } | null>(null);
   /** Pointer pressed for the active tool (captured), until its pointerup or its cancellation. */
   const toolPointer = useRef<number | null>(null);
@@ -150,6 +155,8 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     const el = ref.current;
     if (!el) return;
     const source = new WheelSourceLatch();
+    // a ctrlKey wheel with Control up is a pinch, with Control down a Ctrl + wheel (wheel.ts)
+    const control = trackControlKey(window);
     /** Scale of the Safari pinch in progress, null outside one. */
     let gesture: number | null = null;
     const onWheel = (e: WheelEvent) => {
@@ -157,7 +164,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
       // Safari may send its pinch as gesture events and ctrlKey wheels: count it once
       if (gesture !== null && e.ctrlKey) return;
       const s = useEditor.getState();
-      s.setView(wheelPlanView(s.view, wheelIntent(e, source.source(e, performance.now())), local(e)));
+      s.setView(wheelPlanView(s.view, wheelIntent(e, source.source(e, performance.now()), control.held()), local(e)));
     };
     const onGestureStart = (e: GestureLike) => {
       e.preventDefault();
@@ -182,6 +189,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     el.addEventListener('gesturechange', onGestureChange);
     el.addEventListener('gestureend', onGestureEnd);
     return () => {
+      control.dispose();
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('gesturestart', onGestureStart);
       el.removeEventListener('gesturechange', onGestureChange);
@@ -203,28 +211,38 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
       spaceRef.current = v;
       setSpaceDown(v);
     };
+    // capture: whatever has the focus (the 3D canvas after a click in it, a button) and whatever
+    // its handlers do with the key, a held space makes a left press on the plan pan (onPointerDown)
+    const onSpaceDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      spacePanned.current = false;
+      spaceTap.current = false;
+      spaceRef.current = true;
+      // no grab cursor while a space is typed in a field
+      setSpaceDown(!isTypingTarget(e.target));
+    };
     const onDown = (e: KeyboardEvent) => {
       if (isIgnoredKey(e)) return;
       if (e.code === 'Space') {
-        // only on the plan (or nothing focused): elsewhere space keeps pressing buttons
+        // kept from the browser only on the plan (or nothing focused): elsewhere space keeps
+        // pressing buttons; a release there is not a tap for the plan's tool either
         const onPlan = e.target === document.body || (e.target instanceof Node && !!ref.current?.contains(e.target));
         if (!onPlan) return;
         e.preventDefault();
-        if (!e.repeat) {
-          spacePanned.current = false;
-          setSpace(true);
-        }
+        if (!e.repeat) spaceTap.current = true;
         return;
       }
       if (handleGlobalKey(e, useEditor, ctx)) e.preventDefault();
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
-      const tap = spaceRef.current && !spacePanned.current;
+      const tap = spaceRef.current && spaceTap.current && !spacePanned.current;
+      spaceTap.current = false;
       setSpace(false);
       if (tap) TOOLS[useEditor.getState().tool]?.onSpaceTap?.(ctx);
     };
     const onBlur = () => {
+      spaceTap.current = false;
       setSpace(false);
       // the window lost the focus during a press: no pointerup will come, abandon the interaction
       endPan();
@@ -233,12 +251,14 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
         TOOLS[useEditor.getState().tool]?.onCancel?.(ctx);
       }
     };
+    window.addEventListener('keydown', onSpaceDown, true);
     window.addEventListener('keydown', onDown);
-    window.addEventListener('keyup', onUp);
+    window.addEventListener('keyup', onUp, true);
     window.addEventListener('blur', onBlur);
     return () => {
+      window.removeEventListener('keydown', onSpaceDown, true);
       window.removeEventListener('keydown', onDown);
-      window.removeEventListener('keyup', onUp);
+      window.removeEventListener('keyup', onUp, true);
       window.removeEventListener('blur', onBlur);
     };
   }, [ctx, endPan]);

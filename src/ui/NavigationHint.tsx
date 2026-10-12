@@ -12,7 +12,7 @@ const SCENE3D_NAVIGATION: readonly string[] = [
   'Tourner : glisser',
   'Déplacer : deux doigts, clic droit maintenu ou Maj + glisser',
   'Zoomer : pincer ou molette',
-  'Flèches : déplacer la vue (après un clic dans la 3D)',
+  'Flèches : déplacer la vue (après un clic dans la 3D, sans sélection)',
 ];
 
 const stop = (e: { stopPropagation(): void }) => e.stopPropagation();
