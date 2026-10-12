@@ -350,3 +350,80 @@ test('visual: every catalog object in 3D (showroom)', async ({ page }) => {
     await page.getByTestId('view-plan').click();
   }
 });
+
+test('visual: cut-away, room preset among tall furniture, lower levels, narrow split (task 13)', async ({ page }) => {
+  await createProject(page, 'Masquage et niveaux');
+  await buildAttic(page);
+  await furnish(page, [
+    ['bed-160', 198, 100, 0],
+    ['nightstand', 92, 22, 0],
+    ['desk', 35, 165, 270],
+    ['chair', 93, 165, 90],
+    ['wardrobe', 155, 370, 180],
+    ['tv-unit', 278, 377.5, 180, { width: 120 }],
+    ['tv', 278, 380, 180, { elevation: 50 }],
+    ['rug-rect', 200, 255, 0],
+    ['pouf', 70, 280, 0],
+    ['plant', 30, 30, 0],
+  ]);
+  await page.evaluate(() => window.__planMaison!.store.getState().setDisplay({ hideAlerts: true }));
+  await page.getByTestId('view-3d').click();
+  const canvas = page.getByTestId('scene3d-canvas');
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  await still3d(page);
+  // automatic cut-away: the near walls and the ceiling are hidden (plan-chambre 03-3d-overview)
+  await canvas.screenshot({ path: shot('30-cutaway-overview') });
+  await page.getByTestId('preset-top').click();
+  await still3d(page);
+  await canvas.screenshot({ path: shot('31-cutaway-top') });
+  // the bed selected (blue outline), then the room preset from the bed's room
+  await page.evaluate(() => {
+    const s = window.__planMaison!.store.getState();
+    const level = s.project!.levels.find((l) => l.id === s.activeLevelId)!;
+    const bed = Object.values(level.objects).find((o) => o.name.startsWith('Lit'))!;
+    s.setSelection([{ kind: 'object', id: bed.id }]);
+  });
+  await page.getByTestId('preset-overview').click();
+  await still3d(page);
+  await canvas.screenshot({ path: shot('32-selected-bed') });
+  await page.getByTestId('preset-room').click();
+  await still3d(page);
+  await canvas.screenshot({ path: shot('33-room-preset') });
+  // a second level above a larger ground floor, with the lower levels shown
+  await page.evaluate(async () => {
+    const mod = (path: string): Promise<any> => import(/* @vite-ignore */ path);
+    const { addRectRoomInterior, addWallChain } = await mod('/src/core/commands/walls.ts');
+    const { addLevel } = await mod('/src/core/commands/levels.ts');
+    const s = () => window.__planMaison!.store.getState();
+    const ground = s().activeLevelId!;
+    // the ground floor gets a second room on its right
+    s().execute('Pièce', addRectRoomInterior(ground, { x: 420, y: 0 }, { x: 800, y: 400 }, 20, 240));
+    s().execute('Cloison', addWallChain(ground, [{ kind: 'free', x: 600, y: 0 }, { kind: 'free', x: 600, y: 400 }], 10, 240));
+    const out = { levelId: '' };
+    s().execute('Niveau', addLevel(ground, 'above', 'Étage', out));
+    s().setActiveLevel(out.levelId);
+    s().execute('Pièce', addRectRoomInterior(out.levelId, { x: 0, y: 0 }, { x: 500, y: 400 }, 20, 250));
+  });
+  await still3d(page);
+  await canvas.screenshot({ path: shot('34-upper-alone') });
+  await page.getByText('Afficher les niveaux inférieurs').click();
+  await still3d(page);
+  await canvas.screenshot({ path: shot('35-upper-with-lower') });
+  await page.getByText('Afficher les niveaux inférieurs').click();
+  // back to the ground floor, Plan + 3D with a narrow 3D pane, then a structure edit in the plan
+  await page.evaluate(() => {
+    const s = window.__planMaison!.store.getState();
+    s.setActiveLevel(s.project!.levels[0]!.id);
+    s.setDisplay({ view: 'split', splitRatio: 0.75 });
+  });
+  await expect(canvas).toBeVisible({ timeout: 30_000 });
+  await still3d(page);
+  await page.screenshot({ path: shot('36-narrow-split') });
+  await page.evaluate(async () => {
+    const { addWallChain } = await import(/* @vite-ignore */ '/src/core/commands/walls.ts' as string);
+    const s = window.__planMaison!.store.getState();
+    s.execute('Mur', addWallChain(s.activeLevelId!, [{ kind: 'free', x: 420, y: 200 }, { kind: 'free', x: 600, y: 200 }], 10, 240));
+  });
+  await still3d(page);
+  await page.screenshot({ path: shot('37-narrow-split-after-edit') });
+});

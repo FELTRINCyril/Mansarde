@@ -112,6 +112,20 @@ export class Kit {
     return m;
   }
 
+  /** Number of cached materials (tests). */
+  get size(): number {
+    return this.mats.size;
+  }
+
+  /** Disposes and forgets the cached materials not in `used` (FurnitureLayer.purge). */
+  purge(used: ReadonlySet<Material>): void {
+    for (const [key, m] of this.mats) {
+      if (used.has(m)) continue;
+      m.dispose();
+      this.mats.delete(key);
+    }
+  }
+
   dispose(): void {
     for (const m of this.mats.values()) m.dispose();
     this.mats.clear();

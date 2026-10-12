@@ -64,6 +64,13 @@ export class AlertTints {
     }
   }
 
+  /** The original materials of the tinted meshes (still owned by their kit while tinted). */
+  *originals(): Iterable<Material> {
+    for (const t of this.tints.values()) {
+      for (const m of t.originals.values()) yield* Array.isArray(m) ? m : [m];
+    }
+  }
+
   /** Severity of the tint of an element (tests). */
   severityOf(root: Object3D): AlertSeverity | undefined {
     return this.tints.get(root)?.severity;

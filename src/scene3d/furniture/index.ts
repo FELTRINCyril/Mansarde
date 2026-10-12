@@ -1,4 +1,4 @@
-import { Box3, Group, Mesh, type Object3D } from 'three';
+import { Box3, Group, Mesh, type Material, type Object3D } from 'three';
 import { getCatalogEntry } from '@/catalog/catalog';
 import { objectShape } from '@/core/geometry/objects';
 import { deg2rad } from '@/core/geometry/vec';
@@ -153,17 +153,19 @@ export class FurnitureLayer {
     this.root.name = 'furniture';
   }
 
-  /** Shows the objects of `level` (null: none). */
-  sync(level: Level | null, customObjects: Record<Id, CustomObjectDef>, showLabels: boolean): void {
-    if (!level || level.id !== this.levelId) this.clear();
+  /** Shows the objects of `level` (null: none). True when an object group was added or removed. */
+  sync(level: Level | null, customObjects: Record<Id, CustomObjectDef>, showLabels: boolean): boolean {
+    let changed = false;
+    if (!level || level.id !== this.levelId) changed = this.clear();
     this.levelId = level?.id ?? null;
-    if (!level) return;
+    if (!level) return changed;
     this.root.position.y = level.elevation / 100;
     for (const [id, b] of this.built) {
       const o = level.objects[id];
       const def = o?.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
       if (o === b.o && def === b.def) continue;
       this.remove(id);
+      changed = true;
     }
     for (const o of Object.values(level.objects)) {
       let b = this.built.get(o.id);
@@ -171,8 +173,10 @@ export class FurnitureLayer {
         const def = o.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
         const group = buildObject3D(o, customObjects, this.kit);
         this.buildCount++;
+        changed = true;
         let label: Object3D | null = null;
-        if (this.makeLabel) {
+        // an object without a name gets no (empty) pill
+        if (this.makeLabel && o.name.trim() !== '') {
           label = this.makeLabel(o.name);
           label.position.set(0, o.height / 100 + LABEL_ABOVE, 0);
           group.add(label);
@@ -183,6 +187,21 @@ export class FurnitureLayer {
       }
       if (b.label) b.label.visible = showLabels;
     }
+    return changed;
+  }
+
+  /**
+   * Disposes the kit materials no longer used by any object (after objects were rebuilt or
+   * removed, e.g. a color changed): `alsoUsed` are materials held elsewhere, i.e. the originals
+   * of the objects tinted by an alert (alerts.ts), which their meshes get back later.
+   */
+  purge(alsoUsed: Iterable<Material> = []): void {
+    const used = new Set<Material>(alsoUsed);
+    this.root.traverse((n) => {
+      if (!(n instanceof Mesh)) return;
+      for (const m of Array.isArray(n.material) ? n.material : [n.material]) used.add(m);
+    });
+    this.kit.purge(used);
   }
 
   /** The group of an object, if shown. */
@@ -206,8 +225,11 @@ export class FurnitureLayer {
     this.built.delete(id);
   }
 
-  clear(): void {
+  /** Removes every object; true when there was one. */
+  clear(): boolean {
+    const any = this.built.size > 0;
     for (const id of [...this.built.keys()]) this.remove(id);
+    return any;
   }
 
   /** Frees every geometry, label, material and texture of the furniture. */
