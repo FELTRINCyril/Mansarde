@@ -3,6 +3,16 @@ import { deg2rad, rotate } from './vec';
 
 const CIRCLE_SEGMENTS = 32;
 
+/**
+ * Objects in drawing order, bottom first: rugs ('covering') under everything else, then record
+ * order (the last added on top). The plan draws them in this order and the hit test walks it
+ * backwards, so a rug added after the bed it lies under neither hides nor steals its clicks.
+ */
+export function objectsInDrawOrder(objects: Record<Id, PlacedObject>): PlacedObject[] {
+  const all = Object.values(objects);
+  return [...all.filter((o) => o.pose === 'covering'), ...all.filter((o) => o.pose !== 'covering')];
+}
+
 /** Local (object frame, unrotated) points to world points: optional x mirror, rotation, translation. */
 function toWorld(o: PlacedObject, local: Vec2[]): Vec2[] {
   const rad = deg2rad(o.rotation);

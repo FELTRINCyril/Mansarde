@@ -2,7 +2,7 @@ import { SNAP_PX } from '../model/defaults';
 import type { CustomObjectDef, Id, Level, Opening, Ring, Slope, Vec2 } from '../model/types';
 import { dimLineEnds, manualDimLine } from './autoDimensions';
 import { deriveVolumes, type DerivedLevel } from './derived';
-import { objectFootprint, objectShape } from './objects';
+import { objectFootprint, objectShape, objectsInDrawOrder } from './objects';
 import { openingCutRing, openingFrame } from './openings';
 import { pointInPolygon, pointInRing } from './polygon';
 import { slopeFrame } from './slopes';
@@ -62,9 +62,10 @@ function hitWall(level: Level, d: DerivedLevel, p: Vec2): Id | null {
 
 /**
  * Element under the point p (world cm). Priority: opening (inside its cut ring) > wall node
- * (closer than SNAP_PX screen pixels) > object (topmost = last in record order, inside its
- * footprint) > cupboard (inside its footprint; drawn under the objects, ruling V2-R27) > beam
- * (inside its footprint) > manual dimension (closer than the tolerance to its drawn line) > wall
+ * (closer than SNAP_PX screen pixels) > object (topmost in drawing order, objectsInDrawOrder:
+ * rugs under the rest, then record order; inside its footprint) > cupboard (inside its
+ * footprint; drawn under the objects, ruling V2-R27) > beam (inside its footprint) > manual
+ * dimension (closer than the tolerance to its drawn line) > wall
  * (inside its outline) > slope (closer than the tolerance to its start or end line, ruling
  * V2-R23) > room (inside its ring and outside its islands). Among cupboards or beams, the last in
  * record order wins (drawn on top); among slopes, the nearest line. customObjects gives the
@@ -85,7 +86,7 @@ export function hitTest(
   const node = nearest(Object.values(level.nodes), (n) => dist(p, n), tol);
   if (node) return { kind: 'node', id: node.id };
 
-  const objects = Object.values(level.objects);
+  const objects = objectsInDrawOrder(level.objects);
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i]!;
     if (pointInRing(p, objectFootprint(o, objectShape(o, customObjects)))) return { kind: 'object', id: o.id };

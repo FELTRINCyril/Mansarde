@@ -405,3 +405,17 @@ describe('labelAlong', () => {
     expect(labelAlong(...line, 20, 10, 0, { hiding: [wide] })).toEqual({ x: 100, y: 0 });
   });
 });
+
+describe('objects layer order', () => {
+  it('rugs are drawn first (under the furniture), the other objects in record order', () => {
+    const project = chambre();
+    const level = lvl(project);
+    level.objects['bed'] = createObjectFromSize({ kind: 'catalog', catalogId: 'bed-140' }, 200, 95, { width: 140, depth: 190, height: 90 }, 'Lit', '#999', { id: 'bed' });
+    level.objects['rug'] = createObjectFromSize({ kind: 'catalog', catalogId: 'rug-rect' }, 200, 200, { width: 170, depth: 120, height: 1 }, 'Tapis', '#999', {
+      id: 'rug',
+      pose: 'covering',
+    });
+    const ids = [...render(project).matchAll(/data-kind="object" data-id="([^"]+)"/g)].map((m) => m[1]);
+    expect(ids).toEqual(['rug', 'box', 'bed']);
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitView, MAX_ZOOM, MIN_ZOOM, screenToWorld, worldToScreen, zoomAt, type View } from '@/editor/view';
+import { fitView, keepCenterOnResize, MAX_ZOOM, MIN_ZOOM, screenToWorld, worldToScreen, zoomAt, type View } from '@/editor/view';
 
 const view: View = { pxPerCm: 2, tx: 30, ty: -20 };
 const finiteView = (v: View) => [v.pxPerCm, v.tx, v.ty].every(Number.isFinite);
@@ -118,5 +118,20 @@ describe('fitView', () => {
       expect(finiteView(fitView({ minX: 0, minY: 0, maxX: 100, maxY: 100 }, vp))).toBe(true);
       expect(finiteView(fitView(null, vp))).toBe(true);
     }
+  });
+
+  it('keepCenterOnResize keeps the world point at the center of the viewport, zoom unchanged', () => {
+    const before = { width: 800, height: 600 };
+    const after = { width: 400, height: 500 };
+    const center = screenToWorld(view, { x: 400, y: 300 });
+    const v = keepCenterOnResize(view, before, after);
+    expect(v.pxPerCm).toBe(view.pxPerCm);
+    const c = worldToScreen(v, center);
+    expect(c.x).toBeCloseTo(200, 9);
+    expect(c.y).toBeCloseTo(250, 9);
+    // same size, or an empty (hidden) viewport on either side: unchanged
+    expect(keepCenterOnResize(view, before, before)).toBe(view);
+    expect(keepCenterOnResize(view, { width: 0, height: 0 }, after)).toBe(view);
+    expect(keepCenterOnResize(view, before, { width: 0, height: 0 })).toBe(view);
   });
 });
