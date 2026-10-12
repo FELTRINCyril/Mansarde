@@ -1,5 +1,6 @@
 import type { Ring, Vec2 } from '@/core/model/types';
 import type { createEditorStore, ToolId } from '../store';
+import type { CursorMarker } from './drawing';
 
 /**
  * What a tool gets from the plan canvas (PlanCanvas builds it once). Tools never touch the DOM:
@@ -76,9 +77,10 @@ export interface Tool {
 /**
  * Generic ghost payload for `overlay.ghost`: outlines and points drawn by OverlayLayer, red when
  * `overlay.previewInvalid` is set, else in the selection color. Tools may use it for any preview
- * the project itself does not show (e.g. the refused position of a dragged opening).
+ * the project itself does not show (e.g. the refused position of a dragged opening), with the
+ * snapped cursor marker of the point being placed (`marker`).
  */
-export interface OutlineGhost { kind: 'outline'; rings: Ring[]; points: Vec2[] }
+export interface OutlineGhost { kind: 'outline'; rings: Ring[]; points: Vec2[]; marker?: CursorMarker | null }
 
 export function isOutlineGhost(g: unknown): g is OutlineGhost {
   return typeof g === 'object' && g !== null && (g as { kind?: unknown }).kind === 'outline';

@@ -123,3 +123,30 @@ test('slope typed 240 then 150, a beam, a cupboard slid along its wall, undo / r
   await page.keyboard.press('ControlOrMeta+Shift+z');
   await expect.poll(() => counts(page)).toMatchObject({ slopes: 1, beams: 0 });
 });
+
+test('slope and beam tools show the snapped cursor marker, like the wall tool', async ({ page }) => {
+  await createProject(page, 'Combles');
+  const a = await drawRoom400x300(page);
+  const plan = page.getByTestId('plan-canvas');
+  const marker = plan.locator('[data-kind="snap-marker"]');
+
+  // slope, before the first click: on a wall node (corner of the axes, 10 cm outside), then on a free grid point
+  await page.keyboard.press('t');
+  await moveTo(page, { x: a.x - 9, y: a.y - 9 });
+  await expect(marker).toHaveCount(1);
+  await expect(marker.locator('[data-snap]')).toHaveAttribute('data-snap', 'node');
+  await moveTo(page, { x: a.x + 101, y: a.y + 99 });
+  await expect(marker.locator('[data-snap]')).toHaveAttribute('data-snap', 'grid');
+  // second point: the marker follows, with Shift the start line is horizontal
+  await clickAt(page, { x: a.x + 100, y: a.y + 100 });
+  await page.keyboard.down('Shift');
+  await moveTo(page, { x: a.x + 300, y: a.y + 127 });
+  await expect(marker.locator('[data-snap]')).toHaveAttribute('data-snap', 'ortho');
+  await page.keyboard.up('Shift');
+  await page.keyboard.press('Escape');
+
+  // beam, before the first click
+  await page.keyboard.press('b');
+  await moveTo(page, { x: a.x - 9, y: a.y - 9 });
+  await expect(marker.locator('[data-snap]')).toHaveAttribute('data-snap', 'node');
+});

@@ -92,6 +92,12 @@ export function fieldScreen(cursor: Vec2, toward: Vec2 | undefined): Vec2 {
   return toward && toward.y > -0.3 ? add(cursor, { x: 0, y: FIELD_DROP_PX }) : cursor;
 }
 
+/** What a snapped point stuck to: a snapPoint kind, or 'face' (a wall face, volume tools). */
+export type MarkerKind = SnapKind | 'face';
+
+/** Snapped cursor marker (SnapMarker in the render): where the point lands and what it stuck to. */
+export interface CursorMarker { at: Vec2; snap: MarkerKind }
+
 /**
  * Ghost of the drawing tools (wall, rectangular room) in `overlay.ghost`, drawn by DrawGhostView:
  * wall axes stroked with their thickness (polylines, closed for a rectangle), the snapped cursor
@@ -101,10 +107,20 @@ export function fieldScreen(cursor: Vec2, toward: Vec2 | undefined): Vec2 {
 export interface DrawGhost {
   kind: 'draw';
   paths: { points: Vec2[]; closed: boolean; thickness: number; axis?: false }[];
-  marker: { at: Vec2; snap: SnapKind } | null;
+  marker: CursorMarker | null;
   /** Text next to `at`, offset in screen px along the unit vector `toward` (default: up-right). */
   label: { at: Vec2; lines: string[]; toward?: Vec2 } | null;
 }
+
+/** The snapped cursor marker of a snapped point (snapPoint or snapVolumePoint result). */
+export const markerOf = (s: { point: Vec2; kind: MarkerKind }): CursorMarker => ({ at: s.point, snap: s.kind });
+
+/**
+ * Ghost of a point being picked with nothing else to draw: only the snapped cursor marker, like the
+ * wall tool before its first click (first point of the slope and beam tools, wall node or slope /
+ * beam end being dragged by the selection tool).
+ */
+export const markerGhost = (s: { point: Vec2; kind: MarkerKind }): DrawGhost => ({ kind: 'draw', paths: [], marker: markerOf(s), label: null });
 
 export function isDrawGhost(g: unknown): g is DrawGhost {
   return typeof g === 'object' && g !== null && (g as { kind?: unknown }).kind === 'draw';

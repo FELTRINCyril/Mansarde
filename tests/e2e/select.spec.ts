@@ -196,3 +196,22 @@ test('interrupted drags commit nothing; shortcuts work after a checkbox; rename 
   await expect(page.getByTestId('room-rename')).toHaveCount(0);
   await expect(page.locator('[data-kind="room-label"]')).toContainText('Bureau');
 });
+
+test('dragging a room corner shows the snapped cursor marker, removed at the release', async ({ page }) => {
+  await createProject(page, 'Sélection');
+  await addRoom(page);
+  const marker = page.getByTestId('plan-canvas').locator('[data-kind="snap-marker"]');
+  const from = await onPage(page, { x: 400, y: 300 });
+  const to = await onPage(page, { x: 452, y: 347 });
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(from.x + ((to.x - from.x) * i) / 5, from.y + ((to.y - from.y) * i) / 5);
+  await expect(marker).toHaveCount(1);
+  await expect(marker.locator('[data-snap]')).toHaveAttribute('data-snap', 'grid');
+  // onto the axis of the top wall (the walls of the corner itself are not snapped to): the wall diamond
+  const onAxis = await onPage(page, { x: 300, y: 3 });
+  await page.mouse.move(onAxis.x, onAxis.y, { steps: 3 });
+  await expect(marker.locator('[data-snap]')).toHaveAttribute('data-snap', 'wallAxis');
+  await page.mouse.up();
+  await expect(marker).toHaveCount(0);
+});

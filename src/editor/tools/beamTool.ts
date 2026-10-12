@@ -5,7 +5,7 @@ import { BEAM_DEFAULTS, MIN_WALL_LENGTH } from '@/core/model/defaults';
 import { createBeam } from '@/core/model/factory';
 import type { Beam, Id, Level, Vec2 } from '@/core/model/types';
 import { activeLevel, type EditorStore } from '../store';
-import { undoKeyOf } from './drawing';
+import { markerGhost, markerOf, undoKeyOf } from './drawing';
 import type { PointerInfo, Tool, ToolContext } from './types';
 import { snapVolumePoint, type BeamGhost } from './volumeTools';
 
@@ -26,7 +26,8 @@ export function newBeam(level: Level, a: Vec2, b: Vec2): Beam {
 
 /**
  * Beam tool (B, spec 7.1): a click, a click (snapped to wall nodes, wall middles, axes and faces by
- * snapVolumePoint, Alt = free) adds a beam with the default values (addBeam), which is selected.
+ * snapVolumePoint and shown by the snapped cursor marker like the wall tool, Shift = horizontal or
+ * vertical, Alt = free) adds a beam with the default values (addBeam), which is selected.
  * The tool stays active. Escape cancels the beam in progress, or returns to the selection tool;
  * Mod+Z drops the beam in progress.
  */
@@ -48,13 +49,14 @@ export function createBeamTool(): Tool {
   function preview(e: PointerInfo, c: ToolContext, level: Level): Vec2 {
     const st = c.store.getState();
     const from = state.step === 'b' ? state.a : undefined;
-    const p = snapVolumePoint(level, e.world, { pxPerCm: c.pxPerCm(), gridStep: st.project?.settings.gridStep ?? 0, enabled: !e.alt, from });
+    const gridStep = st.project?.settings.gridStep ?? 0;
+    const p = snapVolumePoint(level, e.world, { pxPerCm: c.pxPerCm(), gridStep, enabled: !e.alt, from, ortho: e.shift });
     if (state.step === 'a') {
-      const ghost: BeamGhost = { kind: 'volume-beam', marks: [p.point], beam: null };
-      st.setOverlay({ ghost, guides: p.guides, dynamicDims: [] });
+      st.setOverlay({ ghost: markerGhost(p), guides: p.guides, dynamicDims: [] });
     } else {
       const long = dist(state.a, p.point) >= MIN_WALL_LENGTH;
-      const ghost: BeamGhost = { kind: 'volume-beam', marks: [state.a, p.point], beam: long ? newBeam(level, state.a, p.point) : null };
+      const beam = long ? newBeam(level, state.a, p.point) : null;
+      const ghost: BeamGhost = { kind: 'volume-beam', marks: [state.a, p.point], beam, marker: markerOf(p) };
       const line = beamLengthDim(state.a, p.point, BEAM_DEFAULTS.width);
       st.setOverlay({ ghost, guides: p.guides, dynamicDims: long ? [line] : [] });
     }

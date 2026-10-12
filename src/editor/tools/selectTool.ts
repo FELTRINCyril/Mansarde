@@ -30,7 +30,7 @@ import { worldToScreen } from '../view';
 import { beamLengthDim } from './beamTool';
 import { slopeDepthDim } from './slopeTool';
 import { ERR_NO_ROOM, measureObject, measureOpening, measureTarget, nextSide, typedPlacement, type MeasureTarget } from './clearanceDims';
-import { undoKeyOf } from './drawing';
+import { markerGhost, markerOf, undoKeyOf, type DrawGhost } from './drawing';
 import { hoveredWall } from './hover';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
 import { snapVolumePoint, type CupboardGhost } from './volumeTools';
@@ -167,7 +167,8 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  * - objects and walls of the selection move together (moveObjects / moveWalls); with walls the
  *   delta snaps to the grid, a single object is pulled against wall faces (snapObjectToWalls) and
  *   shows its clearances; Alt disables snapping;
- * - a wall node follows snapPoint (excluding itself, Shift = orthogonal from its start) and is
+ * - a wall node follows snapPoint (excluding itself, Shift = orthogonal from its start, shown by
+ *   the snapped cursor marker and its guides like the wall tool) and is
  *   merged into the node it is dropped on (mergeNode), or joined to the wall axis it is dropped on
  *   (joinNodeToWall, R30);
  * - an opening slides along the closest hovered wall, else its own wall (moveOpening), with its
@@ -312,7 +313,8 @@ export function createSelectTool(): Tool {
       ok = st.updateGesture(joinNodeToWall(s.levelId, nodeId, sn.wallId, sn.t, { nodeId: newId(), wallId: newId() }));
     }
     if (!ok) ok = st.updateGesture(moveNodes(s.levelId, [{ nodeId, to: sn.point }]));
-    st.setOverlay({ guides: sn.guides, ghost: ok ? null : outline([], [sn.point]) });
+    // the snapped cursor marker like the wall tool; a refused position keeps its red point too
+    st.setOverlay({ guides: sn.guides, ghost: ok ? markerGhost(sn) : { ...outline([], [sn.point]), marker: markerOf(sn) } });
   }
 
   function dragOpening(s: Session, id: Id, e: PointerInfo, c: ToolContext): void {
@@ -365,7 +367,8 @@ export function createSelectTool(): Tool {
   /**
    * Handles of a slope (ends of the start line, snapped like the slope tool; middle of the end
    * line: depth, 1 cm steps, at least MIN_WALL_LENGTH) and of a beam (ends of its axis, snapped).
-   * Alt: free. The dynamic dimension shows the length or the depth.
+   * An end shows the snapped cursor marker like the tools; Shift: horizontal or vertical from the
+   * other end; Alt: free. The dynamic dimension shows the length or the depth.
    */
   function dragVolumeHandle(s: Session, plan: Extract<DragPlan, { kind: 'volumeHandle' }>, e: PointerInfo, c: ToolContext): void {
     const base = baseLevel(s, c.store);
@@ -377,6 +380,7 @@ export function createSelectTool(): Tool {
     if (!item) return;
     let dims: DimLine[] = [];
     let guides: Guide[] = [];
+    let ghost: DrawGhost | null = null;
     if (plan.role === 'depth' && plan.target === 'slope') {
       const sl = base.slopes[plan.id]!;
       const f = slopeFrame(sl);
@@ -386,16 +390,17 @@ export function createSelectTool(): Tool {
       dims = [slopeDepthDim({ ...sl, depth })];
     } else if (plan.role !== 'depth') {
       const other = plan.role === 'a' ? item.b : item.a;
-      const p = snapVolumePoint(base, add(item[plan.role], delta), { ...env, from: other });
+      const p = snapVolumePoint(base, add(item[plan.role], delta), { ...env, from: other, ortho: e.shift });
       const patch = { [plan.role]: p.point };
       st.updateGesture(plan.target === 'slope' ? updateSlope(s.levelId, plan.id, patch) : updateBeam(s.levelId, plan.id, patch));
       guides = p.guides;
+      ghost = markerGhost(p);
       dims =
         plan.target === 'beam'
           ? [beamLengthDim(other, p.point, base.beams[plan.id]!.width)]
           : [{ a: other, b: p.point, offset: 0, value: dist(other, p.point), kind: 'dynamic' }];
     }
-    st.setOverlay({ dynamicDims: dims, guides });
+    st.setOverlay({ dynamicDims: dims, guides, ghost });
   }
 
   /**

@@ -10,6 +10,7 @@ import { ZeroClearanceMarker } from './ZeroClearanceMarker';
 import { DrawGhostView } from './DrawGhostView';
 import { VolumeGhostView } from './VolumeGhostView';
 import { ringsPath } from './path';
+import { SnapMarker } from './SnapMarker';
 import { dashArray, num, STYLE } from './style';
 
 /**
@@ -65,6 +66,7 @@ export function OverlayLayer({
           {ghost.points.map((p, i) => (
             <circle key={i} cx={num(p.x)} cy={num(p.y)} r={STYLE.ghostPointRadius * lineUnit} fill={ghostColor} fillOpacity={STYLE.invalidFillOpacity} />
           ))}
+          {ghost.marker && <SnapMarker marker={ghost.marker} lineUnit={lineUnit} />}
         </g>
       )}
       <OpeningGhostView ghost={ghost} lineUnit={lineUnit} />
