@@ -2,6 +2,7 @@ import { CATALOG } from '../../catalog/catalog';
 import type { DerivedLevel, DerivedVolumes } from '../geometry/derived';
 import { objectFootprint, objectShape } from '../geometry/objects';
 import { bbox, isConvexRing } from '../geometry/polygon';
+import { cupboardCarries, objectCarries } from '../geometry/support';
 import type { Cupboard, CustomObjectDef, Id, Level, ObjectPose, PlacedObject, Ring, Shape, Vec2 } from '../model/types';
 import { displayNames } from './names';
 import type { Check, CheckKind, CheckSeverity, CheckTarget } from './types';
@@ -34,8 +35,8 @@ export interface Item {
   acceptsUnder: boolean;
   /** Catalog 'Structure' entries (stairs): they go through the ceiling to the next level (ruling V2-R16). */
   structure: boolean;
-  /** The top is level everywhere (objects, fixed cupboards), so the item can carry an 'onTop' object. */
-  flatTop: boolean;
+  /** The item can carry an 'onTop' object (objectCarries / cupboardCarries, shared with the pose, ruling V2-R37). */
+  carrier: boolean;
   center: Vec2;
   /** The cupboard of a 'cupboard' item, null for an object. */
   cupboard: Cupboard | null;
@@ -87,7 +88,7 @@ function objectItem(o: PlacedObject, index: number, customObjects: Record<Id, Cu
     pose: o.pose,
     acceptsUnder: o.source.kind === 'catalog' && ACCEPTS_UNDER.has(o.source.catalogId),
     structure: o.source.kind === 'catalog' && STRUCTURE.has(o.source.catalogId),
-    flatTop: true,
+    carrier: objectCarries(o),
     center: { x: o.x, y: o.y },
     cupboard: null,
   };
@@ -107,7 +108,7 @@ function cupboardItem(c: Cupboard, index: number, footprint: Ring, tops: number[
     pose: 'floor',
     acceptsUnder: false,
     structure: false,
-    flatTop: c.heightMode === 'fixed',
+    carrier: cupboardCarries(c),
     center,
     cupboard: c,
   };

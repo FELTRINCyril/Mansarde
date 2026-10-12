@@ -3,14 +3,14 @@ import { HEIGHT_TOLERANCE, makeCheck, nameOf, targetOf, type CheckContext, type 
 import type { Check } from '../types';
 
 /**
- * `support` carries `item`: its level top is at the underside of `item` (1 cm tolerance) and its
- * footprint contains the center of `item`. Any object can carry (a shelf on a wall included), and
- * so can a cupboard of fixed height; a cupboard following the ceiling has no level top.
+ * `support` carries `item`: it is a carrier (floor and tuckable objects, wall shelves, fixed
+ * cupboards: the definition supportElevation uses too, ruling V2-R37), its top is at the
+ * underside of `item` (1 cm tolerance) and its footprint contains the center of `item`.
  */
 export function carries(support: Item, item: Item): boolean {
   return (
     support !== item &&
-    support.flatTop &&
+    support.carrier &&
     Math.abs(support.top - item.bottom) <= HEIGHT_TOLERANCE &&
     pointInRing(item.center, support.footprint)
   );

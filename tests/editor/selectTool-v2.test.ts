@@ -5,7 +5,9 @@ import { addCupboard } from '@/core/commands/cupboards';
 import { addObject } from '@/core/commands/objects';
 import { addSlope } from '@/core/commands/slopes';
 import { addRectRoom, addWallChain } from '@/core/commands/walls';
+import { computeChecks } from '@/core/checks/computeChecks';
 import { cupboardFootprint } from '@/core/geometry/cupboards';
+import { deriveLevel } from '@/core/geometry/derived';
 import { createBeam, createCupboard, createObjectFromSize, createSlope } from '@/core/model/factory';
 import type { Level, PlacedObject, Vec2 } from '@/core/model/types';
 import { objectFromRef, placeObjectRecipe } from '@/editor/placeObject';
@@ -238,6 +240,21 @@ describe('pose at the drop (spec 5.3)', () => {
     expect(entries(store)).toBe(n + 1);
     drag(tool, ctx, { x: 200, y: 14 }, [{ x: 200, y: 60 }, { x: 200, y: 25 }], { alt: true });
     expect(level(store).objects[tv.id]).toMatchObject({ y: 25 });
+  });
+
+  it('a bedside lamp dropped on a 90 cm fixed cupboard is lifted to 90 and raises no alert (ruling V2-R37)', () => {
+    const { store, levelId } = setup();
+    const wallId = findWall(level(store), 0, 0, 400, 0);
+    let c = createCupboard(wallId, 200, 'left', { heightMode: 'fixed', height: 90, doorType: 'sliding' });
+    if (cupboardFootprint(level(store), c).some((q) => q.y < 0)) c = { ...c, side: 'right' }; // the room side
+    exec(store, addCupboard(levelId, c));
+    const ring = cupboardFootprint(level(store), c);
+    const center = { x: ring.reduce((s, q) => s + q.x, 0) / 4, y: ring.reduce((s, q) => s + q.y, 0) / 4 };
+    const lamp = catalog(store, 'bedside-lamp', center.x, center.y);
+    exec(store, placeObjectRecipe(levelId, lamp, level(store), 1));
+    expect(level(store).objects[lamp.id]!.elevation).toBe(90);
+    const lv = level(store);
+    expect(computeChecks(lv, deriveLevel(lv), {})).toEqual([]);
   });
 
   it('several objects moved together: no wall snap, but each onTop object is posed', () => {

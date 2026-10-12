@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { computeChecks } from '@/core/checks/computeChecks';
+import { deriveLevel } from '@/core/geometry/derived';
 import { snapToWallForPose, supportElevation } from '@/core/geometry/pose';
-import { createObjectFromSize } from '@/core/model/factory';
-import type { CustomObjectDef, Level, PlacedObject } from '@/core/model/types';
-import { levelFromWalls, rectRoom } from './fixtures';
+import { createCupboard, createObjectFromSize } from '@/core/model/factory';
+import type { Cupboard, CustomObjectDef, Level, PlacedObject } from '@/core/model/types';
+import { findWall, levelFromWalls, rectRoom } from './fixtures';
 
 const catalog = (catalogId: string) => ({ kind: 'catalog' as const, catalogId });
 
@@ -46,6 +48,40 @@ describe('supportElevation', () => {
     expect(supportElevation(level, null, { x: 200, y: 150 }, { round: def })).toBe(45);
     expect(supportElevation(level, null, { x: 245, y: 195 }, { round: def })).toBe(0);
   });
+});
+
+describe('one definition of a support for the pose and the checks (ruling V2-R37)', () => {
+  /** A 40 x 40 carrier of each kind centered on (200, 150), its top at 90. */
+  const carriers: Array<[string, boolean, (level: Level) => void]> = [
+    ['floor object', true, (l) => void put(l, createObjectFromSize(catalog('generic-rect'), 200, 150, { width: 40, depth: 40, height: 90 }, 'Bloc', '#888'))],
+    ['tuckable object', true, (l) => void put(l, createObjectFromSize(catalog('chair'), 200, 150, { width: 40, depth: 40, height: 90 }, 'Chaise', '#888', { pose: 'tuckable' }))],
+    ['wall shelf', true, (l) => void put(l, createObjectFromSize(catalog('shelf-wall'), 200, 150, { width: 40, depth: 40, height: 3 }, 'Étagère', '#888', { pose: 'wall', elevation: 87 }))],
+    ['wall TV', false, (l) => void put(l, createObjectFromSize(catalog('tv-wall'), 200, 150, { width: 40, depth: 40, height: 65 }, 'TV murale', '#888', { pose: 'wall', elevation: 25 }))],
+    ['object on top of another', false, (l) => void put(l, createObjectFromSize(catalog('generic-rect'), 200, 150, { width: 40, depth: 40, height: 10 }, 'Livre', '#888', { pose: 'onTop', elevation: 80 }))],
+    ['rug', false, (l) => void put(l, createObjectFromSize(catalog('rug-rect'), 200, 150, { width: 40, depth: 40, height: 90 }, 'Tapis', '#888', { pose: 'covering' }))],
+    // top wall (0,0)->(400,0), face at y = 10: x 180..220, y 10..50 (the center 200, 30)
+    ['fixed cupboard', true, (l) => addCup(l, { heightMode: 'fixed', height: 90 })],
+    ['ceiling cupboard', false, (l) => addCup(l, { heightMode: 'ceiling', plinth: 10, gap: 160 })],
+  ];
+  function addCup(level: Level, over: Partial<Cupboard>): void {
+    const c = createCupboard(findWall(level, 0, 0, 400, 0), 200, 'left', { width: 40, depth: 40, doorType: 'sliding', ...over });
+    level.cupboards[c.id] = c;
+  }
+  const centerOf = (level: Level) => (Object.keys(level.cupboards).length > 0 ? { x: 200, y: 30 } : { x: 200, y: 150 });
+
+  for (const [what, carries, build] of carriers) {
+    it(`${what}: ${carries ? 'lifts a dropped lamp to 90, no alert' : 'does not carry; a lamp put at its top floats'}`, () => {
+      const level = room();
+      build(level);
+      const at = centerOf(level);
+      const elevation = supportElevation(level, null, at, {});
+      expect(elevation).toBe(carries ? 90 : 0);
+      const lamp = put(level, createObjectFromSize(catalog('bedside-lamp'), at.x, at.y, { width: 25, depth: 25, height: 45 }, 'Lampe', '#888', { pose: 'onTop', elevation: 90 }));
+      const copy = structuredClone(level);
+      const found = computeChecks(copy, deriveLevel(copy), {}).filter((c) => c.targets.some((t) => t.id === lamp.id));
+      expect(found.map((c) => c.kind)).toEqual(carries ? [] : ['floating']);
+    });
+  }
 });
 
 describe('snapToWallForPose', () => {

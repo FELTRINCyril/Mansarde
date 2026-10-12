@@ -30,6 +30,8 @@ export interface CatalogEntry {
   acceptsUnder?: boolean;
   /** Default height of the underside (cm) of a new object; absent means 0. Wall-mounted entries only. */
   elevation?: number;
+  /** Wall-mounted entries that 'onTop' objects can stand on (shelves, ruling V2-R37). */
+  carriesOnTop?: boolean;
 }
 
 const BEDROOM = '#d9c8b4';
@@ -48,7 +50,7 @@ function sym(
   depth: number,
   height: number,
   color: string,
-  extra: { pose?: ObjectPose; acceptsUnder?: boolean; elevation?: number } = {},
+  extra: { pose?: ObjectPose; acceptsUnder?: boolean; elevation?: number; carriesOnTop?: boolean } = {},
 ): CatalogEntry {
   return {
     id,
@@ -62,6 +64,7 @@ function sym(
     pose: extra.pose ?? 'floor',
     ...(extra.acceptsUnder ? { acceptsUnder: true } : {}),
     ...(extra.elevation !== undefined ? { elevation: extra.elevation } : {}),
+    ...(extra.carriesOnTop ? { carriesOnTop: true } : {}),
   };
 }
 const UNDER = { acceptsUnder: true } as const;
@@ -88,7 +91,7 @@ export const CATALOG: CatalogEntry[] = [
   sym('display-cabinet', 'Vitrine', 'Séjour', 100, 45, 180, LIVING),
   sym('tv', 'TV', 'Séjour', 100, 20, 60, LIVING, { pose: 'onTop' }),
   sym('tv-wall', 'TV murale', 'Séjour', 110, 8, 65, LIVING, { pose: 'wall', elevation: 110 }),
-  sym('shelf-wall', 'Étagère murale', 'Séjour', 80, 25, 3, LIVING, { pose: 'wall', elevation: 150 }),
+  sym('shelf-wall', 'Étagère murale', 'Séjour', 80, 25, 3, LIVING, { pose: 'wall', elevation: 150, carriesOnTop: true }),
   sym('rug-round', 'Tapis rond', 'Séjour', 120, 120, 1, LIVING, { pose: 'covering' }),
   sym('rug-rect', 'Tapis', 'Séjour', 170, 120, 1, LIVING, { pose: 'covering' }),
   sym('plant', 'Plante', 'Séjour', 40, 40, 90, LIVING),
