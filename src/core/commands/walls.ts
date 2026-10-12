@@ -217,7 +217,8 @@ function followStartMoves(level: DLevel, before: WallEnds): void {
 
 /**
  * Moves nodes, checks the length of every affected wall, keeps the items of walls whose start
- * node moved in place (V2-R12), then reconciles openings and cupboards.
+ * node moved in place (V2-R12), then reconciles openings (cupboards: reconcileWallEdits in
+ * applyCommand, V2-R39).
  */
 function moveNodesIn(level: DLevel, moves: Array<{ nodeId: Id; to: Vec2 }>): void {
   for (const m of moves) {

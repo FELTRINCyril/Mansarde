@@ -191,6 +191,12 @@ test('without WebGL: a message in the 3D view, the plan keeps working', async ({
 
 test('in the 3D layout, a catalog click still places the object at the center of the (hidden) plan view', async ({ page }) => {
   await createProject(page, 'Placement');
+  // the plan fits its view once measured (ResizeObserver); read the center only after that fit,
+  // not from the initial default view (pxPerCm 1, tx 0, ty 0)
+  await expect.poll(() => page.evaluate(() => {
+    const v = window.__planMaison!.store.getState().view;
+    return v.pxPerCm !== 1 || v.tx !== 0 || v.ty !== 0;
+  })).toBe(true);
   const box = (await page.getByTestId('plan-canvas').boundingBox())!;
   const center = await page.evaluate(({ w, h }) => {
     const v = window.__planMaison!.store.getState().view;
