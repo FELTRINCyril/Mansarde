@@ -24,7 +24,11 @@ describe('deployment base path', () => {
     const html = readFileSync(path.join(outDir, 'index.html'), 'utf8');
     const urls = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]!);
     expect(urls.length).toBeGreaterThan(0);
-    for (const url of urls) expect(url.startsWith('/plan-maison/assets/'), url).toBe(true);
+    // the favicon (public/) is linked under the base too, so that Pages never looks for /favicon.ico
+    const favicon = '/plan-maison/favicon.svg';
+    expect(html).toMatch(/<link rel="icon" type="image\/svg\+xml" href="\/plan-maison\/favicon\.svg"/);
+    expect(readFileSync(path.join(outDir, 'favicon.svg'), 'utf8')).toContain('<svg');
+    for (const url of urls.filter((u) => u !== favicon)) expect(url.startsWith('/plan-maison/assets/'), url).toBe(true);
     // the 3D view is a separate chunk loaded on demand: it must be emitted next to the entry
     const assets = readdirSync(path.join(outDir, 'assets'));
     expect(assets.some((f) => /^index-.*\.js$/.test(f))).toBe(true);
