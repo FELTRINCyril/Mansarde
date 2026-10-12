@@ -4,6 +4,7 @@ import { objectFootprint, objectShape } from '@/core/geometry/objects';
 import { distanceToRing, pointInRing, ringEdges, vertexCentroid } from '@/core/geometry/polygon';
 import type { Room } from '@/core/geometry/rooms';
 import { segmentIntersection } from '@/core/geometry/vec';
+import { wheelIntent, WheelSourceLatch } from '@/editor/wheel';
 import { CLICK_SLOP } from './picking';
 import type { CustomObjectDef, Id, Level, Ring, Vec2 } from '@/core/model/types';
 
@@ -257,10 +258,20 @@ export const ease = (k: number): number => (k < 0.5 ? 4 * k * k * k : 1 - Math.p
 const MIN_DISTANCE = 0.3;
 const MAX_POLAR = Math.PI * 0.495;
 
+/** Arrow keys OrbitControls pans with (rotates with Shift, Ctrl or Cmd) once listenToKeyEvents is on. */
+const ARROW_CODES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
+
+/** Safari's pinch (GestureEvent, non-standard): its scale since the gesture started. */
+type GestureLike = Event & { scale?: number };
+
 /**
  * PerspectiveCamera(45) and damped OrbitControls (polar angle at most 0.495 pi, distance bounded
  * by the level size), and the animated presets. `tick` advances the animation and the damping; it
  * returns true while the camera still moves, so that the view renders only then (render on demand).
+ * Navigation: left drag orbits; right drag, Shift (or Ctrl / Cmd) + left drag, a two-finger
+ * trackpad scroll and the arrow keys (view focused) pan; the wheel, a pinch (wheel with ctrlKey,
+ * or Safari's gesture events) dolly. The trackpad scroll is told from the wheel by the shared
+ * heuristic of src/editor/wheel.ts.
  */
 export class CameraRig {
   readonly camera = new PerspectiveCamera(45, 1, 0.05, 200);
@@ -268,18 +279,21 @@ export class CameraRig {
   private tween: { t0: number; from: Pose; to: Pose } | null = null;
   /**
    * The preset the camera was last sent to, until the user really moves the camera (a drag beyond
-   * CLICK_SLOP, a pinch, a wheel zoom; a click to select does not): a view left on a fitted preset
-   * is fitted again when its size changes (split separator, window).
+   * CLICK_SLOP, a pinch, a wheel zoom or pan, an arrow key; a click to select does not): a view
+   * left on a fitted preset is fitted again when its size changes (split separator, window).
    */
   preset: Preset | null = null;
   /** Orbit bound of the level (maxDistance(b), 1.5 x its fitted overview) and of the last preset (1.5 x its distance). */
   private levelBound = 16;
   private presetBound = 0;
   private readonly pressed = new Map<number, { x: number; y: number }>();
+  private readonly wheelSource = new WheelSourceLatch();
+  private gestureScale: number | null = null;
   private readonly offDom: () => void;
 
   constructor(dom: HTMLElement, onChange: () => void) {
-    this.controls = new OrbitControls(this.camera, dom);
+    // connected after the rig's own wheel listener, so that a trackpad scroll can be kept from its dolly
+    this.controls = new OrbitControls(this.camera);
     this.controls.enableDamping = true;
     this.controls.maxPolarAngle = MAX_POLAR;
     this.controls.minDistance = MIN_DISTANCE;
@@ -288,6 +302,8 @@ export class CameraRig {
     // OrbitControls emits 'start' on every press, a click included: the rig watches the pointer
     // itself and leaves the preset (and stops the animation, as plan-chambre) only on a real move
     const down = (e: PointerEvent) => {
+      // focusable, so that the arrow keys reach the controls
+      (dom as Partial<HTMLElement>).focus?.({ preventScroll: true });
       this.pressed.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.pressed.size > 1) this.userMoved();
     };
@@ -298,18 +314,61 @@ export class CameraRig {
     const up = (e: PointerEvent) => {
       this.pressed.delete(e.pointerId);
     };
-    const wheel = () => this.userMoved();
+    // a trackpad scroll pans (screen space, as a right drag), anything else is left to the
+    // controls' dolly; OrbitControls ignores the wheel during a drag, so does the pan
+    const wheel = (e: WheelEvent) => {
+      this.userMoved();
+      if (!this.controls.enabled || this.pressed.size > 0) return;
+      const intent = wheelIntent(e, this.wheelSource.source(e, performance.now()));
+      if (intent.kind !== 'pan') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (this.controls.enablePan) this.controls.pan(-intent.dx, -intent.dy);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (ARROW_CODES.has(e.code)) this.userMoved();
+    };
+    // Safari: a pinch comes as gesture events (scale since the start), not as a ctrlKey wheel
+    const gestureStart = (e: GestureLike) => {
+      e.preventDefault();
+      this.gestureScale = e.scale ?? 1;
+    };
+    const gestureChange = (e: GestureLike) => {
+      e.preventDefault();
+      const scale = e.scale ?? 1;
+      if (this.gestureScale === null || !(scale > 0) || !this.controls.enableZoom) return;
+      this.userMoved();
+      // distance x (previous / current): fingers apart, the camera comes closer
+      this.controls.dollyIn(this.gestureScale / scale);
+      this.gestureScale = scale;
+    };
+    const gestureEnd = (e: GestureLike) => {
+      e.preventDefault();
+      this.gestureScale = null;
+    };
+    if ('tabIndex' in dom && dom.tabIndex < 0) dom.tabIndex = 0;
     dom.addEventListener('pointerdown', down);
     dom.addEventListener('pointermove', move);
     dom.addEventListener('pointerup', up);
     dom.addEventListener('pointercancel', up);
-    dom.addEventListener('wheel', wheel);
+    dom.addEventListener('wheel', wheel, { passive: false });
+    dom.addEventListener('keydown', key);
+    dom.addEventListener('gesturestart', gestureStart);
+    dom.addEventListener('gesturechange', gestureChange);
+    dom.addEventListener('gestureend', gestureEnd);
+    this.controls.connect(dom);
+    // arrows pan only while the view has the focus: the plan and the fields keep theirs
+    this.controls.listenToKeyEvents(dom);
     this.offDom = () => {
       dom.removeEventListener('pointerdown', down);
       dom.removeEventListener('pointermove', move);
       dom.removeEventListener('pointerup', up);
       dom.removeEventListener('pointercancel', up);
       dom.removeEventListener('wheel', wheel);
+      dom.removeEventListener('keydown', key);
+      dom.removeEventListener('gesturestart', gestureStart);
+      dom.removeEventListener('gesturechange', gestureChange);
+      dom.removeEventListener('gestureend', gestureEnd);
     };
   }
 

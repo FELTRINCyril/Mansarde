@@ -20,6 +20,9 @@ import type { ToolContext } from './tools/types';
 export const PASTE_OFFSET: Vec2 = { x: 20, y: 20 };
 const NUDGE = 1;
 const NUDGE_SHIFT = 10;
+/** Pan of the view (screen px) by an arrow key when nothing is selected, and with Shift. */
+export const PAN_STEP = 40;
+export const PAN_STEP_SHIFT = 200;
 
 const TOOL_KEYS: Record<string, ToolId> = {
   v: 'select', m: 'wall', r: 'rect', p: 'door', f: 'window', c: 'dimension', t: 'slope', b: 'beam', k: 'cupboard',
@@ -229,7 +232,9 @@ function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
  *    Delete / Backspace deletes the selection; Mod+Z undo, Mod+Shift+Z and Mod+Y redo (during a
  *    gesture all three only cancel it); Mod+C copies
  *    the selected objects, Mod+V pastes them at +20 +20, Mod+D duplicates them; arrows nudge the
- *    selection by 1 cm (10 with Shift), one history entry per press; 0 fits the view.
+ *    selection by 1 cm (10 with Shift), one history entry per press, or, with nothing selected,
+ *    pan the view by PAN_STEP px (PAN_STEP_SHIFT with Shift; not while the plan is hidden behind
+ *    the 3D view); 0 fits the view.
  * Mod is Cmd on macOS, Ctrl elsewhere.
  */
 export function handleGlobalKey(e: KeyboardEvent, store: EditorStore, ctx: ToolContext): boolean {
@@ -268,6 +273,13 @@ export function handleGlobalKey(e: KeyboardEvent, store: EditorStore, ctx: ToolC
   }
   const arrow = ARROWS[k];
   if (arrow && !ownsArrows(e.target)) {
+    if (s.selection.length === 0) {
+      if (s.display.view === '3d') return false;
+      // the arrow shows what lies that way: the content moves the other way
+      const pan = e.shiftKey ? PAN_STEP_SHIFT : PAN_STEP;
+      s.setView({ ...s.view, tx: s.view.tx - arrow.x * pan, ty: s.view.ty - arrow.y * pan });
+      return true;
+    }
     const step = e.shiftKey ? NUDGE_SHIFT : NUDGE;
     const recipe = nudgeRecipe(store, { x: arrow.x * step, y: arrow.y * step });
     if (!recipe) return false;
