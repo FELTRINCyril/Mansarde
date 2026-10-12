@@ -1,7 +1,7 @@
 import type { Id } from '../model/types';
 
 /** The rules of spec 5.4, one per file of ./rules. */
-export type CheckKind = 'height' | 'collision' | 'wallOverlap' | 'doorSwing' | 'cupboardOpening' | 'floating' | 'cupboardClearance';
+export type CheckKind = 'height' | 'cupboardHeight' | 'collision' | 'wallOverlap' | 'doorSwing' | 'cupboardOpening' | 'floating' | 'cupboardClearance';
 
 export type CheckSeverity = 'error' | 'warning';
 

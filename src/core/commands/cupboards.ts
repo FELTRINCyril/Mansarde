@@ -46,29 +46,38 @@ function requireConsistentHeights(level: DLevel, c: Cupboard): void {
   }
 }
 
-function requireValidCupboard(level: DLevel, c: Cupboard): void {
+/** The fields whose change re-validates the heights (requireConsistentHeights). */
+const HEIGHT_KEYS: ReadonlySet<keyof Cupboard> = new Set<keyof Cupboard>(['plinth', 'heightMode', 'height', 'gap']);
+
+/**
+ * Numbers and room on the wall always; the heights only when `checkHeights` (a new cupboard, or a
+ * patch changing one of HEIGHT_KEYS). A later slope, beam or level height edit may leave a
+ * ceiling-mode cupboard's top under its plinth: the checks engine flags it (ruling V2-R36), and
+ * the edits that do not touch the heights (colour, doors, a move, the other face) stay possible.
+ */
+function requireValidCupboard(level: DLevel, c: Cupboard, checkHeights: boolean): void {
   requireValidNumbers(c);
   requireRoom(level, c);
-  requireConsistentHeights(level, c);
+  if (checkHeights) requireConsistentHeights(level, c);
 }
 
 /** Refused (CommandError) when the cupboard does not fit its wall or a value is invalid. */
 export function addCupboard(levelId: Id, c: Cupboard): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
-    requireValidCupboard(level, c);
+    requireValidCupboard(level, c, true);
     level.cupboards[c.id] = { ...c };
     touch(draft);
   };
 }
 
-/** Moves a cupboard along its wall or onto another wall (and face), with the same checks as addCupboard. */
+/** Moves a cupboard along its wall or onto another wall (and face); the heights are not re-validated (see requireValidCupboard). */
 export function moveCupboard(levelId: Id, id: Id, wallId: Id, offset: number, side?: 'left' | 'right'): Recipe {
   return (draft) => {
     const level = getLevel(draft, levelId);
     const c = requireCupboard(level, id);
     const candidate: Cupboard = { ...c, wallId, offset, side: side ?? c.side };
-    requireValidCupboard(level, candidate);
+    requireValidCupboard(level, candidate, false);
     if (c.wallId === candidate.wallId && c.offset === candidate.offset && c.side === candidate.side) return;
     c.wallId = candidate.wallId;
     c.offset = candidate.offset;
@@ -79,7 +88,8 @@ export function moveCupboard(levelId: Id, id: Id, wallId: Id, offset: number, si
 
 /**
  * The patched cupboard must stay valid and fit its wall (the offset is the center, so a wider
- * cupboard grows on both sides). doorCount is not recomputed from a new width. No-op without touch
+ * cupboard grows on both sides); the heights are re-validated only when the patch changes one of
+ * HEIGHT_KEYS. doorCount is not recomputed from a new width. No-op without touch
  * when nothing changes.
  */
 export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard, 'id' | 'wallId'>>): Recipe {
@@ -87,7 +97,8 @@ export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard
     const level = getLevel(draft, levelId);
     const c = requireCupboard(level, id);
     const entries = patchEntries<Cupboard>(patch, ['id', 'wallId']);
-    requireValidCupboard(level, { ...c, ...Object.fromEntries(entries) });
+    const heightsChange = entries.some(([key, value]) => HEIGHT_KEYS.has(key) && value !== c[key]);
+    requireValidCupboard(level, { ...c, ...Object.fromEntries(entries) }, heightsChange);
     if (writeChanges(c, entries)) touch(draft);
   };
 }

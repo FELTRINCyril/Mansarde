@@ -58,6 +58,26 @@ export function cupboardOpeningChecks(ctx: CheckContext): Check[] {
   return out;
 }
 
+/**
+ * Ceiling-mode cupboard whose real top (the lowest point of its top profile: ceiling minus gap
+ * under slopes and beams) is not above its plinth (ruling V2-R36). The cupboard commands refuse
+ * it, but a later slope, beam or level height edit, or an imported file, can still produce it.
+ * Same condition as the cupboard commands; an error on the cupboard.
+ */
+export function cupboardHeightChecks(ctx: CheckContext): Check[] {
+  const out: Check[] = [];
+  for (const item of ctx.cupboards) {
+    const c = item.cupboard!;
+    if (c.heightMode !== 'ceiling') continue;
+    const profile = ctx.volumes.cupboardProfiles.get(c.id) ?? [];
+    if (profile.length === 0) continue;
+    const lowest = Math.min(...profile.map((p) => p.top));
+    if (c.plinth < lowest) continue;
+    out.push(makeCheck('cupboardHeight', 'error', `${nameOf(ctx, item)} : pas assez de hauteur sous le plafond.`, [targetOf(item)]));
+  }
+  return out;
+}
+
 /** Smallest distance from the front edge (along `outward`) of the pieces of `shape` that have an area. */
 function nearest(shape: Shape, front: Vec2, outward: Vec2): number {
   let best = Infinity;

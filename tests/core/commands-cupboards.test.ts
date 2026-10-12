@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addCupboard, deleteCupboards, moveCupboard, updateCupboard } from '@/core/commands/cupboards';
+import { addSlope } from '@/core/commands/slopes';
 import { CUPBOARDS_DO_NOT_FIT, reconcileCupboards } from '@/core/commands/reconcile';
 import { addWallChain, deleteWalls, joinNodeToWall, mergeNode, moveNodes, moveWalls, setWallLength, setWallThickness, splitWall } from '@/core/commands/walls';
 import { cupboardFootprint } from '@/core/geometry/cupboards';
@@ -344,5 +345,25 @@ describe('plinth and gap bounds (T8 fix round)', () => {
     run(q, updateCupboard(levelId(q), id, { plinth: 177 }));
     // a level height of 250 alone would have accepted 200
     expect(refuse(q, updateCupboard(levelId(q), id, { plinth: 200 }))).toBe('Dimension invalide');
+  });
+
+  it('a slope added later puts the top under the plinth: edits that leave the heights alone stay accepted (V2-R36)', () => {
+    const { p, top } = setup();
+    const { p: q, id } = withCupboard(p, top, 200, { heightMode: 'ceiling', plinth: 10, gap: 2, depth: 60 });
+    // the ceiling goes down from 250 at y = 10 (the back of the cupboard) to 8 at y = 70 (its front): top 6
+    const s = createSlope({ x: -50, y: 10 }, { x: 450, y: 10 }, 'left', 60, 250, 8);
+    const sloped = run(q, addSlope(levelId(q), s));
+    const lid = levelId(sloped);
+    run(sloped, updateCupboard(lid, id, { color: '#ff0000' }));
+    run(sloped, updateCupboard(lid, id, { doorType: 'hinged', doorCount: 3 }));
+    run(sloped, moveCupboard(lid, id, top, 150));
+    run(sloped, moveCupboard(lid, id, top, 200, 'right'));
+    // the heights themselves are still checked when they change
+    expect(refuse(sloped, updateCupboard(lid, id, { plinth: 9 }))).toBe('Dimension invalide');
+    expect(refuse(sloped, updateCupboard(lid, id, { gap: 1 }))).toBe('Dimension invalide');
+    run(sloped, updateCupboard(lid, id, { plinth: 0, gap: 1 }));
+    run(sloped, updateCupboard(lid, id, { heightMode: 'fixed', height: 100 }));
+    // a new cupboard there is refused, as before
+    expect(refuse(sloped, addCupboard(lid, createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: 10, gap: 2 })))).toBe('Dimension invalide');
   });
 });

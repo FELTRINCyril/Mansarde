@@ -136,6 +136,58 @@ describe('height under the ceiling', () => {
   });
 });
 
+describe('cupboard top under its plinth (ruling V2-R36)', () => {
+  /** Ceiling-mode cupboard x 150..270 on the top wall, y 0..60, plinth 10, gap 2. */
+  function low(heightEnd: number): { level: Level; c: Cupboard } {
+    const level = room();
+    const c = addCupboard(level, topWall(level), 220, { doorType: 'sliding', heightMode: 'ceiling', plinth: 10, gap: 2, depth: 60 });
+    // the ceiling goes down from 250 at y = 0 to heightEnd at y = 60 (the front of the cupboard)
+    const s = createSlope({ x: -50, y: 0 }, { x: 450, y: 0 }, 'left', 60, 250, heightEnd);
+    level.slopes[s.id] = s;
+    return { level, c };
+  }
+
+  it('a slope added over a ceiling-mode cupboard leaves its top (6) under its plinth (10): error', () => {
+    const { level, c } = low(8);
+    expect(summary(ofKind(level, 'cupboardHeight'))).toEqual([
+      {
+        kind: 'cupboardHeight',
+        severity: 'error',
+        message: 'Placard : pas assez de hauteur sous le plafond.',
+        targets: [{ kind: 'cupboard', id: c.id }],
+      },
+    ]);
+    expect(checkSeverityByTarget(checks(level)).get(`cupboard:${c.id}`)).toBe('error');
+  });
+
+  it('top just above the plinth, a fixed cupboard or no slope: nothing', () => {
+    const { level } = low(12.5); // top 10.5
+    expect(ofKind(level, 'cupboardHeight')).toEqual([]);
+    const { level: fixed, c: f } = low(8);
+    fixed.cupboards[f.id] = { ...f, heightMode: 'fixed', height: 100 };
+    expect(ofKind(fixed, 'cupboardHeight')).toEqual([]);
+    const flat = room();
+    addCupboard(flat, topWall(flat), 220, { doorType: 'sliding', heightMode: 'ceiling', plinth: 10, gap: 2, depth: 60 });
+    expect(ofKind(flat, 'cupboardHeight')).toEqual([]);
+  });
+
+  it('a level height lowered under gap + plinth, or a beam: error, with the display name', () => {
+    const level = room();
+    addCupboard(level, topWall(level), 100, { doorType: 'sliding', heightMode: 'ceiling', plinth: 10, gap: 2 });
+    addCupboard(level, topWall(level), 300, { doorType: 'sliding', heightMode: 'ceiling', plinth: 10, gap: 2 });
+    level.height = 12;
+    expect(ofKind(level, 'cupboardHeight').map((x) => x.message)).toEqual([
+      'Placard (1) : pas assez de hauteur sous le plafond.',
+      'Placard (2) : pas assez de hauteur sous le plafond.',
+    ]);
+    const beamed = room();
+    const b = createBeam({ x: 0, y: 30 }, { x: 400, y: 30 }, { mode: 'fixed', bottom: 11 });
+    beamed.beams[b.id] = b;
+    addCupboard(beamed, topWall(beamed), 100, { id: 'beamed', doorType: 'sliding', heightMode: 'ceiling', plinth: 10, gap: 2 });
+    expect(ofKind(beamed, 'cupboardHeight').map((x) => x.targets)).toEqual([[{ kind: 'cupboard', id: 'beamed' }]]);
+  });
+});
+
 describe('collisions', () => {
   it('bed and desk overlapping: error', () => {
     const level = room();

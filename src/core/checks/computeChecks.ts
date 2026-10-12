@@ -2,7 +2,7 @@ import { deriveVolumes, type DerivedLevel } from '../geometry/derived';
 import type { CustomObjectDef, Id, Level } from '../model/types';
 import { buildContext } from './context';
 import { collisionChecks } from './rules/collisions';
-import { cupboardClearanceChecks, cupboardOpeningChecks } from './rules/cupboards';
+import { cupboardClearanceChecks, cupboardHeightChecks, cupboardOpeningChecks } from './rules/cupboards';
 import { doorSwingChecks } from './rules/doorSwing';
 import { heightChecks } from './rules/height';
 import { floatingChecks } from './rules/support';
@@ -13,7 +13,8 @@ interface Memo { derived: DerivedLevel; customObjects: Record<Id, CustomObjectDe
 const memo = new WeakMap<Level, Memo>();
 
 /**
- * The non-blocking checks of a level (spec 5.4), in rule order: height, collisions, wall overlap,
+ * The non-blocking checks of a level (spec 5.4), in rule order: height, cupboard top under its
+ * plinth (ruling V2-R36), collisions, wall overlap,
  * door swing, cupboard in front of an opening, floating objects, cupboard clearance. Memoized by
  * the identity of the level and of customObjects (levels are immutable; `d` must be
  * deriveLevel(level), it is part of the key only as a safeguard). The returned array is shared:
@@ -25,6 +26,7 @@ export function computeChecks(level: Level, d: DerivedLevel, customObjects: Reco
   const ctx = buildContext(level, d, deriveVolumes(level), customObjects);
   const checks = [
     ...heightChecks(ctx),
+    ...cupboardHeightChecks(ctx),
     ...collisionChecks(ctx),
     ...wallOverlapChecks(ctx),
     ...doorSwingChecks(ctx),
