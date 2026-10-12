@@ -5,6 +5,7 @@ import { updateOpening } from '@/core/commands/openings';
 import { setWallHeight, setWallLength, setWallThickness } from '@/core/commands/walls';
 import { manualDimLine } from '@/core/geometry/autoDimensions';
 import { deriveLevel } from '@/core/geometry/derived';
+import { wallFaceLengths } from '@/core/geometry/wallFaces';
 import { formatArea, formatLength } from '@/core/model/format';
 import type { Level, OpeningKind, OpeningVariant } from '@/core/model/types';
 import { changeOpeningKind } from '@/editor/changeOpeningKind';
@@ -66,6 +67,8 @@ function WallProperties({ level, id }: { level: Level; id: string }): JSX.Elemen
   const a = wall && level.nodes[wall.startNodeId];
   const b = wall && level.nodes[wall.endNodeId];
   if (!wall || !a || !b) return null;
+  // spec 6: the length of each face, read only ("Face gauche" as in the wall tool, ruling V2-R22)
+  const faces = wallFaceLengths(level, deriveLevel(level), id);
   return (
     <Section title="Mur">
       <NumericInput
@@ -83,6 +86,8 @@ function WallProperties({ level, id }: { level: Level; id: string }): JSX.Elemen
         ]}
         onChange={setKeep}
       />
+      {faces && <ReadOnly label="Face gauche" value={formatLength(faces.left)} testId="wall-face-left" />}
+      {faces && <ReadOnly label="Face droite" value={formatLength(faces.right)} testId="wall-face-right" />}
       <NumericInput
         label="Épaisseur"
         valueCm={wall.thickness}

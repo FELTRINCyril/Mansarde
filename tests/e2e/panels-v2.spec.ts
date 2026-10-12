@@ -469,6 +469,33 @@ test('room panel: "La pièce voisine sera modifiée." when the moving wall is sh
   await expect(page.getByTestId('room-width')).toHaveValue('260');
 });
 
+test('wall panel: the length of each face of the wall, read only (spec 6)', async ({ page }) => {
+  await createProject(page, 'Faces');
+  await interiorRoom(page);
+  // the top wall: its axis is at y = -10, from x = -10 to 410
+  await clickWorld(page, { x: 200, y: -10 });
+  await expect(page.getByTestId('wall-length')).toHaveValue('420');
+  // "Face gauche" is the +perp(direction) face (ruling V2-R22): the room side for a wall drawn towards +x
+  const towardsPlusX = await page.evaluate(() => {
+    const st = window.__planMaison!.store.getState();
+    const level = st.project!.levels.find((l) => l.id === st.activeLevelId)!;
+    const w = Object.values(level.walls).find((x) => level.nodes[x.startNodeId]!.y === -10 && level.nodes[x.endNodeId]!.y === -10)!;
+    return level.nodes[w.endNodeId]!.x > level.nodes[w.startNodeId]!.x;
+  });
+  const [inner, outer] = ['4,00 m', '4,40 m'];
+  await expect(page.getByTestId('wall-face-left')).toHaveText(towardsPlusX ? inner : outer);
+  await expect(page.getByTestId('wall-face-right')).toHaveText(towardsPlusX ? outer : inner);
+  // read only: no input, and they follow the room when it changes
+  await expect(page.locator('input[data-testid^="wall-face"]')).toHaveCount(0);
+  // the left wall 40 cm thick (axis kept at x = -10): the inner face of the top wall starts at x = 10, its outer face at x = -30
+  await clickWorld(page, { x: -10, y: 150 });
+  await page.getByTestId('wall-thickness').fill('40');
+  await page.keyboard.press('Enter');
+  await clickWorld(page, { x: 200, y: -10 });
+  await expect(page.getByTestId(towardsPlusX ? 'wall-face-left' : 'wall-face-right')).toHaveText('3,90 m');
+  await expect(page.getByTestId(towardsPlusX ? 'wall-face-right' : 'wall-face-left')).toHaveText('4,50 m');
+});
+
 // Visual check of the panels (spec 12), only with SHOT_DIR set (like visual.spec).
 test('screenshots of the V2 panels', async ({ page }) => {
   const dir = process.env.SHOT_DIR;
