@@ -29,6 +29,15 @@ la sélection, les niveaux et l'image de fond. Les pentes, poutres et placards o
 - Une modification impossible (mur trop court pour ses ouvertures, dimension trop petite...) est
   refusée : le projet ne change pas et un message en bas de l'écran explique pourquoi.
 
+## Se déplacer dans le plan
+
+- **Trackpad** : deux doigts pour déplacer la vue, pincer pour zoomer.
+- **Souris** : la molette zoome autour du curseur ; glisser avec le clic droit (ou le bouton du
+  milieu) déplace la vue ; Maj + molette déplace horizontalement.
+- **Clavier** : Espace + glisser déplace la vue ; sans sélection, les flèches la déplacent ; 0
+  affiche tout le niveau.
+- Le "?" en bas à gauche du plan rappelle ces gestes.
+
 ## Réglages du projet
 
 Le bouton "Réglages" ouvre "Réglages du projet" :
@@ -84,6 +93,11 @@ Le curseur s'accroche, dans cet ordre de priorité, à moins de 8 pixels à l'é
    l'indique) ;
 4. aux angles multiples de 15 degrés par rapport au point précédent ;
 5. à la grille.
+
+Un repère sous le curseur montre où le point va s'accrocher : un carré sur une jonction, un
+losange sur un mur (milieu, axe ou face), une croix sur la grille ou ailleurs. Le même repère
+s'affiche quand vous tracez une pente ou une poutre, et quand vous déplacez avec l'outil
+Sélection un angle de pièce, une extrémité de mur, ou l'extrémité d'une pente ou d'une poutre.
 
 Maj force les angles droits. Alt désactive le magnétisme tant qu'il est maintenu.
 
@@ -245,9 +259,12 @@ sortir de l'intervalle entre ses deux obstacles ("Pas assez de place sur ce mur"
 - **Plusieurs éléments** : le panneau "Sélection" indique leur nombre et les propriétés
   communes (murs : épaisseur et hauteur ; objets : hauteur, hauteur de pose et couleur).
 - **Déplacer** : glissez la sélection, ou utilisez les flèches (1 cm, 10 cm avec Maj). Chaque
-  geste compte pour une seule étape d'annulation.
+  geste compte pour une seule étape d'annulation. Sans sélection, les flèches déplacent la vue.
 - **Supprimer** : touche Suppr, Retour arrière, ou bouton "Supprimer" du panneau.
-- **Copier, coller, dupliquer** : Ctrl+C, Ctrl+V, Ctrl+D, pour les objets.
+- **Dupliquer** : bouton "Dupliquer" du panneau (au-dessus de "Supprimer") ou Ctrl+D, pour les
+  objets, placards, pentes et poutres. La copie garde toutes les propriétés, est décalée de
+  20 cm et sélectionnée, prête à être déplacée ; une seule annulation la retire.
+- **Copier, coller** : Ctrl+C, Ctrl+V, pour les objets (coller à nouveau continue le décalage).
 - **Annuler, rétablir** : Ctrl+Z, Ctrl+Maj+Z ou Ctrl+Y, ou les boutons de l'en-tête.
   L'historique dure jusqu'à la fermeture du projet.
 

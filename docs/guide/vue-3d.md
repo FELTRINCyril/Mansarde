@@ -24,8 +24,10 @@ fonctionner.
 ## Naviguer
 
 - Glisser avec le bouton gauche : tourner autour de la scène.
-- Glisser avec le bouton droit : déplacer la vue.
-- Molette : zoomer.
+- Déplacer la vue : deux doigts sur le trackpad, glisser avec le bouton droit, ou Maj + glisser.
+- Zoomer : pincer sur le trackpad, ou molette.
+- Clavier : après un clic dans la 3D, les flèches déplacent la vue (Maj + flèches : tourner).
+- Le "?" en bas à gauche de la vue rappelle ces gestes.
 
 La caméra ne passe pas sous le sol, et le zoom arrière est limité à la taille du niveau.
 

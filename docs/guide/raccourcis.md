@@ -34,7 +34,7 @@ Chaque outil a sa lettre, rappelée sous son icône dans la barre de gauche.
 | Tab dans le champ de saisie | Passe à la valeur suivante (profondeur d'une pièce, hauteur d'arrivée d'une pente) ; Maj+Tab revient |
 | Entrée dans le champ de saisie | Valide la valeur |
 | Ctrl maintenu pendant un clic de tracé (mur ou pièce) | Trace des cloisons (épaisseur des cloisons des réglages) |
-| Maj maintenu | Angles droits |
+| Maj maintenu | Angles droits (murs, pentes, poutres) |
 | Alt maintenu | Sans magnétisme ; les portes, fenêtres et placards se posent au millimètre |
 | Ctrl+Z pendant le tracé d'une pièce, d'une pente ou d'une poutre | Abandonne le tracé en cours |
 | Échap | Abandonne le tracé en cours (pièce, cote, pente, poutre) ; sans tracé en cours, les outils Porte, Fenêtre, Cote, Pente, Poutre et Placard reviennent à l'outil Sélection. Avec l'outil Mur, Échap termine la suite de murs ; pendant la saisie des hauteurs d'une pente, il crée la pente avec les valeurs déjà données |
@@ -52,7 +52,8 @@ Chaque outil a sa lettre, rappelée sous son icône dans la barre de gauche.
 | Double-clic dans une pièce | Renommer la pièce |
 | Double-clic sur une cote intérieure d'une pièce rectangulaire | Saisir la nouvelle dimension intérieure |
 | Tab pendant un déplacement, ou avec un objet ou une ouverture sélectionné | Choisit la cote de dégagement (Maj+Tab en arrière) ; taper une distance puis Entrée place l'élément à cette distance exacte |
-| Flèches | Décalent la sélection de 1 cm (10 cm avec Maj) |
+| Flèches (avec une sélection) | Décalent la sélection de 1 cm (10 cm avec Maj) |
+| Flèches (rien de sélectionné) | Déplacent la vue (plus grand pas avec Maj) |
 | Suppr ou Retour arrière | Supprime la sélection |
 | Échap | Annule l'opération en cours, puis vide la sélection |
 
@@ -64,7 +65,7 @@ Chaque outil a sa lettre, rappelée sous son icône dans la barre de gauche.
 | Ctrl+Maj+Z ou Ctrl+Y | Rétablir |
 | Ctrl+C | Copier les objets sélectionnés |
 | Ctrl+V | Coller (décalés de 20 cm ; coller à nouveau continue le décalage) |
-| Ctrl+D | Dupliquer les objets sélectionnés |
+| Ctrl+D | Dupliquer la sélection (objets, placards, pentes, poutres), comme le bouton "Dupliquer" du panneau |
 
 Pendant un glisser, Ctrl+Z, Ctrl+Maj+Z et Ctrl+Y abandonnent seulement le geste en cours.
 
@@ -72,17 +73,28 @@ Pendant un glisser, Ctrl+Z, Ctrl+Maj+Z et Ctrl+Y abandonnent seulement le geste 
 
 | Touche ou geste | Effet |
 |---|---|
-| Molette | Zoom autour du curseur |
-| Espace + glisser, ou glisser avec le bouton du milieu | Déplacer la vue |
+| Deux doigts sur le trackpad | Déplacer la vue |
+| Pincer (trackpad) | Zoom autour du curseur |
+| Molette, ou Ctrl + molette | Zoom autour du curseur |
+| Maj + molette | Déplacer la vue horizontalement |
+| Clic droit maintenu + glisser, clic du milieu, ou Espace + glisser | Déplacer la vue |
+| Flèches (rien de sélectionné) | Déplacer la vue (plus grand pas avec Maj) |
 | 0 | Tout afficher |
+
+Le navigateur ne dit pas si le mouvement vient d'une souris ou d'un trackpad : Mansarde le
+devine d'après la forme du mouvement. Si une molette déplace la vue au lieu de zoomer (certaines
+molettes à rotation libre), utilisez Ctrl + molette ou le pincement pour zoomer : ils zooment
+toujours, et le clic droit maintenu déplace toujours. Le "?" en bas à gauche du plan rappelle
+ces gestes.
 
 ## Vue 3D
 
 | Geste | Effet |
 |---|---|
 | Glisser avec le bouton gauche | Tourner autour de la scène |
-| Glisser avec le bouton droit | Déplacer la vue |
-| Molette | Zoomer |
+| Deux doigts sur le trackpad, glisser avec le bouton droit, ou Maj + glisser | Déplacer la vue |
+| Pincer (trackpad) ou molette | Zoomer |
+| Flèches, après un clic dans la 3D | Déplacer la vue (Maj + flèches : tourner) |
 | Clic sur un meuble, un placard ou une poutre | Le sélectionner |
 | Glisser la séparation (Plan + 3D) | Partager l'écran entre le plan et la 3D ; quand elle a le focus (touche Tab), les flèches gauche et droite la déplacent aussi |
 

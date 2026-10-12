@@ -73,7 +73,8 @@ Détail : [Combles](combles.md) et [Vérifications](verifications.md).
 ## 6. Regarder en 3D
 
 1. Cliquez "Plan + 3D" dans l'en-tête : la 3D s'affiche à côté du plan.
-2. Glissez dans la 3D pour tourner, molette pour zoomer, clic droit glissé pour déplacer la vue.
+2. Glissez dans la 3D pour tourner, pincez ou utilisez la molette pour zoomer, glissez à deux
+   doigts ou avec le clic droit pour déplacer la vue.
 3. Cliquez dans la pièce sur le plan, puis "Depuis la pièce sélectionnée" : vous êtes dans la
    chambre, à hauteur d'yeux.
 

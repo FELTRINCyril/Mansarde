@@ -17,6 +17,8 @@ sélectionné). Les pentes et les poutres le font descendre localement.
 ### Tracer une pente (touche T)
 
 1. Cliquez deux points : c'est la **ligne de départ**, là où le plafond commence à descendre.
+   Comme pour un mur, un repère montre où chaque point s'accroche (jonction, mur, face de mur,
+   grille) ; Maj garde la ligne horizontale ou verticale, Alt pose un point libre.
 2. Déplacez la souris : elle choisit le côté vers lequel le plafond descend et la
    **profondeur** de la pente (une cote dynamique l'affiche).
 3. Cliquez : un champ s'ouvre avec la "Hauteur au départ", préremplie avec la hauteur sous
@@ -69,8 +71,8 @@ Dans le PDF, la bande est teintée d'une couleur uniforme (sans dégradé).
 
 ### Poser une poutre (touche B)
 
-Cliquez les deux extrémités de la poutre (même magnétisme que les pentes, Alt pour un point
-libre). Elle est créée avec les valeurs par défaut et sélectionnée ; l'outil reste actif.
+Cliquez les deux extrémités de la poutre (même magnétisme et même repère que les pentes, Maj
+pour une poutre horizontale ou verticale, Alt pour un point libre). Elle est créée avec les valeurs par défaut et sélectionnée ; l'outil reste actif.
 
 ### Réglages (panneau "Poutre")
 
@@ -138,6 +140,14 @@ rouge, et le placard reprend sa place au lâcher. Les flèches du clavier le fon
 
 Le placard suit son mur quand celui-ci bouge. Si le mur devient trop court pour lui, la
 modification du mur est refusée. Supprimer le mur supprime le placard.
+
+### Dupliquer un placard
+
+Le bouton "Dupliquer" du panneau (ou Ctrl+D) crée un placard identique (largeur, profondeur,
+hauteur, socle, portes, couleur) contre la même face du mur : juste après l'original, sinon
+juste avant, sans jamais chevaucher un autre placard. S'il n'y a de place d'aucun côté, la copie
+est refusée avec le message "Pas assez de place sur ce mur pour un autre placard.". Les pentes
+et les poutres se dupliquent aussi, décalées de 20 cm.
 
 ### Sur le plan
 

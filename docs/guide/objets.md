@@ -112,7 +112,11 @@ bureau d'angle, un radiateur. Donnez-leur un nom et des dimensions.
   fixe.
 - **Distances exactes** : pendant le déplacement, les distances aux murs s'affichent ; Tab en
   choisit une, tapez la valeur, Entrée. Voir [Le plan 2D](plan-2d.md#cotes-dynamiques-et-distances-au-clavier).
-- **Copier, coller, dupliquer** : Ctrl+C, Ctrl+V, Ctrl+D. Les copies sont décalées de 20 cm.
+- **Dupliquer** : bouton "Dupliquer" du panneau ou Ctrl+D. La copie garde toutes les propriétés
+  (dimensions, rotation, couleur, pose, nom), est décalée de 20 cm et sélectionnée : pratique
+  pour poser plusieurs meubles identiques après en avoir réglé un. Un objet "Posé sur un meuble"
+  est reposé sur son support.
+- **Copier, coller** : Ctrl+C, Ctrl+V. Les copies sont décalées de 20 cm.
 
 ### Panneau "Objet"
 

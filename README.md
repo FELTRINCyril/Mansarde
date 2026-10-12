@@ -40,6 +40,7 @@ ordinateur.
   bain, escaliers).
 - Objets génériques (rectangle, cercle, forme en L) à enregistrer dans "Mes objets".
 - Modes de pose : au sol, tapis, posé sur un meuble, rangé sous une table, mural.
+- Bouton "Dupliquer" pour poser plusieurs meubles, placards, pentes ou poutres identiques.
 
 **Vérifications**
 - Contrôles automatiques et non bloquants : hauteur sous plafond, meubles qui se chevauchent,
@@ -49,6 +50,8 @@ ordinateur.
 
 **3D**
 - Vue 3D de consultation, seule ou à côté du plan, mise à jour en direct.
+- Navigation au trackpad (deux doigts pour se déplacer, pincer pour zoomer) comme à la souris
+  (molette pour zoomer, clic droit maintenu pour se déplacer), dans le plan comme en 3D.
 - Vues prédéfinies (ensemble, dessus, depuis la pièce), murs masqués automatiquement, noms des
   objets, niveaux inférieurs.
 
