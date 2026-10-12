@@ -83,8 +83,9 @@ test('selection tool: select, drag, undo, delete, rectangle, rename a room', asy
   await dragOnPage(page, await onPage(page, { x: 40, y: 30 }), await onPage(page, { x: 360, y: 270 }));
   await expect(page.getByTestId('selection-count')).toHaveText('2 éléments sélectionnés');
 
-  // double-click in the room, type a name: the letters never reach the shortcuts
-  p = await onPage(page, { x: 200, y: 40 });
+  // double-click in the room, type a name: the letters never reach the shortcuts (away from the
+  // interior dimension texts, whose double-click edits the room size since V2)
+  p = await onPage(page, { x: 200, y: 80 });
   await page.mouse.dblclick(p.x, p.y);
   const input = page.getByTestId('room-rename');
   await expect(input).toBeFocused();
@@ -179,7 +180,8 @@ test('interrupted drags commit nothing; shortcuts work after a checkbox; rename 
   await expectUnmoved();
   await expect(page.locator('[data-kind="object"]')).toHaveCount(1);
 
-  // a focused checkbox does not swallow the shortcuts
+  // a focused checkbox does not swallow the shortcuts (the grid option is in the "Affichage" menu)
+  await page.getByTestId('display-menu').click();
   await page.getByRole('checkbox', { name: 'Grille' }).click();
   await expect(page.getByRole('checkbox', { name: 'Grille' })).toBeFocused();
   await page.keyboard.press('ControlOrMeta+z');

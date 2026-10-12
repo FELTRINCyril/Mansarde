@@ -1,11 +1,13 @@
 import type { Draft } from 'immer';
 import { newId } from '../model/ids';
-import type { Id, Level, PlacedObject, Project, Vec2 } from '../model/types';
+import { OBJECT_POSES } from '../model/types';
+import type { Id, Level, ObjectPose, PlacedObject, Project, Vec2 } from '../model/types';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
 
 const ERR_OBJECT_NOT_FOUND = 'Objet introuvable';
 const ERR_SIZE = 'Dimension invalide';
 const ERR_POSITION = 'Position invalide';
+const ERR_POSE = 'Pose invalide';
 
 type DLevel = Draft<Level>;
 
@@ -27,6 +29,10 @@ function requireSize(o: Pick<PlacedObject, 'width' | 'depth' | 'height' | 'eleva
   }
 }
 
+function requirePose(pose: unknown): void {
+  if (!(OBJECT_POSES as readonly unknown[]).includes(pose as ObjectPose)) throw new CommandError(ERR_POSE);
+}
+
 function requireFinitePoint(p: Vec2): void {
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new CommandError(ERR_POSITION);
 }
@@ -36,6 +42,7 @@ function requireValidObject(draft: Draft<Project>, o: PlacedObject): void {
   requireSize(o);
   requireFinitePoint(o);
   if (!Number.isFinite(o.rotation)) throw new CommandError(ERR_POSITION);
+  requirePose(o.pose);
   if (o.source.kind === 'custom' && !draft.customObjects[o.source.customObjectId]) {
     throw new CommandError(ERR_OBJECT_NOT_FOUND);
   }
@@ -94,7 +101,7 @@ export function setObjectTransform(levelId: Id, id: Id, t: { x?: number; y?: num
   };
 }
 
-/** width, depth and height must be finite and positive, elevation finite and >= 0. */
+/** width, depth and height must be finite and positive, elevation finite and >= 0, pose one of OBJECT_POSES. */
 export function updateObject(
   levelId: Id,
   id: Id,
@@ -110,6 +117,7 @@ export function updateObject(
     requireSize(next);
     requireFinitePoint(next);
     if (!Number.isFinite(next.rotation)) throw new CommandError(ERR_POSITION);
+    requirePose(next.pose);
     next.rotation = normalizeRotation(next.rotation);
 
     let changed = false;

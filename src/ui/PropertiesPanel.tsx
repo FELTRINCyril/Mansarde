@@ -5,6 +5,7 @@ import { updateOpening } from '@/core/commands/openings';
 import { setWallHeight, setWallLength, setWallThickness } from '@/core/commands/walls';
 import { manualDimLine } from '@/core/geometry/autoDimensions';
 import { deriveLevel } from '@/core/geometry/derived';
+import { wallFaceLengths } from '@/core/geometry/wallFaces';
 import { formatArea, formatLength } from '@/core/model/format';
 import type { Level, OpeningKind, OpeningVariant } from '@/core/model/types';
 import { changeOpeningKind } from '@/editor/changeOpeningKind';
@@ -19,6 +20,11 @@ import { Choice, ReadOnly, Section } from './fields';
 import { run } from './run';
 import { MultiProperties } from './MultiProperties';
 import { ObjectProperties } from './ObjectProperties';
+import { BeamProperties } from './BeamProperties';
+import { ChecksPanel } from './ChecksPanel';
+import { CupboardProperties } from './CupboardProperties';
+import { RoomSizeFields } from './RoomSizeFields';
+import { SlopeProperties } from './SlopeProperties';
 
 function DeleteButton({ selection }: { selection: SelectionItem[] }): JSX.Element | null {
   if (deletableCount(selection) === 0) return null;
@@ -61,6 +67,8 @@ function WallProperties({ level, id }: { level: Level; id: string }): JSX.Elemen
   const a = wall && level.nodes[wall.startNodeId];
   const b = wall && level.nodes[wall.endNodeId];
   if (!wall || !a || !b) return null;
+  // spec 6: the length of each face, read only ("Face gauche" as in the wall tool, ruling V2-R22)
+  const faces = wallFaceLengths(level, deriveLevel(level), id);
   return (
     <Section title="Mur">
       <NumericInput
@@ -78,6 +86,8 @@ function WallProperties({ level, id }: { level: Level; id: string }): JSX.Elemen
         ]}
         onChange={setKeep}
       />
+      {faces && <ReadOnly label="Face gauche" value={formatLength(faces.left)} testId="wall-face-left" />}
+      {faces && <ReadOnly label="Face droite" value={formatLength(faces.right)} testId="wall-face-right" />}
       <NumericInput
         label="Épaisseur"
         valueCm={wall.thickness}
@@ -175,6 +185,7 @@ function RoomProperties({ level, id }: { level: Level; id: string }): JSX.Elemen
     <Section title="Pièce">
       <TextField label="Nom" value={room.label?.name ?? ''} placeholder={room.name} allowBlank testId="room-name" onCommit={rename} />
       <ReadOnly label="Surface" value={formatArea(room.area)} testId="room-area" />
+      <RoomSizeFields level={level} roomKey={room.key} />
     </Section>
   );
 }
@@ -222,10 +233,19 @@ function SingleItem({ level, item }: { level: Level; item: SelectionItem }): JSX
       return <DimensionProperties level={level} id={item.id} />;
     case 'node':
       return <NodeProperties level={level} id={item.id} />;
+    case 'slope':
+      return <SlopeProperties level={level} id={item.id} />;
+    case 'beam':
+      return <BeamProperties level={level} id={item.id} />;
+    case 'cupboard':
+      return <CupboardProperties level={level} id={item.id} />;
   }
 }
 
-/** Right panel: properties of the selection, or of the active level when nothing is selected. */
+/**
+ * Right panel: the checks of the active level (collapsible), then the properties of the selection,
+ * or of the active level when nothing is selected.
+ */
 export function PropertiesPanel(): JSX.Element | null {
   const level = useEditor(activeLevel);
   const selection = useEditor((s) => s.selection);
@@ -233,6 +253,7 @@ export function PropertiesPanel(): JSX.Element | null {
   const single = selection.length === 1 ? selection[0]! : null;
   return (
     <aside className="properties" aria-label="Propriétés" data-testid="properties-panel">
+      <ChecksPanel />
       {selection.length === 0 && <LevelProperties key={level.id} level={level} />}
       {selection.length === 0 && <BackgroundPanel key={`bg:${level.id}`} level={level} />}
       {single && <SingleItem key={`${single.kind}:${single.id}`} level={level} item={single} />}

@@ -11,6 +11,9 @@ function exists(item: SelectionItem, level: Level, roomKeys: Set<string>): boole
     case 'node': return Object.hasOwn(level.nodes, item.id);
     case 'wall': return Object.hasOwn(level.walls, item.id);
     case 'dimension': return Object.hasOwn(level.dimensions, item.id);
+    case 'slope': return Object.hasOwn(level.slopes, item.id);
+    case 'beam': return Object.hasOwn(level.beams, item.id);
+    case 'cupboard': return Object.hasOwn(level.cupboards, item.id);
     // 'room-<index>' keys of unlabelled rooms are unstable: such a selection may legitimately disappear
     case 'room': return roomKeys.has(item.id);
   }

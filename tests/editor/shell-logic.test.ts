@@ -5,7 +5,7 @@ import { addOpening } from '@/core/commands/openings';
 import { addObject } from '@/core/commands/objects';
 import { addCustomObject } from '@/core/commands/project';
 import { addLevel } from '@/core/commands/levels';
-import { createObjectFromSize, createOpening } from '@/core/model/factory';
+import { createBeam, createCupboard, createObjectFromSize, createOpening, createSlope } from '@/core/model/factory';
 import type { Project } from '@/core/model/types';
 import { deleteSelectionRecipe } from '@/editor/deleteSelection';
 import { nextLevelName } from '@/editor/levelNames';
@@ -33,13 +33,27 @@ describe('objectFromRef', () => {
       x: 100, y: 50, rotation: 0, width: 90, depth: 190, name: 'Lit 90', lshape: null,
     });
   });
+  it('applies the default elevation of a catalog entry and keeps 0 otherwise', () => {
+    expect(objectFromRef(emptyProject(), 'catalog:tv-wall', { x: 0, y: 0 })).toMatchObject({ pose: 'wall', elevation: 110 });
+    expect(objectFromRef(emptyProject(), 'catalog:shelf-wall', { x: 0, y: 0 })).toMatchObject({ pose: 'wall', elevation: 150 });
+    expect(objectFromRef(emptyProject(), 'catalog:bed-90', { x: 0, y: 0 })?.elevation).toBe(0);
+  });
+
+  it('takes the default pose of the catalog entry or of the custom definition', () => {
+    expect(objectFromRef(emptyProject(), 'catalog:chair', { x: 0, y: 0 })?.pose).toBe('tuckable');
+    expect(objectFromRef(emptyProject(), 'catalog:bed-90', { x: 0, y: 0 })?.pose).toBe('floor');
+    const p = ok(emptyProject(), addCustomObject({
+      id: 'c9', name: 'Tapis', shape: 'rect', width: 150, depth: 70, height: 1, color: '#aabbcc', lshape: null, pose: 'covering',
+    }));
+    expect(objectFromRef(p, 'custom:c9', { x: 0, y: 0 })?.pose).toBe('covering');
+  });
   it('gives the L generic its default notch', () => {
     const o = objectFromRef(emptyProject(), 'catalog:generic-lshape', { x: 0, y: 0 });
     expect(o?.lshape).toEqual({ notchWidth: 120, notchDepth: 90 });
   });
   it('builds a custom object from the project definition', () => {
     const p = ok(emptyProject(), addCustomObject({
-      id: 'c1', name: 'Établi', shape: 'rect', width: 150, depth: 70, height: 90, color: '#aabbcc', lshape: null,
+      id: 'c1', name: 'Établi', shape: 'rect', width: 150, depth: 70, height: 90, color: '#aabbcc', lshape: null, pose: 'floor',
     }));
     const o = objectFromRef(p, 'custom:c1', { x: 5, y: 6 });
     expect(o).toMatchObject({
@@ -108,6 +122,33 @@ describe('deleteSelectionRecipe', () => {
     expect(lvl(next).walls[top]).toBeUndefined();
     const r = applyCommand(p, deleteSelectionRecipe(L, [{ kind: 'room', id: 'x' }]));
     expect(r.ok && r.patches.length).toBe(0);
+  });
+  it('deletes selected slopes, beams and cupboards, a cupboard of a deleted wall only once', () => {
+    let p = projectFrom(rectRoom(0, 0, 400, 300), (level) => {
+      const s = createSlope({ x: 200, y: 0 }, { x: 200, y: 300 }, 'right', 200, 250);
+      level.slopes[s.id] = s;
+      const b = createBeam({ x: 100, y: 0 }, { x: 100, y: 300 });
+      level.beams[b.id] = b;
+      const top = findWall(level, 0, 0, 400, 0);
+      for (const offset of [100, 300]) {
+        const c = createCupboard(top, offset, 'left');
+        level.cupboards[c.id] = c;
+      }
+    });
+    const L = levelId(p);
+    const level = lvl(p);
+    const [c1, c2] = Object.keys(level.cupboards);
+    const next = run(p, deleteSelectionRecipe(L, [
+      { kind: 'slope', id: Object.keys(level.slopes)[0]! },
+      { kind: 'beam', id: Object.keys(level.beams)[0]! },
+      { kind: 'cupboard', id: c1! },
+      { kind: 'wall', id: findWall(level, 0, 0, 400, 0) },
+    ]));
+    expect(lvl(next).slopes).toEqual({});
+    expect(lvl(next).beams).toEqual({});
+    expect(lvl(next).cupboards).toEqual({});
+    p = run(p, deleteSelectionRecipe(L, [{ kind: 'cupboard', id: c2! }]));
+    expect(Object.keys(lvl(p).cupboards)).toEqual([c1]);
   });
 });
 
@@ -184,7 +225,7 @@ describe('objectFromRef L shapes (R22)', () => {
   it('copies the L notch of a custom definition into the placed object', () => {
     const p = ok(emptyProject(), addCustomObject({
       id: 'c2', name: 'Bureau en L', shape: 'lshape', width: 180, depth: 160, height: 75, color: '#ccbbaa',
-      lshape: { notchWidth: 100, notchDepth: 90 },
+      lshape: { notchWidth: 100, notchDepth: 90 }, pose: 'floor',
     }));
     const o = objectFromRef(p, 'custom:c2', { x: 0, y: 0 })!;
     expect(o.lshape).toEqual({ notchWidth: 100, notchDepth: 90 });

@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import { getCatalogEntry } from '@/catalog/catalog';
 import { GenericSymbol, SYMBOLS } from '@/catalog/symbols';
+import { objectsInDrawOrder } from '@/core/geometry/objects';
 import type { CustomObjectDef, Id, PlacedObject } from '@/core/model/types';
 import { num, STYLE } from '../style';
 
@@ -28,7 +29,10 @@ function ObjectSymbol({ o, customObjects, lineUnit }: { o: PlacedObject; customO
   return <GenericSymbol {...common} shape={shape} lshape={o.lshape} />;
 }
 
-/** Furniture, in record order (last = on top, like hitTest). Fill = object color at 35 % opacity. */
+/**
+ * Furniture in drawing order (objectsInDrawOrder: rugs first, then record order; last = on top,
+ * like hitTest). Fill = object color at 35 % opacity.
+ */
 export function ObjectsLayer({
   objects,
   customObjects,
@@ -40,7 +44,7 @@ export function ObjectsLayer({
 }): JSX.Element {
   return (
     <g data-kind="objects">
-      {Object.values(objects).map((o) => (
+      {objectsInDrawOrder(objects).map((o) => (
         <g
           key={o.id}
           data-kind="object"

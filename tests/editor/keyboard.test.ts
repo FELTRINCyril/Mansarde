@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addObject } from '@/core/commands/objects';
+import { addBeam } from '@/core/commands/beams';
+import { addCupboard } from '@/core/commands/cupboards';
+import { addObject, updateObject } from '@/core/commands/objects';
+import { addSlope } from '@/core/commands/slopes';
 import { addRectRoom } from '@/core/commands/walls';
-import { createObjectFromSize } from '@/core/model/factory';
+import { cupboardFootprint } from '@/core/geometry/cupboards';
+import { createBeam, createCupboard, createObjectFromSize, createSlope } from '@/core/model/factory';
 import type { Id, PlacedObject } from '@/core/model/types';
 import { deleteSelection, handleGlobalKey, isTypingTarget } from '@/editor/keyboard';
 import { createEditorStore, type EditorStore } from '@/editor/store';
@@ -181,9 +185,9 @@ describe('keyboard guard (Review Focus 1)', () => {
 });
 
 describe('handleGlobalKey', () => {
-  it('switches tools with V M R P F C', () => {
+  it('switches tools with V M R P F C T B K', () => {
     const { store, ctx } = setup();
-    const expected: Array<[string, string]> = [['m', 'wall'], ['r', 'rect'], ['p', 'door'], ['f', 'window'], ['c', 'dimension'], ['V', 'select']];
+    const expected: Array<[string, string]> = [['m', 'wall'], ['r', 'rect'], ['p', 'door'], ['f', 'window'], ['c', 'dimension'], ['t', 'slope'], ['b', 'beam'], ['k', 'cupboard'], ['V', 'select']];
     for (const [k, tool] of expected) {
       expect(handleGlobalKey(key({ key: k }), store, ctx)).toBe(true);
       expect(store.getState().tool).toBe(tool);
@@ -382,5 +386,135 @@ describe('deleteSelection', () => {
     deleteSelection(store);
     expect(store.getState().history).toBe(before.history);
     expect(store.getState().selection).toBe(before.selection);
+  });
+});
+
+describe('arrows, paste and duplicate with the V2 elements (final wave M5)', () => {
+  /** Room 400 x 300 on the axes (walls 20 cm), a slope, a beam, a cupboard on the top wall and a box. */
+  function scene() {
+    const store = createEditorStore();
+    const p = emptyProject();
+    store.getState().openProject(p);
+    const levelId = p.levels[0]!.id;
+    const s = store.getState();
+    s.execute('Room', addRectRoom(levelId, { x: 0, y: 0 }, { x: 400, y: 300 }, 20, 250));
+    const level = store.getState().project!.levels[0]!;
+    const top = Object.values(level.walls).find((w) => level.nodes[w.startNodeId]!.y === 0 && level.nodes[w.endNodeId]!.y === 0)!;
+    const towardsPlusX = level.nodes[top.endNodeId]!.x > level.nodes[top.startNodeId]!.x;
+    const slope = createSlope({ x: 50, y: 150 }, { x: 350, y: 150 }, 'left', 100, 250);
+    const beam = createBeam({ x: 50, y: 200 }, { x: 350, y: 200 });
+    // offset 200 from either end: centered at x = 200; on the room side (+y)
+    const cupboard = createCupboard(top.id, 200, towardsPlusX ? 'left' : 'right', { doorType: 'sliding' });
+    const o = box(200, 250);
+    s.execute('Pente', addSlope(levelId, slope));
+    s.execute('Poutre', addBeam(levelId, beam));
+    s.execute('Placard', addCupboard(levelId, cupboard));
+    s.execute('Objet', addObject(levelId, o));
+    const lv = () => store.getState().project!.levels[0]!;
+    const cupboardX = () => {
+      const ring = cupboardFootprint(lv(), lv().cupboards[cupboard.id]!);
+      return ring.reduce((sum, q) => sum + q.x, 0) / 4;
+    };
+    return { store, ctx: ctxOf(store), levelId, top, slope, beam, cupboard, o, lv, cupboardX };
+  }
+
+  it('a mixed selection moves the objects, slopes, beams and cupboards like a drag, in one history entry', () => {
+    const { store, ctx, slope, beam, cupboard, o, lv, cupboardX } = scene();
+    store.getState().setSelection([
+      { kind: 'object', id: o.id },
+      { kind: 'slope', id: slope.id },
+      { kind: 'beam', id: beam.id },
+      { kind: 'cupboard', id: cupboard.id },
+    ]);
+    const entries = store.getState().history.past.length;
+    expect(handleGlobalKey(key({ key: 'ArrowRight', shiftKey: true }), store, ctx)).toBe(true);
+    expect(lv().objects[o.id]).toMatchObject({ x: 210, y: 250 });
+    expect(lv().slopes[slope.id]).toMatchObject({ a: { x: 60, y: 150 }, b: { x: 360, y: 150 } });
+    expect(lv().beams[beam.id]).toMatchObject({ a: { x: 60, y: 200 }, b: { x: 360, y: 200 } });
+    expect(cupboardX()).toBeCloseTo(210, 9);
+    expect(store.getState().history.past.length).toBe(entries + 1);
+    // across its wall, a cupboard does not move (it slides along its wall only); the rest does
+    handleGlobalKey(key({ key: 'ArrowDown' }), store, ctx);
+    expect(cupboardX()).toBeCloseTo(210, 9);
+    expect(lv().slopes[slope.id]!.a).toEqual({ x: 60, y: 151 });
+    handleGlobalKey(mod('z'), store, ctx);
+    handleGlobalKey(mod('z'), store, ctx);
+    expect(cupboardX()).toBeCloseTo(200, 9);
+    expect(lv().slopes[slope.id]!.a).toEqual({ x: 50, y: 150 });
+  });
+
+  it('a cupboard alone slides along its wall and stops at the corner (free stretch of its face)', () => {
+    const { store, ctx, cupboard, cupboardX } = scene();
+    store.getState().setSelection([{ kind: 'cupboard', id: cupboard.id }]);
+    handleGlobalKey(key({ key: 'ArrowLeft', shiftKey: true }), store, ctx);
+    expect(cupboardX()).toBeCloseTo(190, 9);
+    // x 70..190 + 15 steps of 10: the inner face of the left wall (x = 10) stops it at x 10..130
+    for (let i = 0; i < 15; i++) handleGlobalKey(key({ key: 'ArrowLeft', shiftKey: true }), store, ctx);
+    expect(cupboardX()).toBeCloseTo(70, 9);
+  });
+
+  it('a cupboard whose wall is nudged too follows its wall only once', () => {
+    const { store, ctx, top, cupboard, cupboardX } = scene();
+    store.getState().setSelection([
+      { kind: 'wall', id: top.id },
+      { kind: 'cupboard', id: cupboard.id },
+    ]);
+    handleGlobalKey(key({ key: 'ArrowRight', shiftKey: true }), store, ctx);
+    expect(cupboardX()).toBeCloseTo(210, 9);
+  });
+
+  /** A TV unit 160 x 45 x 50 at (200, 100) and a TV (onTop) on it, selected. */
+  function tvOnUnit() {
+    const env = setup();
+    const { store, levelId } = env;
+    const unit = createObjectFromSize({ kind: 'catalog', catalogId: 'tv-unit' }, 200, 100, { width: 160, depth: 45, height: 50 }, 'Meuble TV', '#888');
+    const tv = createObjectFromSize({ kind: 'catalog', catalogId: 'tv' }, 200, 110, { width: 100, depth: 20, height: 60 }, 'TV', '#222', { pose: 'onTop', elevation: 50 });
+    store.getState().execute('Unit', addObject(levelId, unit));
+    store.getState().execute('TV', addObject(levelId, tv));
+    store.getState().setSelection([{ kind: 'object', id: tv.id }]);
+    return { ...env, unit, tv };
+  }
+
+  it('an onTop object nudged off its support goes down to the floor, back on it goes up, one entry per key', () => {
+    const { store, ctx, tv } = tvOnUnit();
+    const entries = store.getState().history.past.length;
+    handleGlobalKey(key({ key: 'ArrowDown', shiftKey: true }), store, ctx); // y 120: still on the unit (77.5..122.5)
+    expect(objectAt(store, tv.id)).toMatchObject({ y: 120, elevation: 50 });
+    handleGlobalKey(key({ key: 'ArrowDown', shiftKey: true }), store, ctx); // y 130: off it
+    expect(objectAt(store, tv.id)).toMatchObject({ y: 130, elevation: 0 });
+    expect(store.getState().history.past.length).toBe(entries + 2);
+    handleGlobalKey(mod('z'), store, ctx);
+    expect(objectAt(store, tv.id)).toMatchObject({ y: 120, elevation: 50 });
+  });
+
+  it('paste and duplicate re-settle an onTop copy: off the unit at +20 +20 it lands on the floor', () => {
+    const { store, ctx, tv } = tvOnUnit();
+    const entries = store.getState().history.past.length;
+    handleGlobalKey(mod('d'), store, ctx);
+    const dup = objects(store).find((o) => o.name === 'TV' && o.id !== tv.id)!;
+    expect(dup).toMatchObject({ x: 220, y: 130, elevation: 0 });
+    expect(store.getState().history.past.length).toBe(entries + 1);
+    store.getState().setSelection([{ kind: 'object', id: tv.id }]);
+    handleGlobalKey(mod('c'), store, ctx);
+    handleGlobalKey(mod('v'), store, ctx);
+    const pasted = store.getState().selection[0]!.id;
+    expect(objectAt(store, pasted)).toMatchObject({ x: 220, y: 130, elevation: 0 });
+    expect(store.getState().history.past.length).toBe(entries + 2);
+  });
+
+  it('a pasted onTop copy lands on a support pasted with it', () => {
+    const { store, ctx, unit, tv } = tvOnUnit();
+    // the TV on the floor beside the unit, then both copied: the TV copy is over the unit copy
+    store.getState().execute('Bas', updateObject(store.getState().project!.levels[0]!.id, tv.id, { x: 200, y: 150, elevation: 0 }));
+    store.getState().execute('Unit', updateObject(store.getState().project!.levels[0]!.id, unit.id, { x: 200, y: 400 }));
+    store.getState().setSelection([
+      { kind: 'object', id: unit.id },
+      { kind: 'object', id: tv.id },
+    ]);
+    // a unit copy at (220, 170) under the TV copy at (220, 170)
+    store.getState().setClipboard([{ ...objectAt(store, unit.id), x: 200, y: 150 }, objectAt(store, tv.id)]);
+    handleGlobalKey(mod('v'), store, ctx);
+    const pastedTv = store.getState().selection.map((i) => objectAt(store, i.id)).find((o) => o.name === 'TV')!;
+    expect(pastedTv).toMatchObject({ x: 220, y: 170, elevation: 50 });
   });
 });

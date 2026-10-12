@@ -111,3 +111,12 @@ export function difference(subject: Shape, clip: Ring[]): Shape {
   if (cuts.length === 0) return copyShape(subject);
   return fromPc(robust(pc.difference, [toPc(subject), ...cuts.map((r): pc.MultiPolygon => [[ringToPc(r)]])]));
 }
+
+/**
+ * subject intersected with the clip ring; empty when the subject is empty or the clip ring is
+ * degenerate. Throws BooleanOpError when the intersection cannot be computed.
+ */
+export function intersection(subject: Shape, clip: Ring): Shape {
+  if (subject.length === 0 || !isUsableRing(clip)) return [];
+  return fromPc(robust(pc.intersection, [toPc(subject), [[ringToPc(clip)]]]));
+}

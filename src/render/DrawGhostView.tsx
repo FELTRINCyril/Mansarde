@@ -47,7 +47,8 @@ function Marker({ at, snap, lineUnit, color }: { at: Vec2; snap: string; lineUni
 
 /**
  * Ghost of the wall and rectangle tools (overlay.ghost of kind 'draw'): the wall axes stroked with
- * the wall thickness (translucent, mitered joints like the real walls) and the axis itself, the
+ * the wall thickness (translucent, mitered joints like the real walls) and the axis itself dashed
+ * (unless `axis: false`; a reference line is a path of thickness 0), the
  * snapped cursor marker, and the label lines next to the cursor (white halo for legibility).
  */
 export function DrawGhostView({ ghost, lineUnit }: { ghost: DrawGhost; lineUnit: number }): JSX.Element {
@@ -59,9 +60,9 @@ export function DrawGhostView({ ghost, lineUnit }: { ghost: DrawGhost; lineUnit:
       {ghost.paths.map((p, i) => {
         const Shape = p.closed ? 'polygon' : 'polyline';
         return (
-          <g key={i} data-kind="wall-preview">
+          <g key={i} data-kind={p.thickness > 0 ? 'wall-preview' : 'reference-line'}>
             <Shape points={pts(p.points)} strokeWidth={p.thickness} strokeOpacity={WALL_OPACITY} strokeLinejoin="miter" strokeMiterlimit={8} />
-            <Shape points={pts(p.points)} strokeWidth={lineUnit} strokeDasharray={`${4 * lineUnit} ${3 * lineUnit}`} />
+            {p.axis !== false && <Shape points={pts(p.points)} strokeWidth={lineUnit} strokeDasharray={`${4 * lineUnit} ${3 * lineUnit}`} />}
           </g>
         );
       })}

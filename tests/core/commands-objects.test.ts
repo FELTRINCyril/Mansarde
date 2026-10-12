@@ -44,6 +44,7 @@ describe('addObject', () => {
     const custom = rect({ source: { kind: 'custom', customObjectId: 'nope' } });
     expect(refuse(p, addObject(levelId(p), custom))).toBe('Objet introuvable');
     expect(refuse(p, addObject('nope', rect()))).toBe('Niveau introuvable');
+    expect(refuse(p, addObject(levelId(p), rect({ pose: 'ceiling' as 'floor' })))).toBe('Pose invalide');
   });
 });
 
@@ -91,6 +92,17 @@ describe('setObjectTransform', () => {
 });
 
 describe('updateObject', () => {
+  it('accepts every pose and refuses an unknown one', () => {
+    const { p, id } = withObject();
+    const next = run(p, updateObject(levelId(p), id, { pose: 'covering' }));
+    expect(lvl(next).objects[id]!.pose).toBe('covering');
+    for (const pose of ['floor', 'onTop', 'tuckable', 'wall'] as const) {
+      expect(lvl(run(next, updateObject(levelId(next), id, { pose }))).objects[id]!.pose).toBe(pose);
+    }
+    noop(next, updateObject(levelId(next), id, { pose: 'covering' }));
+    expect(refuse(p, updateObject(levelId(p), id, { pose: 'ceiling' as 'floor' }))).toBe('Pose invalide');
+  });
+
   it('updates size, name, colour, elevation and mirroring', () => {
     const { p, id } = withObject();
     const next = run(

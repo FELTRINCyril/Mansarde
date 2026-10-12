@@ -286,6 +286,7 @@ describe('PlanSvg', () => {
       height: 100,
       color: '#aa5500',
       lshape: null,
+      pose: 'floor',
     };
     lvl(p).objects['o2'] = createObjectFromSize(
       { kind: 'custom', customObjectId: 'c1' },
@@ -311,6 +312,7 @@ describe('PlanSvg', () => {
       height: 75,
       color: '#888888',
       lshape: { notchWidth: 120, notchDepth: 90 },
+      pose: 'floor',
     };
     const place = (lshape: PlacedObject['lshape']) =>
       createObjectFromSize({ kind: 'custom', customObjectId: 'c2' }, 200, 150, { width: 200, depth: 150, height: 75 }, 'Bureau en L', '#888888', {

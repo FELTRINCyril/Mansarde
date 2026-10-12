@@ -140,7 +140,7 @@ Ajouts à `Level` :
 | Empiètement | emprise d'un objet (non `covering`) qui entre dans la forme des murs de plus de 1 cm² ; placards non concernés | erreur | "Commode : empiète sur un mur." |
 | Ouverture | objet (non `covering`, dessous sous 200 cm) dans l'arc d'une porte battante ou d'une porte de placard battante | erreur | "Fauteuil : gêne l'ouverture de la porte." |
 | Placard devant une ouverture | placard dont l'intervalle sur le mur recouvre une porte (erreur) ou une fenêtre (avertissement) du même côté | erreur / avertissement | "Placard : devant une fenêtre." |
-| Posé dans le vide | objet `onTop` sans support à sa hauteur (tolérance 1 cm) | avertissement | "TV : n'est posée sur rien." |
+| Posé dans le vide | objet `onTop` sans support à sa hauteur (tolérance 1 cm) | avertissement | "TV : aucun support en dessous." |
 | Dégagement placard | distance libre devant le placard, sur sa largeur, jusqu'au premier objet ou mur : < 60 cm | avertissement (< 30 cm : erreur) | "Placard : 40 cm de passage devant (60 cm conseillés)." |
 
 Les objets sont comparés par paires après un tri par boîtes englobantes. Les messages utilisent

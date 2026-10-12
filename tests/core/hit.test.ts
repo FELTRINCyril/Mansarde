@@ -69,7 +69,7 @@ describe('hitTest', () => {
   it('a circle custom object is hit through its round footprint', () => {
     const level = setup();
     const custom: Record<Id, CustomObjectDef> = {
-      c: { id: 'c', name: 'Table', shape: 'circle', width: 100, depth: 100, height: 75, color: '#999', lshape: null },
+      c: { id: 'c', name: 'Table', shape: 'circle', width: 100, depth: 100, height: 75, color: '#999', lshape: null, pose: 'floor' },
     };
     level.objects['table'] = createObjectFromSize({ kind: 'custom', customObjectId: 'c' }, 250, 180, { width: 100, depth: 100, height: 75 }, 'Table', '#999', { id: 'table' });
     const d = deriveLevel(level);

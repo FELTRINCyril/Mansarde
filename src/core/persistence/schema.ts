@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { MAX_CUPBOARD_DOORS } from '../model/defaults';
 import { FORMAT_VERSION } from '../model/types';
-import type { Anchor, Background, CustomObjectDef, Level, ManualDimension, Opening, PlacedObject, Project, RoomLabel, Wall, WallNode } from '../model/types';
+import { OBJECT_POSES } from '../model/types';
+import type { Anchor, Background, Beam, Cupboard, CustomObjectDef, Level, ManualDimension, Opening, PlacedObject, Project, RoomLabel, Slope, Wall, WallNode } from '../model/types';
 
 // Every object is strict: unknown keys are refused (the export root is the only loose object).
 
@@ -51,6 +53,8 @@ const opening = z.strictObject({
 
 const lshape = z.strictObject({ notchWidth: pos, notchDepth: pos });
 
+const pose = z.enum(OBJECT_POSES);
+
 const objectSource = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('catalog'), catalogId: z.string() }),
   z.strictObject({ kind: z.literal('custom'), customObjectId: id }),
@@ -70,6 +74,7 @@ const placedObject = z.strictObject({
   color: z.string(),
   mirrored: z.boolean(),
   lshape: lshape.nullable(),
+  pose,
 });
 
 const customObjectDef = z.strictObject({
@@ -81,6 +86,45 @@ const customObjectDef = z.strictObject({
   height: pos,
   color: z.string(),
   lshape: lshape.nullable(),
+  pose,
+});
+
+const side = z.enum(['left', 'right']);
+
+const slope = z.strictObject({
+  id,
+  a: vec2,
+  b: vec2,
+  side,
+  depth: pos,
+  heightStart: pos,
+  heightEnd: pos,
+});
+
+const beam = z.strictObject({
+  id,
+  a: vec2,
+  b: vec2,
+  width: pos,
+  drop: pos,
+  mode: z.enum(['ceiling', 'fixed']),
+  bottom: pos,
+});
+
+const cupboard = z.strictObject({
+  id,
+  wallId: id,
+  offset: num,
+  side,
+  width: pos,
+  depth: pos,
+  plinth: nonNeg,
+  heightMode: z.enum(['fixed', 'ceiling']),
+  height: pos,
+  gap: nonNeg,
+  doorCount: z.number().int().min(1).max(MAX_CUPBOARD_DOORS),
+  doorType: z.enum(['hinged', 'sliding']),
+  color: z.string(),
 });
 
 const anchor = z.discriminatedUnion('kind', [
@@ -122,6 +166,9 @@ const level = z.strictObject({
   objects: keyedRecord(placedObject),
   dimensions: keyedRecord(manualDimension),
   roomLabels: z.array(roomLabel),
+  slopes: keyedRecord(slope),
+  beams: keyedRecord(beam),
+  cupboards: keyedRecord(cupboard),
 });
 
 export const projectSchema = z.strictObject({
@@ -170,4 +217,7 @@ export type SchemaGuards = [
   Assert<Same<z.infer<typeof manualDimension>, ManualDimension>>,
   Assert<Same<z.infer<typeof roomLabel>, RoomLabel>>,
   Assert<Same<z.infer<typeof background>, Background>>,
+  Assert<Same<z.infer<typeof slope>, Slope>>,
+  Assert<Same<z.infer<typeof beam>, Beam>>,
+  Assert<Same<z.infer<typeof cupboard>, Cupboard>>,
 ];

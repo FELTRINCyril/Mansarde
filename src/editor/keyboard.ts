@@ -1,12 +1,17 @@
 import type { Recipe } from '@/core/commands/apply';
+import { moveBeams } from '@/core/commands/beams';
+import { moveCupboard } from '@/core/commands/cupboards';
 import { moveObjects, pasteObjects } from '@/core/commands/objects';
 import { moveOpening } from '@/core/commands/openings';
+import { moveSlopes } from '@/core/commands/slopes';
 import { moveNodes } from '@/core/commands/walls';
+import { fitCupboardOnWall } from '@/core/geometry/clearances';
 import { dot } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
 import type { Id, PlacedObject, Vec2 } from '@/core/model/types';
 import { deletableCount, deleteSelectionRecipe } from './deleteSelection';
 import type { SelectionItem } from './selection';
+import { settledCopies, withPose } from './settlePose';
 import { activeLevel, type EditorStore, type ToolId } from './store';
 import { TOOLS } from './tools/registry';
 import type { ToolContext } from './tools/types';
@@ -16,7 +21,9 @@ export const PASTE_OFFSET: Vec2 = { x: 20, y: 20 };
 const NUDGE = 1;
 const NUDGE_SHIFT = 10;
 
-const TOOL_KEYS: Record<string, ToolId> = { v: 'select', m: 'wall', r: 'rect', p: 'door', f: 'window', c: 'dimension' };
+const TOOL_KEYS: Record<string, ToolId> = {
+  v: 'select', m: 'wall', r: 'rect', p: 'door', f: 'window', c: 'dimension', t: 'slope', b: 'beam', k: 'cupboard',
+};
 const ARROWS: Record<string, Vec2> = {
   arrowleft: { x: -1, y: 0 },
   arrowright: { x: 1, y: 0 },
@@ -112,13 +119,17 @@ function selectedObjects(store: EditorStore): PlacedObject[] {
     .filter((o): o is PlacedObject => !!o);
 }
 
-/** Adds copies of the objects at +PASTE_OFFSET (one history entry) and selects them; the new ids, or null when refused. */
+/**
+ * Adds copies of the objects at +PASTE_OFFSET (one history entry), an 'onTop' copy posed on its
+ * support there (settledCopies, spec 5.3), and selects them; the new ids, or null when refused.
+ */
 function pasteCopies(store: EditorStore, label: string, objects: PlacedObject[]): Id[] | null {
   const s = store.getState();
   const level = activeLevel(s);
-  if (!level || objects.length === 0) return null;
+  if (!s.project || !level || objects.length === 0) return null;
   const out = { ids: [] as Id[] };
-  if (!s.execute(label, pasteObjects(level.id, objects, PASTE_OFFSET, out))) return null;
+  const copies = settledCopies(level, objects, PASTE_OFFSET, s.project.customObjects);
+  if (!s.execute(label, pasteObjects(level.id, copies, PASTE_OFFSET, out))) return null;
   store.getState().setSelection(out.ids.map((id) => ({ kind: 'object', id })));
   return out.ids;
 }
@@ -148,15 +159,21 @@ function duplicateSelection(store: EditorStore): boolean {
 }
 
 /**
- * Recipe moving the selection by delta: objects, the nodes of the selected walls plus the selected
- * nodes (each once), and the selected openings along their wall by the projection of delta (those
- * whose wall moves are left alone, they follow it). Null when nothing can move.
+ * Recipe moving the selection by delta, with the commands of a drag: objects, slopes and beams
+ * (moveObjects, moveSlopes, moveBeams), the nodes of the selected walls plus the selected nodes
+ * (each once), the selected openings along their wall by the projection of delta (those whose
+ * wall moves are left alone, they follow it), and the selected cupboards along their wall by that
+ * projection, kept on the free stretch of their face (fitCupboardOnWall, moveCupboard, as a
+ * cupboard drag; those whose wall moves follow it). The moved 'onTop' objects are then posed on
+ * their support (withPose, as after a typed distance). Null when nothing can move.
  */
 function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
   const s = store.getState();
   const level = activeLevel(s);
-  if (!level) return null;
+  if (!level || !s.project) return null;
   const objectIds = idsOf(s.selection, 'object').filter((id) => Object.hasOwn(level.objects, id));
+  const slopeIds = idsOf(s.selection, 'slope').filter((id) => Object.hasOwn(level.slopes, id));
+  const beamIds = idsOf(s.selection, 'beam').filter((id) => Object.hasOwn(level.beams, id));
   const nodeIds = new Set(idsOf(s.selection, 'node').filter((id) => Object.hasOwn(level.nodes, id)));
   for (const id of idsOf(s.selection, 'wall')) {
     const w = level.walls[id];
@@ -177,13 +194,28 @@ function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
     })
     .map((o) => ({ o: o!, along: dot(delta, wallFrame(level, o!.wallId).dir) }))
     .filter(({ along }) => Math.abs(along) > 1e-9);
-  if (objectIds.length === 0 && moves.length === 0 && openings.length === 0) return null;
+  const cupboards: Array<{ id: Id; wallId: Id; offset: number }> = [];
+  for (const id of idsOf(s.selection, 'cupboard')) {
+    const c = level.cupboards[id];
+    const w = c && level.walls[c.wallId];
+    // a cupboard whose wall changes follows it (the walls are reconciled), it is not slid as well
+    if (!c || !w || nodeIds.has(w.startNodeId) || nodeIds.has(w.endNodeId)) continue;
+    const along = dot(delta, wallFrame(level, c.wallId).dir);
+    if (Math.abs(along) <= 1e-9) continue;
+    const fit = fitCupboardOnWall(level, c.wallId, c.side, c.width, c.offset + along, true);
+    if (fit.fits && Math.abs(fit.offset - c.offset) > 1e-9) cupboards.push({ id, wallId: c.wallId, offset: fit.offset });
+  }
+  if (objectIds.length + slopeIds.length + beamIds.length + moves.length + openings.length + cupboards.length === 0) return null;
   const levelId = level.id;
-  return (draft) => {
+  const move: Recipe = (draft) => {
     if (objectIds.length > 0) moveObjects(levelId, objectIds, delta)(draft);
+    if (slopeIds.length > 0) moveSlopes(levelId, slopeIds, delta)(draft);
+    if (beamIds.length > 0) moveBeams(levelId, beamIds, delta)(draft);
     if (moves.length > 0) moveNodes(levelId, moves)(draft);
     for (const { o, along } of openings) moveOpening(levelId, o.id, o.wallId, o.offset + along)(draft);
+    for (const c of cupboards) moveCupboard(levelId, c.id, c.wallId, c.offset)(draft);
   };
+  return withPose(s.project, levelId, move, objectIds);
 }
 
 /**
@@ -193,7 +225,7 @@ function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
  *    Backspace and letters; nor is a key already handled (defaultPrevented) or pressed while a
  *    modal dialog is open (isIgnoredKey);
  * 2. the active tool's onKeyDown;
- * 3. global shortcuts: V M R P F C tools; Escape cancels the gesture or clears the selection;
+ * 3. global shortcuts: V M R P F C T B K tools; Escape cancels the gesture or clears the selection;
  *    Delete / Backspace deletes the selection; Mod+Z undo, Mod+Shift+Z and Mod+Y redo (during a
  *    gesture all three only cancel it); Mod+C copies
  *    the selected objects, Mod+V pastes them at +20 +20, Mod+D duplicates them; arrows nudge the

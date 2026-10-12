@@ -199,6 +199,18 @@ describe('wallFaceInterval', () => {
     expect(wallFaceInterval(level, id, 206)[0]).toBeCloseTo(210, 6);
   });
 
+  it('with a side, only the walls met on that face bound the stretch (cupboards)', () => {
+    // wall 0..600 along y = 0 (left = +y), a wall abutting it at x = 200 on the left face only
+    const level = levelFromWalls([[0, 0, 600, 0], [200, 0, 200, 150]]);
+    const id = findWall(level, 0, 0, 600, 0);
+    const [lo, hi] = wallFaceInterval(level, id, 80, undefined, 'left');
+    expect(lo).toBe(0);
+    expect(hi).toBeCloseTo(190, 6);
+    expect(wallFaceInterval(level, id, 80, undefined, 'right')).toEqual([0, 600]);
+    // both faces (default): the abutting wall cuts it too
+    expect(wallFaceInterval(level, id, 80)[1]).toBeCloseTo(190, 6);
+  });
+
   it('a position inside a neighbour wall body (corner) gives the stretch next to it', () => {
     const room = levelFromWalls(rectRoom(0, 0, 400, 300));
     const [lo, hi] = wallFaceInterval(room, findWall(room, 0, 0, 400, 0), 0);

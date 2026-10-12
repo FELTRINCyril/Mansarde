@@ -6,7 +6,7 @@ import { deriveLevel } from '@/core/geometry/derived';
 import { createObjectFromSize } from '@/core/model/factory';
 import type { Id, PlacedObject, Project } from '@/core/model/types';
 import { pruneSelection } from '@/editor/selection';
-import { activeLevel, createEditorStore, createOverlay } from '@/editor/store';
+import { activeLevel, createEditorStore, createOverlay, DEFAULT_DISPLAY } from '@/editor/store';
 import { emptyProject, lvl } from '../core/helpers';
 
 const box = (x = 100, y = 100): PlacedObject =>
@@ -36,7 +36,8 @@ describe('openProject / closeProject', () => {
     expect(s.tool).toBe('select');
     expect(s.history).toEqual({ past: [], future: [] });
     expect(s.overlay.previewInvalid).toBe(false);
-    expect(s.display).toEqual({ dimMode: 'all', showLowerLevel: true, showGrid: true });
+    expect(s.display).toEqual(DEFAULT_DISPLAY);
+    expect(DEFAULT_DISPLAY).toMatchObject({ dimMode: 'all', showLowerLevel: true, showGrid: true, view: 'plan' });
     expect(activeLevel(s)).toBeUndefined();
   });
 
@@ -360,7 +361,7 @@ describe('simple setters', () => {
     expect(store.getState().overlay.activeDimIndex).toBe(2);
     expect(store.getState().overlay.previewInvalid).toBe(true);
     store.getState().setDisplay({ showGrid: false });
-    expect(store.getState().display).toEqual({ dimMode: 'all', showLowerLevel: true, showGrid: false });
+    expect(store.getState().display).toEqual({ ...DEFAULT_DISPLAY, showGrid: false });
   });
 
   it('setView ignores invalid views and keeps the current one', () => {

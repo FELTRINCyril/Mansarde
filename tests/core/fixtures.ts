@@ -1,6 +1,7 @@
+import { deg2rad, rotate } from '@/core/geometry/vec';
 import { createLevel } from '@/core/model/factory';
 import { newId } from '@/core/model/ids';
-import type { Id, Level } from '@/core/model/types';
+import type { Id, Level, Ring, Vec2 } from '@/core/model/types';
 
 /** [x1, y1, x2, y2, thickness?] - thickness defaults to 20 cm. */
 export type WallSegment = [number, number, number, number, number?];
@@ -52,4 +53,21 @@ export function findWall(level: Level, x1: number, y1: number, x2: number, y2: n
   );
   if (!wall) throw new Error(`no wall (${x1}, ${y1}) - (${x2}, ${y2})`);
   return wall.id;
+}
+
+/** Rectangle centered on (cx, cy), corners TL, TR, BR, BL (local -w/2,-h/2 first), rotated clockwise on screen. */
+export function rectRing(cx: number, cy: number, w: number, h: number, rotationDeg: number): Ring {
+  const rad = deg2rad(rotationDeg);
+  const hw = w / 2;
+  const hh = h / 2;
+  const local: Vec2[] = [
+    { x: -hw, y: -hh },
+    { x: hw, y: -hh },
+    { x: hw, y: hh },
+    { x: -hw, y: hh },
+  ];
+  return local.map((p) => {
+    const q = rotate(p, rad);
+    return { x: cx + q.x, y: cy + q.y };
+  });
 }

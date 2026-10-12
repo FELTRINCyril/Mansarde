@@ -78,7 +78,8 @@ test('rectangle tool: a drag creates 4 walls, undo removes the whole room at onc
   await page.mouse.up();
 
   expect(await counts(page)).toEqual({ walls: 4, nodes: 4, history: 1 });
-  await expect(page.locator('[data-kind="room-label"]')).toContainText('10,64 m²');
+  // V2: the rectangle is the inside of the room
+  await expect(page.locator('[data-kind="room-label"]')).toContainText('12,00 m²');
   await page.keyboard.press('ControlOrMeta+z');
   expect(await counts(page)).toEqual({ walls: 0, nodes: 0, history: 0 });
 });
@@ -112,7 +113,8 @@ test('rectangle tool: typed width, Tab, typed height, Enter', async ({ page }) =
     const ys = Object.values(level.nodes).map((n) => n.y);
     return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   });
-  expect(size).toEqual({ w: 500, h: 350 });
+  // V2: interior 500 x 350, wall axes 10 cm outside
+  expect(size).toEqual({ w: 520, h: 370 });
   expect((await counts(page)).history).toBe(1);
 });
 
@@ -165,21 +167,34 @@ test('numeric field: its label is shown whole above the input and the field leav
   expect(overlaps).toBe(false);
 });
 
-test('a tool key pressed as soon as the editor shows is not lost, even on a slow machine', async ({ page }) => {
+test('a tool key pressed as soon as the editor shows is not lost', async ({ page }) => {
   // Regression: the plan key handler used to be attached by a passive effect, after the editor was
   // painted; a key pressed in between was lost (input events run before React's deferred effects).
-  // The CPU is slowed down while the editor opens to widen that window (lost ~1 time in 3 before).
-  const cdp = await page.context().newCDPSession(page);
-  for (let i = 0; i < 5; i++) {
-    await page.goto('/');
-    await page.getByTestId('new-project').click();
-    const dialog = page.getByTestId('prompt-dialog');
-    await dialog.getByRole('textbox').fill(`Rapide ${i}`);
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 20 });
-    await dialog.getByRole('button', { name: 'Créer' }).click();
-    await expect(page.getByTestId('editor')).toBeVisible();
-    await page.keyboard.press('m');
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-    await expect(page.getByTestId('tool-wall')).toHaveAttribute('aria-pressed', 'true');
-  }
+  // The key is sent from a MutationObserver as soon as the editor enters the DOM: its callback runs
+  // right after the commit that shows the editor (layout effects done), before any passive effect.
+  // This replaces a 20x CPU throttle that only made the window likely, and whose waits, calibrated
+  // for full speed, timed out when the machine was loaded (the old flake: the editor took more than
+  // the 5 s expect timeout to show while the renderer ran 20 times slower).
+  await page.goto('/');
+  await page.getByTestId('new-project').click();
+  const dialog = page.getByTestId('prompt-dialog');
+  await dialog.getByRole('textbox').fill('Rapide');
+  await page.evaluate(() => {
+    const probe = window as unknown as { __keyAtCommit?: string };
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('[data-testid="editor"]')) return;
+      observer.disconnect();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', bubbles: true, cancelable: true }));
+      probe.__keyAtCommit = window.__planMaison!.store.getState().tool;
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+  await dialog.getByRole('button', { name: 'Créer' }).click();
+  await expect(page.getByTestId('editor')).toBeVisible();
+  // handled synchronously, in the same task as the commit
+  expect(await page.evaluate(() => (window as unknown as { __keyAtCommit?: string }).__keyAtCommit)).toBe('wall');
+  await expect(page.getByTestId('tool-wall')).toHaveAttribute('aria-pressed', 'true');
+  // and a real key press right after works too
+  await page.keyboard.press('r');
+  await expect(page.getByTestId('tool-rect')).toHaveAttribute('aria-pressed', 'true');
 });

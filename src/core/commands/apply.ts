@@ -1,11 +1,12 @@
 import { produceWithPatches, enablePatches, type Patch, type Draft } from 'immer';
 import type { Id, Level, Project } from '../model/types';
+import { CommandError } from './errors';
+import { reconcileWallEdits } from './reconcile';
 import { validateProject } from './validate';
 
 enablePatches();
 
-/** Expected, user-facing failure of a command (message is shown as is, in French). */
-export class CommandError extends Error {}
+export { CommandError };
 
 export type Recipe = (draft: Draft<Project>) => void;
 
@@ -19,10 +20,18 @@ function defaultValidate(): boolean {
   return env?.PROD !== true;
 }
 
+/**
+ * Runs a command on the project: the recipe, then the single convergence point of the wall edits
+ * (reconcileWallEdits: the cupboards of every level whose walls changed are kept out of the walls,
+ * ruling V2-R39), in one history entry. A CommandError of either is a refusal.
+ */
 export function applyCommand(project: Project, recipe: Recipe, opts?: { validate?: boolean }): CommandResult {
   let produced: [Project, Patch[], Patch[]];
   try {
-    produced = produceWithPatches(project, recipe) as [Project, Patch[], Patch[]];
+    produced = produceWithPatches(project, (draft: Draft<Project>) => {
+      recipe(draft);
+      reconcileWallEdits(project, draft);
+    }) as [Project, Patch[], Patch[]];
   } catch (e) {
     if (e instanceof CommandError) return { ok: false, error: e.message };
     throw e;

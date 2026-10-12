@@ -1,4 +1,4 @@
-import type { Level, Opening, PlacedObject, Vec2 } from '../model/types';
+import type { Cupboard, Level, Opening, PlacedObject, Vec2 } from '../model/types';
 import { deriveLevel, type DerivedLevel } from './derived';
 import { openingFrame, openingInterval } from './openings';
 import { pointInPolygon, ringEdges } from './polygon';
@@ -108,8 +108,16 @@ function faceLimit(wall: WallFrame, halfThickness: number, edges: [Vec2, Vec2][]
  * walls met at the ends bound the free stretches, and so does any wall crossing or abutting this
  * one in between. Returns the free stretch containing `at`, else the nearest one ([at, at] when
  * there is none). An isolated wall gives [0, length]. Used to keep openings clear of the walls.
+ * With `side`, only that face counts (left = +normal, as Cupboard.side): a cupboard set against one
+ * face is not stopped by a wall abutting the other face.
  */
-export function wallFaceInterval(level: Level, wallId: string, at?: number, d: DerivedLevel = deriveLevel(level)): [number, number] {
+export function wallFaceInterval(
+  level: Level,
+  wallId: string,
+  at?: number,
+  d: DerivedLevel = deriveLevel(level),
+  side?: 'left' | 'right',
+): [number, number] {
   const wall = wallFrame(level, wallId);
   const half = (level.walls[wallId]?.thickness ?? 0) / 2;
   const L = wall.length;
@@ -117,10 +125,11 @@ export function wallFaceInterval(level: Level, wallId: string, at?: number, d: D
   const edges = d.shapeNoOpenings.flatMap((poly) => [poly.outer, ...poly.holes]).flatMap(ringEdges);
   const probe = (side: number, s: number) => add(add(wall.start, scale(wall.dir, s)), scale(wall.normal, side * (half + FACE_PROBE)));
   const cuts = [0, L];
-  for (const side of [-1, 1]) {
-    const face = add(wall.start, scale(wall.normal, side * half));
+  const sides = side === undefined ? [-1, 1] : [side === 'left' ? 1 : -1];
+  for (const sign of sides) {
+    const face = add(wall.start, scale(wall.normal, sign * half));
     for (const [c, e] of edges) {
-      if (!segmentIntersection(probe(side, 0), probe(side, L), c, e)) continue;
+      if (!segmentIntersection(probe(sign, 0), probe(sign, L), c, e)) continue;
       const exact = lineIntersection(face, wall.dir, c, sub(e, c));
       if (exact) cuts.push(Math.min(L, Math.max(0, dot(sub(exact, wall.start), wall.dir))));
     }
@@ -132,7 +141,7 @@ export function wallFaceInterval(level: Level, wallId: string, at?: number, d: D
     const [a, b] = [cuts[i]!, cuts[i + 1]!];
     if (b - a < EPS) continue;
     const m = (a + b) / 2;
-    if (inWall(probe(-1, m)) || inWall(probe(1, m))) continue;
+    if (sides.some((sign) => inWall(probe(sign, m)))) continue;
     const last = free[free.length - 1];
     if (last && Math.abs(last[1] - a) < EPS) last[1] = b;
     else free.push([a, b]);
@@ -147,6 +156,38 @@ export function wallFaceInterval(level: Level, wallId: string, at?: number, d: D
     }
   }
   return best;
+}
+
+/** A free stretch shorter than the cupboard by less than this (cm) still takes it (rounding of the cuts). */
+const CUPBOARD_FIT_EPS = 1e-6;
+
+/**
+ * Offset of a cupboard of that width centered as near as possible to `along` (rounded to 1 cm
+ * unless raw) on the free stretch of its face around `along` (wallFaceInterval on that side only:
+ * between the faces of the walls met on that side, the wall ends when nothing is met; ruling
+ * V2-R32). `fits` false when the stretch is shorter than the cupboard (the offset is then the
+ * stretch middle). The single rule of the cupboard tool, of a cupboard drag, of a wider cupboard
+ * and of the cupboards of a changed wall (reconcileCupboards).
+ */
+export function fitCupboardOnWall(
+  level: Level,
+  wallId: string,
+  side: 'left' | 'right',
+  width: number,
+  along: number,
+  raw = false,
+  d: DerivedLevel = deriveLevel(level),
+): { offset: number; fits: boolean } {
+  const [lo, hi] = wallFaceInterval(level, wallId, along, d, side);
+  if (hi - lo < width - CUPBOARD_FIT_EPS) return { offset: (lo + hi) / 2, fits: false };
+  const at = raw ? along : Math.round(along);
+  return { offset: Math.min(hi - width / 2, Math.max(lo + width / 2, at)), fits: true };
+}
+
+/** The cupboard lies on the free stretch of its face (wallFaceInterval on its side, CUPBOARD_FIT_EPS tolerance): no wall in the way. */
+export function cupboardOnFreeStretch(level: Level, c: Pick<Cupboard, 'wallId' | 'side' | 'offset' | 'width'>, d: DerivedLevel = deriveLevel(level)): boolean {
+  const [lo, hi] = wallFaceInterval(level, c.wallId, c.offset, d, c.side);
+  return c.offset - c.width / 2 >= lo - CUPBOARD_FIT_EPS && c.offset + c.width / 2 <= hi + CUPBOARD_FIT_EPS;
 }
 
 /**

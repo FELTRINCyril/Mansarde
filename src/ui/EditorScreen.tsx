@@ -2,19 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'rea
 import type { Id, Project } from '@/core/model/types';
 import { watchBackgroundMode } from '@/editor/background';
 import { placeObjectAt } from '@/editor/placeObject';
+import { planCenter } from '@/editor/planCenter';
 import { useEditor } from '@/editor/store';
-import { screenToWorld } from '@/editor/view';
 import { startAutosave, type SaveStatus } from '@/storage/autosave';
 import type { ProjectStore, StoredImage } from '@/storage/db';
 import { imageSize } from '@/storage/files';
 import { Banner } from './Banner';
 import { BackgroundServicesContext, type BackgroundServices } from './backgroundServices';
 import { CatalogPanel } from './CatalogPanel';
+import { EditorCenter } from './EditorCenter';
 import { ExportDialog } from './ExportDialog';
 import { Header } from './Header';
 import { levelsWithMissingImages, missingImageMessage } from './imageCheck';
 import { LevelTabs } from './LevelTabs';
 import { PlanArea } from './PlanArea';
+import { PlanViewportContext } from './planViewport';
 import type { Size } from './PlanCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { SettingsDialog } from './SettingsDialog';
@@ -132,21 +134,23 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
   const [dialog, setDialog] = useState<'settings' | 'export' | null>(null);
   const size = useRef<Size>({ width: 0, height: 0 });
   const onResize = useCallback((s: Size) => {
-    size.current = s;
+    // the plan hidden behind the 3D view measures 0 x 0: keep the size it had (the view center
+    // of the catalog placement and of an imported background stays the plan's)
+    if (s.width > 0 && s.height > 0) size.current = s;
   }, []);
+  const planSize = useCallback(() => size.current, []);
   // the move mode of the tracing image ends by itself when the image gets locked, hidden or removed
   useEffect(() => watchBackgroundMode(useEditor), []);
 
   const placeAtCenter = useCallback((ref: string) => {
-    const s = size.current;
-    placeObjectAt(useEditor, ref, screenToWorld(useEditor.getState().view, { x: s.width / 2, y: s.height / 2 }));
+    placeObjectAt(useEditor, ref, planCenter(useEditor.getState(), size.current));
   }, []);
 
   const backgroundServices = useMemo<BackgroundServices>(
     () => ({
       projectStore: p.projectStore,
       registerImage,
-      viewCenter: () => screenToWorld(useEditor.getState().view, { x: size.current.width / 2, y: size.current.height / 2 }),
+      viewCenter: () => planCenter(useEditor.getState(), size.current),
     }),
     [p.projectStore, registerImage],
   );
@@ -174,11 +178,11 @@ export function EditorScreen(p: EditorScreenProps): JSX.Element {
       <div className="editor-main">
         <Toolbar />
         <CatalogPanel onPlace={placeAtCenter} />
-        <main className="editor-center">
-          <PlanArea imageUrls={imageUrls} onResize={onResize} onExportProject={p.onExportProject} onClose={p.onClose} />
-        </main>
+        <EditorCenter plan={<PlanArea imageUrls={imageUrls} onResize={onResize} onExportProject={p.onExportProject} onClose={p.onClose} />} />
         <BackgroundServicesContext.Provider value={backgroundServices}>
-          <PropertiesPanel />
+          <PlanViewportContext.Provider value={planSize}>
+            <PropertiesPanel />
+          </PlanViewportContext.Provider>
         </BackgroundServicesContext.Provider>
       </div>
       <LevelTabs />

@@ -49,6 +49,36 @@ const TOOL_BUTTONS: ToolButton[] = [
       </>,
     ),
   },
+  {
+    id: 'slope',
+    label: 'Pente',
+    key: 'T',
+    icon: icon(
+      <>
+        <path d="M3 6h18" strokeWidth="2.4" />
+        <path d="M3 18h18" />
+        <path d="M3 10h18M3 14h18" strokeDasharray="2 2" />
+      </>,
+    ),
+  },
+  {
+    id: 'beam',
+    label: 'Poutre',
+    key: 'B',
+    icon: icon(<rect x="2" y="9" width="20" height="6" strokeDasharray="3 2" />),
+  },
+  {
+    id: 'cupboard',
+    label: 'Placard',
+    key: 'K',
+    icon: icon(
+      <>
+        <path d="M2 5h20" strokeWidth="3.5" strokeLinecap="butt" />
+        <rect x="4" y="7" width="16" height="10" />
+        <path d="M12 7v10M10 11v3M14 11v3" />
+      </>,
+    ),
+  },
 ];
 
 /** Vertical tool bar; the active tool is highlighted (aria-pressed). */

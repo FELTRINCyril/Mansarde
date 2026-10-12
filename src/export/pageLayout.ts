@@ -1,11 +1,12 @@
 import { resolveAnchor } from '@/core/geometry/anchors';
 import { dimLineEnds, manualDimLine } from '@/core/geometry/autoDimensions';
-import type { DerivedLevel } from '@/core/geometry/derived';
+import { deriveVolumes, type DerivedLevel } from '@/core/geometry/derived';
 import { objectCorners } from '@/core/geometry/objects';
 import { openingFrame } from '@/core/geometry/openings';
 import { bbox } from '@/core/geometry/polygon';
 import { add, scale } from '@/core/geometry/vec';
 import type { Level, Opening, Vec2 } from '@/core/model/types';
+import { drawnSlopes } from '@/render/volumeLabels';
 
 export type PaperFormat = 'A4' | 'A3';
 export type Orientation = 'portrait' | 'landscape';
@@ -88,15 +89,21 @@ function swingExtent(level: Level, o: Opening): Vec2[] {
 }
 
 /**
- * Bounds of what is printed: wall outlines, door swing arcs (not window ones, R39), object corners and manual
- * dimensions (anchors and the drawn, offset line), grown by marginCm on every side. The background
- * image is excluded. Null for a level with nothing to print.
+ * Bounds of what is printed: wall outlines, door swing arcs (not window ones, R39), object corners,
+ * cupboard and beam footprints, the bands of the drawn slopes (a slope drawn beyond the walls is
+ * printed whole, not cropped), and manual dimensions (anchors and the drawn, offset line), grown
+ * by marginCm on every side. The background image is excluded. Null for a level with nothing to
+ * print.
  */
 export function levelBounds(level: Level, d: DerivedLevel, marginCm = 60): BoundsCm | null {
   const pts: Vec2[] = [];
   for (const ring of d.outlines.values()) pts.push(...ring);
   for (const o of Object.values(level.openings)) pts.push(...swingExtent(level, o));
   for (const o of Object.values(level.objects)) pts.push(...objectCorners(o));
+  const volumes = deriveVolumes(level);
+  for (const ring of volumes.cupboardFootprints.values()) pts.push(...ring);
+  for (const ring of volumes.beamFootprints.values()) pts.push(...ring);
+  for (const slope of drawnSlopes(level.slopes)) pts.push(...(volumes.slopeBands.get(slope.id) ?? []));
   for (const dim of Object.values(level.dimensions)) {
     for (const a of [dim.a, dim.b]) {
       const p = resolveAnchor(level, a);

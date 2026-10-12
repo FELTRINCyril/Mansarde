@@ -19,7 +19,7 @@ import {
   suggestScale,
   TITLE_BLOCK_MM,
 } from '@/export/pageLayout';
-import { createLevel, createOpening } from '@/core/model/factory';
+import { createBeam, createCupboard, createLevel, createOpening, createSlope } from '@/core/model/factory';
 import type { Level, Opening } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from '../core/fixtures';
 import { buildSampleProject } from './sampleProject';
@@ -97,6 +97,30 @@ describe('levelBounds', () => {
     expect(b.maxY).toBeCloseTo(110, 9);
   });
 
+  it('includes cupboards standing outside the walls and beams running past them', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
+    // right wall (100, 0) -> (100, 100): dir +y, left = -x (inside); 'right' = outside, 60 deep from x = 110
+    const c = createCupboard(findWall(level, 100, 0, 100, 100), 50, 'right', { width: 80 });
+    level.cupboards[c.id] = c;
+    let b = levelBounds(level, deriveLevel(level), 0)!;
+    expect(b.maxX).toBeCloseTo(170, 9);
+    expect(b.minY).toBeCloseTo(-10, 9);
+    // a new level: deriveVolumes caches by level identity (levels are immutable in the app)
+    const next = structuredClone(level);
+    const beam = createBeam({ x: 50, y: -40 }, { x: 50, y: 50 }); // 12 wide: y from -40
+    next.beams[beam.id] = beam;
+    b = levelBounds(next, deriveLevel(next), 0)!;
+    expect(b.minY).toBeCloseTo(-40, 9);
+    expect(b.maxX).toBeCloseTo(170, 9);
+  });
+
+  it('a cupboard on a missing wall (broken file) is left out without throwing', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
+    const c = createCupboard('missing', 50, 'right');
+    level.cupboards[c.id] = c;
+    expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -10, minY: -10, maxX: 110, maxY: 110 });
+  });
+
   it('includes manual dimensions, and ignores dimensions whose anchor is gone', () => {
     const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
     const id = newId();
@@ -114,6 +138,17 @@ describe('levelBounds', () => {
       offset: 0,
     };
     expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -10, minY: -10, maxX: 400, maxY: 300 });
+  });
+
+  it('includes the slope bands: a slope overhanging the walls is not cropped (M6), a degenerate one is ignored', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
+    // start line x = -50 .. 150 at y = 50, 120 deep towards +y (left of +x): band y 50..170
+    const s = createSlope({ x: -50, y: 50 }, { x: 150, y: 50 }, 'left', 120, 250);
+    level.slopes[s.id] = s;
+    expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -50, minY: -10, maxX: 150, maxY: 170 });
+    const flat = createSlope({ x: 500, y: 500 }, { x: 500, y: 500 }, 'left', 120, 250);
+    level.slopes[flat.id] = flat;
+    expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -50, minY: -10, maxX: 150, maxY: 170 });
   });
 
   it('excludes the background image', () => {

@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type JSX, type MouseEvent, type PointerEvent } from 'react';
+import { checkSeverityByTarget } from '@/core/checks/computeChecks';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Vec2 } from '@/core/model/types';
 import { fitBounds } from '@/editor/background';
-import { handleTarget, objectHandles } from '@/editor/handles';
+import { handleTarget, objectHandles, volumeHandles } from '@/editor/handles';
 import { handleGlobalKey, isIgnoredKey } from '@/editor/keyboard';
 import { CATALOG_DRAG_TYPE, placeObjectAt } from '@/editor/placeObject';
 import { activeLevel, useEditor } from '@/editor/store';
 import { TOOLS } from '@/editor/tools/registry';
 import type { PointerInfo, ToolContext } from '@/editor/tools/types';
-import { fitView, screenToWorld, zoomAt, type View } from '@/editor/view';
+import { fitView, keepCenterOnResize, screenToWorld, zoomAt, type View } from '@/editor/view';
 import { levelBounds } from '@/export/pageLayout';
 import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
 import { NumericOverlayInput } from './NumericOverlayInput';
 import { RoomRenameInput } from './RoomRenameInput';
+import { useLevelChecks } from './ChecksPanel';
+import { WallReferenceBar } from './WallReferenceBar';
 
 export interface Size { width: number; height: number }
 
@@ -32,7 +35,7 @@ function fitActiveLevel(size: Size): View | null {
 /**
  * Interaction layer of the plan, a component of its own: it alone subscribes to the overlay, so a
  * pointer move that only changes the overlay (selection rectangle, guides) does not re-render the
- * static plan layers. Handles: select tool, exactly one object selected.
+ * static plan layers. Handles: select tool, exactly one object, slope or beam selected.
  */
 function PlanOverlay(): JSX.Element | null {
   const overlay = useEditor((s) => s.overlay);
@@ -41,7 +44,11 @@ function PlanOverlay(): JSX.Element | null {
   const level = useEditor(activeLevel);
   const z = useEditor((s) => s.view.pxPerCm);
   const target = toolId === 'select' ? handleTarget(selection, level) : null;
-  const handles = useMemo(() => (target ? objectHandles(target, z) : []), [target, z]);
+  const select = toolId === 'select';
+  const handles = useMemo(
+    () => (target ? objectHandles(target, z) : select ? volumeHandles(selection, level) : []),
+    [target, z, select, selection, level],
+  );
   return <OverlayLayer overlay={overlay} handles={handles} lineUnit={1 / z} />;
 }
 
@@ -52,7 +59,8 @@ function PlanOverlay(): JSX.Element | null {
  * event goes to the active tool (TOOLS) and catalog items can be dropped. A press interrupted
  * without a pointerup (pointercancel, capture lost, window blur) calls the tool's onCancel. The single window key
  * handler of the editor is here too: guard (isIgnoredKey: typing in a field, key already handled,
- * dialog open), space for panning, then handleGlobalKey (tool keys, shortcuts, 0 = fit).
+ * dialog open), space for panning (released without a pan: the tool's onSpaceTap), then
+ * handleGlobalKey (tool keys, shortcuts, 0 = fit). The wall tool's option bar sits on top.
  */
 export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Size): void }): JSX.Element | null {
   const project = useEditor((s) => s.project);
@@ -62,22 +70,37 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
   const selection = useEditor((s) => s.selection);
   const toolId = useEditor((s) => s.tool);
   const setView = useEditor((s) => s.setView);
+  // check alerts of the active level (spec 7.3), none when "Masquer les alertes" is checked
+  const checks = useLevelChecks();
+  const alerts = useMemo(() => (display.hideAlerts ? undefined : checkSeverityByTarget(checks)), [checks, display.hideAlerts]);
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [spaceDown, setSpaceDown] = useState(false);
   const spaceRef = useRef(false);
+  /** The view was panned with the current space press: its release is not a tap (Tool.onSpaceTap). */
+  const spacePanned = useRef(false);
   const pan = useRef<{ pointerId: number; start: Vec2; view: View } | null>(null);
   /** Pointer pressed for the active tool (captured), until its pointerup or its cancellation. */
   const toolPointer = useRef<number | null>(null);
   const [panning, setPanning] = useState(false);
   const { onResize } = p;
 
-  // container size
+  // container size; the view keeps its center when the visible size changes (Plan + 3D, split
+  // separator, window), measured against the last visible size (hidden behind the 3D view: 0 x 0)
+  const lastVisible = useRef<Size | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const next = { width: el.clientWidth, height: el.clientHeight };
+      if (next.width > 0 && next.height > 0) {
+        const s = useEditor.getState();
+        if (lastVisible.current) {
+          const v = keepCenterOnResize(s.view, lastVisible.current, next);
+          if (v !== s.view) s.setView(v);
+        }
+        lastVisible.current = next;
+      }
       setSize(next);
       onResize(next);
     });
@@ -155,13 +178,19 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
         const onPlan = e.target === document.body || (e.target instanceof Node && !!ref.current?.contains(e.target));
         if (!onPlan) return;
         e.preventDefault();
-        if (!e.repeat) setSpace(true);
+        if (!e.repeat) {
+          spacePanned.current = false;
+          setSpace(true);
+        }
         return;
       }
       if (handleGlobalKey(e, useEditor, ctx)) e.preventDefault();
     };
     const onUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') setSpace(false);
+      if (e.code !== 'Space') return;
+      const tap = spaceRef.current && !spacePanned.current;
+      setSpace(false);
+      if (tap) TOOLS[useEditor.getState().tool]?.onSpaceTap?.(ctx);
     };
     const onBlur = () => {
       setSpace(false);
@@ -200,6 +229,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     ref.current?.focus({ preventScroll: true });
     if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
       e.preventDefault();
+      if (spaceRef.current) spacePanned.current = true;
       e.currentTarget.setPointerCapture(e.pointerId);
       pan.current = { pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY }, view: useEditor.getState().view };
       setPanning(true);
@@ -285,11 +315,13 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
           mode="screen"
           imageUrls={p.imageUrls}
           selection={selection}
+          alerts={alerts}
           overlay={<PlanOverlay />}
           width={size.width}
           height={size.height}
         />
       )}
+      <WallReferenceBar />
       <RoomRenameInput />
       <NumericOverlayInput ctx={ctx} canvas={size} restoreFocus={() => ref.current?.focus({ preventScroll: true })} />
     </div>

@@ -1,3 +1,4 @@
+import { OBJECT_POSES } from '../model/types';
 import type { Background, CustomObjectDef, Id, ProjectSettings } from '../model/types';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
 
@@ -10,6 +11,7 @@ const ERR_CUSTOM_EXISTS = 'Objet déjà enregistré';
 const ERR_CUSTOM_NOT_FOUND = 'Objet introuvable';
 const ERR_CUSTOM_IN_USE = 'Objet utilisé dans le plan';
 const ERR_NO_BACKGROUND = 'Aucune image de fond';
+const ERR_POSE = 'Pose invalide';
 
 const SETTING_KEYS: Array<keyof ProjectSettings> = [
   'defaultWallThickness',
@@ -58,6 +60,7 @@ export function addCustomObject(def: CustomObjectDef): Recipe {
     if (def.lshape && (!isPositive(def.lshape.notchWidth) || !isPositive(def.lshape.notchDepth))) {
       throw new CommandError(ERR_SIZE);
     }
+    if (!(OBJECT_POSES as readonly unknown[]).includes(def.pose)) throw new CommandError(ERR_POSE);
     draft.customObjects[def.id] = structuredClone(def);
     touch(draft);
   };

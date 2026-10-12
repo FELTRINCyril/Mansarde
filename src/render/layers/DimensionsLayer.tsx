@@ -5,7 +5,7 @@ import type { DerivedLevel } from '@/core/geometry/derived';
 import type { Level } from '@/core/model/types';
 import { DimLineView } from '../DimLineView';
 import { dimText } from '../dimLayout';
-import { layoutDimensions, type DimMode } from '../dimensionsLayout';
+import { layoutDimensions, type DimensionsLayout, type DimMode } from '../dimensionsLayout';
 import { STYLE } from '../style';
 
 export type { DimMode };
@@ -19,9 +19,22 @@ export type { DimMode };
  * or an automatic dimension placed before it, see placeAutoDims) is left out; manual ones are
  * always drawn.
  */
-export function DimensionsLayer({ level, derived, dimMode, lineUnit }: { level: Level; derived: DerivedLevel; dimMode: DimMode; lineUnit: number }): JSX.Element | null {
+export function DimensionsLayer({
+  level,
+  derived,
+  dimMode,
+  lineUnit,
+  layout,
+}: {
+  level: Level;
+  derived: DerivedLevel;
+  dimMode: DimMode;
+  lineUnit: number;
+  /** layoutDimensions(level, derived, dimMode, lineUnit) when the caller already has it. */
+  layout?: DimensionsLayout;
+}): JSX.Element | null {
   if (dimMode === 'none') return null;
-  const { auto, manual } = layoutDimensions(level, derived, dimMode, lineUnit);
+  const { auto, manual } = layout ?? layoutDimensions(level, derived, dimMode, lineUnit);
   // the text mask takes the color of what lies under the text: a room fill or the paper
   const maskOf = (dim: DimLine, textInside: boolean, fontScale: number): string => {
     const t = dimText(dim, lineUnit, textInside, fontScale);
