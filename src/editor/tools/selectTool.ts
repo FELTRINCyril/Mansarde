@@ -12,7 +12,7 @@ import { fitCupboardOnWall, wallFaceInterval } from '@/core/geometry/clearances'
 import { deriveLevel } from '@/core/geometry/derived';
 import { hitTest, hitTestRect } from '@/core/geometry/hit';
 import { openingCutRing } from '@/core/geometry/openings';
-import { snapToWallForPose, supportElevation } from '@/core/geometry/pose';
+import { poseFixes } from '../settlePose';
 import { slopeFrame } from '@/core/geometry/slopes';
 import { snapObjectToWalls, snapPoint, type Guide } from '@/core/geometry/snap';
 import { add, dist, dot, len, lerp, normalize, perp, rad2deg, scale, sub } from '@/core/geometry/vec';
@@ -399,30 +399,17 @@ export function createSelectTool(): Tool {
   }
 
   /**
-   * Pose of moved objects before their gesture is committed (spec 5.3): an 'onTop' object takes
-   * the elevation of its support under its center (supportElevation, 0 when none); with `wallSnap`
-   * (a single object dragged alone, without Alt) a 'wall' object is set against the nearest wall
-   * face (snapToWallForPose). Computed on the preview and appended to the gesture recipe, so that
-   * the move stays one history entry. Called at the end of a drag and when a typed distance is
-   * validated (no wall snap there: the typed distance is kept as typed).
+   * Pose of moved objects before their gesture is committed (spec 5.3, poseFixes): computed on the
+   * preview and appended to the gesture recipe, so that the move stays one history entry. Called
+   * at the end of a drag and when a typed distance is validated (no wall snap there: the typed
+   * distance is kept as typed).
    */
   function settlePose(levelId: Id, objectIds: Id[], wallSnap: boolean, c: ToolContext): void {
     const st = c.store.getState();
     const prev = st.gesture?.lastRecipe;
     const level = levelOf(st.project, levelId);
     if (!prev || !level || !st.project) return;
-    const fixes: Recipe[] = [];
-    for (const id of objectIds) {
-      const o = level.objects[id];
-      if (!o) continue;
-      if (o.pose === 'onTop') {
-        const elevation = supportElevation(level, id, o, st.project.customObjects);
-        if (elevation !== o.elevation) fixes.push(updateObject(levelId, id, { elevation }));
-      } else if (o.pose === 'wall' && wallSnap) {
-        const t = snapToWallForPose(o, level);
-        if (t && (t.x !== o.x || t.y !== o.y || t.rotation !== o.rotation)) fixes.push(setObjectTransform(levelId, id, t));
-      }
-    }
+    const fixes = poseFixes(level, objectIds, wallSnap, st.project.customObjects);
     if (fixes.length === 0) return;
     st.updateGesture((draft) => {
       prev(draft);
