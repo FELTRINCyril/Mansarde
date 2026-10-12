@@ -19,7 +19,7 @@ import {
   suggestScale,
   TITLE_BLOCK_MM,
 } from '@/export/pageLayout';
-import { createBeam, createCupboard, createLevel, createOpening } from '@/core/model/factory';
+import { createBeam, createCupboard, createLevel, createOpening, createSlope } from '@/core/model/factory';
 import type { Level, Opening } from '@/core/model/types';
 import { findWall, levelFromWalls, rectRoom } from '../core/fixtures';
 import { buildSampleProject } from './sampleProject';
@@ -138,6 +138,17 @@ describe('levelBounds', () => {
       offset: 0,
     };
     expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -10, minY: -10, maxX: 400, maxY: 300 });
+  });
+
+  it('includes the slope bands: a slope overhanging the walls is not cropped (M6), a degenerate one is ignored', () => {
+    const level = levelFromWalls(rectRoom(0, 0, 100, 100, 20));
+    // start line x = -50 .. 150 at y = 50, 120 deep towards +y (left of +x): band y 50..170
+    const s = createSlope({ x: -50, y: 50 }, { x: 150, y: 50 }, 'left', 120, 250);
+    level.slopes[s.id] = s;
+    expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -50, minY: -10, maxX: 150, maxY: 170 });
+    const flat = createSlope({ x: 500, y: 500 }, { x: 500, y: 500 }, 'left', 120, 250);
+    level.slopes[flat.id] = flat;
+    expect(levelBounds(level, deriveLevel(level), 0)).toEqual({ minX: -50, minY: -10, maxX: 150, maxY: 170 });
   });
 
   it('excludes the background image', () => {
