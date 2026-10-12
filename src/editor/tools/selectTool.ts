@@ -30,10 +30,10 @@ import { worldToScreen } from '../view';
 import { beamLengthDim } from './beamTool';
 import { slopeDepthDim } from './slopeTool';
 import { ERR_NO_ROOM, measureObject, measureOpening, measureTarget, nextSide, typedPlacement, type MeasureTarget } from './clearanceDims';
-import { undoKeyOf, type DrawGhost } from './drawing';
+import { markerGhost, markerOf, undoKeyOf, type DrawGhost } from './drawing';
 import { hoveredWall } from './hover';
 import type { OutlineGhost, PointerInfo, Tool, ToolContext } from './types';
-import { markerGhost, snapVolumePoint, type CupboardGhost } from './volumeTools';
+import { snapVolumePoint, type CupboardGhost } from './volumeTools';
 
 /** A press becomes a drag once the pointer has moved this far (screen px). */
 export const DRAG_THRESHOLD_PX = 3;
@@ -167,7 +167,8 @@ const outline = (rings: OutlineGhost['rings'], points: Vec2[] = []): OutlineGhos
  * - objects and walls of the selection move together (moveObjects / moveWalls); with walls the
  *   delta snaps to the grid, a single object is pulled against wall faces (snapObjectToWalls) and
  *   shows its clearances; Alt disables snapping;
- * - a wall node follows snapPoint (excluding itself, Shift = orthogonal from its start) and is
+ * - a wall node follows snapPoint (excluding itself, Shift = orthogonal from its start, shown by
+ *   the snapped cursor marker and its guides like the wall tool) and is
  *   merged into the node it is dropped on (mergeNode), or joined to the wall axis it is dropped on
  *   (joinNodeToWall, R30);
  * - an opening slides along the closest hovered wall, else its own wall (moveOpening), with its
@@ -312,7 +313,8 @@ export function createSelectTool(): Tool {
       ok = st.updateGesture(joinNodeToWall(s.levelId, nodeId, sn.wallId, sn.t, { nodeId: newId(), wallId: newId() }));
     }
     if (!ok) ok = st.updateGesture(moveNodes(s.levelId, [{ nodeId, to: sn.point }]));
-    st.setOverlay({ guides: sn.guides, ghost: ok ? null : outline([], [sn.point]) });
+    // the snapped cursor marker like the wall tool; a refused position keeps its red point too
+    st.setOverlay({ guides: sn.guides, ghost: ok ? markerGhost(sn) : { ...outline([], [sn.point]), marker: markerOf(sn) } });
   }
 
   function dragOpening(s: Session, id: Id, e: PointerInfo, c: ToolContext): void {

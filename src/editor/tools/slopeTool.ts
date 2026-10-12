@@ -9,9 +9,9 @@ import type { Id, Level, Slope, Vec2 } from '@/core/model/types';
 import { formatNumber } from '@/ui/numeric';
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import { activeLevel, type EditorStore } from '../store';
-import { undoKeyOf } from './drawing';
+import { markerGhost, markerOf, undoKeyOf } from './drawing';
 import type { PointerInfo, Tool, ToolContext } from './types';
-import { markerGhost, markerOf, snapVolumePoint, type SlopeGhost } from './volumeTools';
+import { snapVolumePoint, type SlopeGhost } from './volumeTools';
 
 const LABEL_START = 'Hauteur au départ';
 const LABEL_END = "Hauteur à l'arrivée";

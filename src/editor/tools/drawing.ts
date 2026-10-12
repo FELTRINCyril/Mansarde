@@ -112,6 +112,16 @@ export interface DrawGhost {
   label: { at: Vec2; lines: string[]; toward?: Vec2 } | null;
 }
 
+/** The snapped cursor marker of a snapped point (snapPoint or snapVolumePoint result). */
+export const markerOf = (s: { point: Vec2; kind: MarkerKind }): CursorMarker => ({ at: s.point, snap: s.kind });
+
+/**
+ * Ghost of a point being picked with nothing else to draw: only the snapped cursor marker, like the
+ * wall tool before its first click (first point of the slope and beam tools, wall node or slope /
+ * beam end being dragged by the selection tool).
+ */
+export const markerGhost = (s: { point: Vec2; kind: MarkerKind }): DrawGhost => ({ kind: 'draw', paths: [], marker: markerOf(s), label: null });
+
 export function isDrawGhost(g: unknown): g is DrawGhost {
   return typeof g === 'object' && g !== null && (g as { kind?: unknown }).kind === 'draw';
 }

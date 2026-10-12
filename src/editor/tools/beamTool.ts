@@ -5,9 +5,9 @@ import { BEAM_DEFAULTS, MIN_WALL_LENGTH } from '@/core/model/defaults';
 import { createBeam } from '@/core/model/factory';
 import type { Beam, Id, Level, Vec2 } from '@/core/model/types';
 import { activeLevel, type EditorStore } from '../store';
-import { undoKeyOf } from './drawing';
+import { markerGhost, markerOf, undoKeyOf } from './drawing';
 import type { PointerInfo, Tool, ToolContext } from './types';
-import { markerGhost, markerOf, snapVolumePoint, type BeamGhost } from './volumeTools';
+import { snapVolumePoint, type BeamGhost } from './volumeTools';
 
 /** Dynamic length dimension of a beam, drawn beside it (clear of its dashed outline). */
 export function beamLengthDim(a: Vec2, b: Vec2, width: number): DimLine {

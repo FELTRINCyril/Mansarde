@@ -3,7 +3,7 @@ import { add, cross, dist, dot, lineIntersection, scale, sub } from '@/core/geom
 import { wallFrame } from '@/core/geometry/walls';
 import { SNAP_PX } from '@/core/model/defaults';
 import type { Beam, Cupboard, Level, Slope, Vec2 } from '@/core/model/types';
-import type { CursorMarker, DrawGhost, MarkerKind } from './drawing';
+import type { CursorMarker, MarkerKind } from './drawing';
 
 /*
  * Shared by the slope, beam and cupboard tools and by the selection tool (volume handles): the
@@ -95,16 +95,6 @@ export function snapVolumePoint(
   const face = snapToWallFace(level, raw, tol);
   return face ? { point: face, kind: 'face', guides: [] } : sn;
 }
-
-/** The snapped cursor marker of a snapped point. */
-export const markerOf = (s: VolumeSnap): CursorMarker => ({ at: s.point, snap: s.kind });
-
-/**
- * Ghost of a point being picked with nothing else to draw yet (first point of the slope and beam
- * tools, end handle of a slope or beam being dragged): only the snapped cursor marker, like the
- * wall tool before its first click.
- */
-export const markerGhost = (s: VolumeSnap): DrawGhost => ({ kind: 'draw', paths: [], marker: markerOf(s), label: null });
 
 /**
  * Ghost of the slope tool: the start line a -> b (b follows the cursor until fixed, with its

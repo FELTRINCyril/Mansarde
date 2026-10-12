@@ -54,6 +54,7 @@ const room = (store: EditorStore) =>
   expect(store.getState().execute('Room', addRectRoom(level(store).id, { x: 0, y: 0 }, { x: 400, y: 300 }, 20, 250))).toBe(true);
 const objectOf = (store: EditorStore, id: Id) => level(store).objects[id]!;
 const entries = (store: EditorStore) => store.getState().history.past.length;
+const ghost = (store: EditorStore) => store.getState().overlay.ghost;
 
 describe('select tool: selection', () => {
   it('a click selects an object, a click in the void clears, Shift toggles', () => {
@@ -339,6 +340,46 @@ describe('select tool: fix round 1', () => {
     expect(entries(store)).toBe(before);
     expect(store.getState().overlay.dynamicDims).toEqual([]);
     tool.onCancel!(ctx); // nothing in progress: harmless
+  });
+
+  it('dragging a node shows the snapped cursor marker and its guides (grid, node, axis, align, Shift, Alt), removed at the release', () => {
+    const { store, ctx, tool } = setup();
+    const L = level(store).id;
+    store.getState().execute('A', addWallChain(L, [{ kind: 'free', x: 0, y: 0 }, { kind: 'free', x: 200, y: 0 }], 20, 250));
+    store.getState().execute('B', addWallChain(L, [{ kind: 'free', x: 300, y: 0 }, { kind: 'free', x: 300, y: 200 }], 20, 250));
+    const ghost = () => store.getState().overlay.ghost;
+    tool.onPointerDown!(at(200, 0), ctx);
+    tool.onPointerMove!(at(243, 52), ctx);
+    expect(ghost()).toMatchObject({ marker: { at: { x: 240, y: 50 }, snap: 'grid' } });
+    tool.onPointerMove!(at(304, 153), ctx); // 4 cm from the axis x = 300 (middle at y = 100)
+    expect(ghost()).toMatchObject({ marker: { at: { x: 300, y: 153 }, snap: 'wallAxis' } });
+    tool.onPointerMove!(at(253, 197), ctx); // y within 8 cm of the node (300, 200): aligned, with a guide
+    expect(ghost()).toMatchObject({ marker: { at: { x: 253, y: 200 }, snap: 'align' } }); // free x kept (no previous point)
+    expect(store.getState().overlay.guides).toHaveLength(1);
+    // Shift: horizontal or vertical from where the node started (200, 0)
+    tool.onPointerMove!(at(233, 128, { shift: true }), ctx);
+    expect(ghost()).toMatchObject({ marker: { at: { x: 200, y: 130 }, snap: 'ortho' } });
+    tool.onPointerMove!(at(233.5, 128.2, { alt: true }), ctx);
+    expect(ghost()).toMatchObject({ marker: { at: { x: 233.5, y: 128.2 }, snap: 'none' } });
+    tool.onPointerMove!(at(297, 2), ctx);
+    expect(ghost()).toMatchObject({ marker: { at: { x: 300, y: 0 }, snap: 'node' } });
+    tool.onPointerUp!(at(297, 2), ctx);
+    expect(ghost()).toBeNull();
+    expect(store.getState().overlay.guides).toEqual([]);
+    expect(Object.keys(level(store).nodes)).toHaveLength(3);
+  });
+
+  it('a refused node position keeps its red point and shows the marker too', () => {
+    const { store, ctx, tool } = setup();
+    const L = level(store).id;
+    store.getState().execute('A', addWallChain(L, [{ kind: 'free', x: 0, y: 0 }, { kind: 'free', x: 200, y: 0 }], 20, 250));
+    tool.onPointerDown!(at(200, 0), ctx);
+    // free (Alt) 0.5 cm from the other end: a wall shorter than 1 cm, refused
+    tool.onPointerMove!(at(0.5, 0, { alt: true }), ctx);
+    expect(store.getState().overlay.previewInvalid).toBe(true);
+    expect(ghost(store)).toMatchObject({ kind: 'outline', points: [{ x: 0.5, y: 0 }], marker: { at: { x: 0.5, y: 0 }, snap: 'none' } });
+    tool.onPointerUp!(at(0.5, 0, { alt: true }), ctx);
+    expect(ghost(store)).toBeNull();
   });
 
   it('a node dropped on the axis of another wall splits it (T junction, R30)', () => {
