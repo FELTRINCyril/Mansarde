@@ -5,6 +5,7 @@ import { deriveLevel } from '@/core/geometry/derived';
 import { activeLevel, useEditor, type EditorState } from '@/editor/store';
 import type { Preset, Scene3D, Scene3DInput } from '@/scene3d';
 import { ErrorBoundary } from './ErrorBoundary';
+import { NavigationHint } from './NavigationHint';
 
 declare global {
   interface Window {
@@ -188,6 +189,7 @@ function Scene3DHost(): JSX.Element {
           </label>
         </div>
       )}
+      {status === 'ready' && <NavigationHint view="3d" />}
     </div>
   );
 }

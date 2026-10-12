@@ -67,8 +67,9 @@ export const scene3dStats = {
   outlined: 0,
   /** Lower levels shown under the active one. */
   lowerLevels: 0,
-  /** Camera position (m) at the last frame. */
+  /** Camera position and orbit target (m) at the last frame. */
   camera: [0, 0, 0] as [number, number, number],
+  target: [0, 0, 0] as [number, number, number],
   idle: true,
   lastDisposed: null as null | { geometries: number; textures: number },
 };
@@ -170,6 +171,7 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
       labels.render(scene, rig.camera);
       scene3dStats.frames++;
       scene3dStats.camera = rig.camera.position.toArray();
+      scene3dStats.target = rig.controls.target.toArray();
       if (moving) invalidate();
     } catch (e) {
       fail(e);

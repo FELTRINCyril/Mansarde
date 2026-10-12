@@ -7,7 +7,7 @@ import { addRectRoom } from '@/core/commands/walls';
 import { cupboardFootprint } from '@/core/geometry/cupboards';
 import { createBeam, createCupboard, createObjectFromSize, createSlope } from '@/core/model/factory';
 import type { Id, PlacedObject } from '@/core/model/types';
-import { deleteSelection, handleGlobalKey, isTypingTarget } from '@/editor/keyboard';
+import { deleteSelection, handleGlobalKey, isTypingTarget, PAN_STEP, PAN_STEP_SHIFT } from '@/editor/keyboard';
 import { createEditorStore, type EditorStore } from '@/editor/store';
 import { selectTool } from '@/editor/tools/selectTool';
 import type { PointerInfo, ToolContext } from '@/editor/tools/types';
@@ -294,10 +294,44 @@ describe('handleGlobalKey', () => {
     expect(next.nodes[top.endNodeId]!.y).toBe(10);
   });
 
-  it('ignores arrows when nothing is selected', () => {
+  it('pans the view with the arrows when nothing is selected (bigger step with Shift), without touching the project', () => {
     const { store, ctx } = setup();
     store.getState().setSelection([]);
+    store.getState().setView({ pxPerCm: 2, tx: 100, ty: 50 });
+    const before = store.getState();
+    // ArrowRight shows what is on the right: the content moves left
+    expect(handleGlobalKey(key({ key: 'ArrowRight' }), store, ctx)).toBe(true);
+    expect(store.getState().view).toEqual({ pxPerCm: 2, tx: 100 - PAN_STEP, ty: 50 });
+    expect(handleGlobalKey(key({ key: 'ArrowUp' }), store, ctx)).toBe(true);
+    expect(store.getState().view).toEqual({ pxPerCm: 2, tx: 100 - PAN_STEP, ty: 50 + PAN_STEP });
+    expect(handleGlobalKey(key({ key: 'ArrowLeft', shiftKey: true }), store, ctx)).toBe(true);
+    expect(handleGlobalKey(key({ key: 'ArrowDown', shiftKey: true }), store, ctx)).toBe(true);
+    expect(store.getState().view).toEqual({ pxPerCm: 2, tx: 100 - PAN_STEP + PAN_STEP_SHIFT, ty: 50 + PAN_STEP - PAN_STEP_SHIFT });
+    expect(PAN_STEP_SHIFT).toBeGreaterThan(PAN_STEP);
+    expect(store.getState().project).toBe(before.project);
+    expect(store.getState().history).toBe(before.history);
+  });
+
+  it('with a selection the arrows nudge it and leave the view alone', () => {
+    const { store, ctx, id } = setup();
+    store.getState().setView({ pxPerCm: 2, tx: 100, ty: 50 });
+    expect(handleGlobalKey(key({ key: 'ArrowRight' }), store, ctx)).toBe(true);
+    expect(objectAt(store, id).x).toBe(101);
+    expect(store.getState().view).toEqual({ pxPerCm: 2, tx: 100, ty: 50 });
+  });
+
+  it('the arrows do not pan the plan hidden behind the 3D view, nor from a field or a slider', () => {
+    const { store, ctx } = setup();
+    store.getState().setSelection([]);
+    store.getState().setView({ pxPerCm: 2, tx: 100, ty: 50 });
+    store.getState().setDisplay({ view: '3d' });
     expect(handleGlobalKey(key({ key: 'ArrowRight' }), store, ctx)).toBe(false);
+    store.getState().setDisplay({ view: 'split' });
+    expect(handleGlobalKey(key({ key: 'ArrowRight', target: { tagName: 'INPUT', type: 'text' } }), store, ctx)).toBe(false);
+    expect(handleGlobalKey(key({ key: 'ArrowRight', target: { tagName: 'INPUT', type: 'range' } }), store, ctx)).toBe(false);
+    expect(store.getState().view).toEqual({ pxPerCm: 2, tx: 100, ty: 50 });
+    expect(handleGlobalKey(key({ key: 'ArrowRight' }), store, ctx)).toBe(true);
+    expect(store.getState().view.tx).toBe(100 - PAN_STEP);
   });
 
   it('copies and pastes objects at +20 +20 and selects the copies', () => {

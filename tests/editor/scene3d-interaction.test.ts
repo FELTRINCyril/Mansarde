@@ -142,7 +142,7 @@ describe('camera rig: orbit bound (task 11 review)', () => {
   }
   /** A pointer or wheel event with the fields OrbitControls and the rig read. */
   const ev = (type: string, f: Record<string, unknown> = {}) =>
-    Object.assign(new Event(type, { cancelable: true }), { pointerId: 1, pointerType: 'mouse', button: 0, isPrimary: true, clientX: 500, clientY: 350, deltaY: 0, deltaMode: 0, ctrlKey: false, metaKey: false, shiftKey: false, ...f });
+    Object.assign(new Event(type, { cancelable: true }), { pointerId: 1, pointerType: 'mouse', button: 0, isPrimary: true, clientX: 500, clientY: 350, deltaX: 0, deltaY: 0, deltaMode: 0, ctrlKey: false, metaKey: false, shiftKey: false, ...f });
   const atPreset = () => {
     const dom = new EventDom();
     const rig = new CameraRig(dom as unknown as HTMLElement, () => {});
@@ -174,6 +174,92 @@ describe('camera rig: orbit bound (task 11 review)', () => {
     ({ dom, rig } = atPreset());
     dom.dispatchEvent(ev('wheel', { deltaY: 100 }));
     rig.tick(16);
+    expect(rig.preset).toBeNull();
+    rig.dispose();
+  });
+
+  /** Runs the damping out. */
+  const settle = (rig: CameraRig) => {
+    for (let i = 1; i <= 400; i++) rig.tick(16 * i);
+  };
+  const target = (rig: CameraRig) => rig.controls.target.clone();
+
+  it('a two-finger trackpad scroll pans the target and keeps the distance; it leaves the preset', () => {
+    const { dom, rig } = atPreset();
+    const d0 = dist(rig);
+    const t0 = target(rig);
+    // Chrome / Safari on macOS: legacy wheelDelta === -3 x delta (trackpad)
+    for (let i = 0; i < 5; i++) dom.dispatchEvent(ev('wheel', { deltaX: 6, deltaY: 10, wheelDeltaX: -18, wheelDeltaY: -30 }));
+    settle(rig);
+    expect(target(rig).distanceTo(t0)).toBeGreaterThan(0.05);
+    expect(dist(rig)).toBeCloseTo(d0, 6);
+    expect(rig.preset).toBeNull();
+    rig.dispose();
+  });
+
+  it('a pinch (wheel with ctrlKey) and a mouse wheel dolly: the distance changes, the target stays', () => {
+    for (const e of [{ deltaY: -8, ctrlKey: true }, { deltaY: -100, wheelDeltaY: 120 }]) {
+      const { dom, rig } = atPreset();
+      const d0 = dist(rig);
+      const t0 = target(rig);
+      dom.dispatchEvent(ev('wheel', e));
+      settle(rig);
+      expect(dist(rig)).toBeLessThan(d0 - 1e-3);
+      expect(target(rig).distanceTo(t0)).toBeLessThan(1e-9);
+      expect(rig.preset).toBeNull();
+      rig.dispose();
+    }
+  });
+
+  it('Shift + left drag pans (the target moves, the distance stays); a plain left drag orbits (target kept)', () => {
+    let { dom, rig } = atPreset();
+    let d0 = dist(rig);
+    let t0 = target(rig);
+    dom.dispatchEvent(ev('pointerdown', { shiftKey: true }));
+    for (let i = 1; i <= 4; i++) dom.dispatchEvent(ev('pointermove', { clientX: 500 + 20 * i, shiftKey: true }));
+    dom.dispatchEvent(ev('pointerup', { clientX: 580, shiftKey: true }));
+    settle(rig);
+    expect(target(rig).distanceTo(t0)).toBeGreaterThan(0.05);
+    expect(dist(rig)).toBeCloseTo(d0, 6);
+    expect(rig.preset).toBeNull();
+    rig.dispose();
+
+    ({ dom, rig } = atPreset());
+    d0 = dist(rig);
+    t0 = target(rig);
+    dom.dispatchEvent(ev('pointerdown'));
+    for (let i = 1; i <= 4; i++) dom.dispatchEvent(ev('pointermove', { clientX: 500 + 20 * i }));
+    dom.dispatchEvent(ev('pointerup', { clientX: 580 }));
+    settle(rig);
+    expect(target(rig).distanceTo(t0)).toBeLessThan(1e-9);
+    rig.dispose();
+  });
+
+  it('the arrow keys on the focused view pan it, leave the preset, and are kept from the plan (defaultPrevented)', () => {
+    const { dom, rig } = atPreset();
+    const t0 = target(rig);
+    const d0 = dist(rig);
+    const key = Object.assign(new Event('keydown', { cancelable: true }), { code: 'ArrowRight', key: 'ArrowRight', ctrlKey: false, metaKey: false, shiftKey: false });
+    dom.dispatchEvent(key);
+    settle(rig);
+    expect(key.defaultPrevented).toBe(true);
+    expect(target(rig).distanceTo(t0)).toBeGreaterThan(1e-3);
+    expect(dist(rig)).toBeCloseTo(d0, 6);
+    expect(rig.preset).toBeNull();
+    rig.dispose();
+  });
+
+  it('a Safari pinch (gesturechange) dollies: fingers apart bring the camera closer', () => {
+    const { dom, rig } = atPreset();
+    const d0 = dist(rig);
+    const gesture = (type: string, scale: number) => Object.assign(new Event(type, { cancelable: true }), { scale, clientX: 500, clientY: 350 });
+    dom.dispatchEvent(gesture('gesturestart', 1));
+    const change = gesture('gesturechange', 1.25);
+    dom.dispatchEvent(change);
+    dom.dispatchEvent(gesture('gestureend', 1.25));
+    settle(rig);
+    expect(change.defaultPrevented).toBe(true);
+    expect(dist(rig)).toBeCloseTo(d0 / 1.25, 3);
     expect(rig.preset).toBeNull();
     rig.dispose();
   });

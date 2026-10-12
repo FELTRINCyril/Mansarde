@@ -10,20 +10,20 @@ import { activeLevel, useEditor } from '@/editor/store';
 import { TOOLS } from '@/editor/tools/registry';
 import type { PointerInfo, ToolContext } from '@/editor/tools/types';
 import { fitView, keepCenterOnResize, screenToWorld, zoomAt, type View } from '@/editor/view';
+import { wheelIntent, wheelPlanView, WheelSourceLatch } from '@/editor/wheel';
 import { levelBounds } from '@/export/pageLayout';
 import { OverlayLayer } from '@/render/OverlayLayer';
 import { PlanSvg } from '@/render/PlanSvg';
 import { NumericOverlayInput } from './NumericOverlayInput';
 import { RoomRenameInput } from './RoomRenameInput';
 import { useLevelChecks } from './ChecksPanel';
+import { NavigationHint } from './NavigationHint';
 import { WallReferenceBar } from './WallReferenceBar';
 
 export interface Size { width: number; height: number }
 
-/** Zoom factor per wheel pixel (pixel delta mode); lines and pages are converted first. */
-const WHEEL_ZOOM = 0.0015;
-const WHEEL_LINE_PX = 16;
-const WHEEL_PAGE_PX = 400;
+/** Safari's pinch (GestureEvent, non-standard): its scale since the gesture started, at a client point. */
+type GestureLike = Event & { scale?: number; clientX?: number; clientY?: number };
 
 /** View that shows the whole active level, tracing image included, in a viewport of the given size. */
 function fitActiveLevel(size: Size): View | null {
@@ -55,8 +55,11 @@ function PlanOverlay(): JSX.Element | null {
 /**
  * The plan: PlanSvg sized to the container, the world viewBox derived from the view, the
  * interaction overlay (OverlayLayer) and the in-place room name field on top. Zoom and pan live
- * here (wheel = zoom around the cursor, space + drag or middle button = pan); every other pointer
- * event goes to the active tool (TOOLS) and catalog items can be dropped. A press interrupted
+ * here: a two-finger trackpad scroll pans, a mouse wheel, Ctrl / Cmd + wheel and a pinch (ctrlKey
+ * wheel, Safari gesture events) zoom around the cursor, Shift + wheel pans sideways (heuristic and
+ * rules: src/editor/wheel.ts); a right, middle or Space + left drag pans (the plan has no context
+ * menu: it is always suppressed); every other pointer event goes to the active tool (TOOLS, which
+ * only act on the left button) and catalog items can be dropped. A press interrupted
  * without a pointerup (pointercancel, capture lost, window blur) calls the tool's onCancel. The single window key
  * handler of the editor is here too: guard (isIgnoredKey: typing in a field, key already handled,
  * dialog open), space for panning (released without a pan: the tool's onSpaceTap), then
@@ -142,19 +145,48 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
     return () => TOOLS[toolId]?.onDeactivate?.(ctx);
   }, [toolId, ctx]);
 
-  // wheel zoom (non passive to prevent the page from scrolling)
+  // wheel and pinch (non passive to prevent the page from scrolling and the browser from zooming)
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const source = new WheelSourceLatch();
+    /** Scale of the Safari pinch in progress, null outside one. */
+    let gesture: number | null = null;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const unit = e.deltaMode === 1 ? WHEEL_LINE_PX : e.deltaMode === 2 ? WHEEL_PAGE_PX : 1;
-      const factor = Math.exp(-e.deltaY * unit * WHEEL_ZOOM);
+      // Safari may send its pinch as gesture events and ctrlKey wheels: count it once
+      if (gesture !== null && e.ctrlKey) return;
       const s = useEditor.getState();
-      s.setView(zoomAt(s.view, local(e), factor));
+      s.setView(wheelPlanView(s.view, wheelIntent(e, source.source(e, performance.now())), local(e)));
+    };
+    const onGestureStart = (e: GestureLike) => {
+      e.preventDefault();
+      gesture = e.scale ?? 1;
+    };
+    const onGestureChange = (e: GestureLike) => {
+      e.preventDefault();
+      const scale = e.scale ?? 1;
+      if (gesture === null || !(scale > 0)) return;
+      const s = useEditor.getState();
+      const r = el.getBoundingClientRect();
+      const at = { x: (e.clientX ?? r.left + r.width / 2) - r.left, y: (e.clientY ?? r.top + r.height / 2) - r.top };
+      s.setView(zoomAt(s.view, at, scale / gesture));
+      gesture = scale;
+    };
+    const onGestureEnd = (e: GestureLike) => {
+      e.preventDefault();
+      gesture = null;
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    el.addEventListener('gesturestart', onGestureStart);
+    el.addEventListener('gesturechange', onGestureChange);
+    el.addEventListener('gestureend', onGestureEnd);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+      el.removeEventListener('gestureend', onGestureEnd);
+    };
   }, [local]);
 
   const endPan = useCallback(() => {
@@ -227,7 +259,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     ref.current?.focus({ preventScroll: true });
-    if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && spaceRef.current)) {
       e.preventDefault();
       if (spaceRef.current) spacePanned.current = true;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -322,6 +354,7 @@ export function PlanCanvas(p: { imageUrls: Record<Id, string>; onResize(size: Si
         />
       )}
       <WallReferenceBar />
+      <NavigationHint view="plan" />
       <RoomRenameInput />
       <NumericOverlayInput ctx={ctx} canvas={size} restoreFocus={() => ref.current?.focus({ preventScroll: true })} />
     </div>
