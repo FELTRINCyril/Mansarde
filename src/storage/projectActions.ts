@@ -73,7 +73,7 @@ export async function importProjectText(
 ): Promise<{ ok: true; project: Project } | { ok: false; error: string }> {
   const parsed = parseImport(text);
   if (!parsed.ok) return parsed;
-  const existing = (await store.listProjects()).map((m) => m.name);
+  const existing = (await store.listProjects()).flatMap((m) => (m.name === null ? [] : [m.name]));
   const { project, images } = prepareImportedProject(parsed, existing);
   let stored: StoredImage[];
   try {

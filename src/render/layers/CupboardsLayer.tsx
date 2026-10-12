@@ -22,7 +22,7 @@ const HANDLE_REACH = 3;
  * Door panels, swing arcs (hinged) or two tracks (sliding), and handles. Hinged panels lie on the
  * front face with a small gap between them; each arc starts at the free end of its panel and is
  * centered on its hinge. Sliding panels run on two tracks just behind the front face. Handles are
- * short pulls standing out of the front face: by the free end of a hinged door, mid-panel on a
+ * short pulls standing out of their panel: by the free end of a hinged door, mid-panel on a
  * sliding one. Stroked with the color of the parent group (also used by the cupboard tool ghost).
  */
 export function CupboardDoors({ level, c, f, lineUnit }: { level: Level; c: Cupboard; f: CupboardFrame; lineUnit: number }): JSX.Element {
@@ -48,7 +48,8 @@ export function CupboardDoors({ level, c, f, lineUnit }: { level: Level; c: Cupb
           return (
             <g key={i}>
               <Seg kind="cupboard-door" p={behind(f, from, track)} q={behind(f, to, track)} width={STYLE.leafWidth * lineUnit} />
-              {pull(scale(add(d.from, d.to), 0.5), 'pull')}
+              {/* on its own panel (its track), not on the front face in front of it */}
+              {pull(behind(f, scale(add(d.from, d.to), 0.5), track), 'pull')}
             </g>
           );
         }

@@ -1,4 +1,4 @@
-import { useState, type JSX, type KeyboardEvent } from 'react';
+import { useId, useState, type JSX, type KeyboardEvent } from 'react';
 import { commitNumericAs, formatNumber, type NumericKind } from './numeric';
 
 /** Short hint under a numeric field whose text cannot be read (empty, 0 for a size, negative, letters). */
@@ -12,7 +12,9 @@ export const INVALID_VALUE = 'Valeur invalide';
  * values) shows an empty field; any valid value is committed.
  * `keepRefused`: when onCommit returns false (the command was refused), the typed text stays in the
  * field with the red border, to correct it or revert it with Escape; it is submitted only once (the
- * blur that follows an Enter does not run the command again).
+ * blur that follows an Enter does not run the command again), until `resetKey` changes (e.g. the
+ * level: an undo or another edit makes the refusal stale). `describedBy`: id of a message about the
+ * field shown elsewhere (aria-describedby; the "Valeur invalide" hint takes its place while shown).
  */
 export function NumericInput(p: {
   label: string;
@@ -24,10 +26,22 @@ export function NumericInput(p: {
   unit?: string;
   mixed?: boolean;
   keepRefused?: boolean;
+  resetKey?: unknown;
+  describedBy?: string;
 }): JSX.Element {
   const kind = p.kind ?? 'positive';
   const [draft, setDraft] = useState<string | null>(null);
   const [status, setStatus] = useState<'ok' | 'invalid' | 'refused'>('ok');
+  const errorId = useId();
+  // a refused text is dropped when resetKey changes (state adjusted during render)
+  const [seenKey, setSeenKey] = useState(p.resetKey);
+  if (seenKey !== p.resetKey) {
+    setSeenKey(p.resetKey);
+    if (status === 'refused') {
+      setDraft(null);
+      setStatus('ok');
+    }
+  }
 
   const commit = () => {
     if (draft === null || status === 'refused') return;
@@ -65,6 +79,7 @@ export function NumericInput(p: {
           className={red ? 'input input-num input-invalid' : 'input input-num'}
           inputMode="decimal"
           aria-invalid={red}
+          aria-describedby={status === 'invalid' ? errorId : p.describedBy}
           data-testid={p.testId}
           placeholder={p.mixed ? 'Différentes' : undefined}
           value={draft ?? (p.mixed ? '' : formatNumber(p.valueCm))}
@@ -78,7 +93,7 @@ export function NumericInput(p: {
         <span className="field-unit">{p.unit ?? (kind === 'angle' ? '°' : 'cm')}</span>
       </span>
       {status === 'invalid' && (
-        <span className="field-error" data-testid={p.testId ? `${p.testId}-error` : undefined}>
+        <span className="field-error" id={errorId} data-testid={p.testId ? `${p.testId}-error` : undefined}>
           {INVALID_VALUE}
         </span>
       )}

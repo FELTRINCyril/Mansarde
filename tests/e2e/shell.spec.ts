@@ -270,14 +270,15 @@ test('multiple selection edits the common properties of walls or objects in one 
 
   // objects only: height, laying height and color, with differing values shown as empty
   await page.getByTestId('catalog-item-catalog-bed-90').click();
-  await page.getByTestId('catalog-item-catalog-nightstand').click();
+  // the crib is as high as the catalog beds (90, ruling V2-R33): a common height
+  await page.getByTestId('catalog-item-catalog-crib').click();
   await page.evaluate(() => {
     const s = window.__planMaison!.store.getState();
     s.setSelection(Object.keys(s.project!.levels[0]!.objects).map((id) => ({ kind: 'object' as const, id })));
   });
   await expect(page.getByTestId('selection-count')).toHaveText('2 éléments sélectionnés');
   await expect(page.getByTestId('walls-thickness')).toHaveCount(0);
-  await expect(page.getByTestId('objects-height')).toHaveValue('50');
+  await expect(page.getByTestId('objects-height')).toHaveValue('90');
   await page.getByTestId('objects-elevation').fill('10');
   await page.getByTestId('objects-elevation').press('Enter');
   await page.getByTestId('objects-height').fill('70');

@@ -1,4 +1,5 @@
 import { SphereGeometry } from 'three';
+import { sofaParts } from '@/catalog/proportions';
 import { main, mesh, named, parts, type Builder, type FurnitureSpec, type Kit } from './parts';
 
 /**
@@ -28,9 +29,15 @@ export const armchair: Builder = (s, kit) => upholstered(s, kit, 1, 'armchair');
 export const sofa2: Builder = (s, kit) => upholstered(s, kit, 2, 'sofa-2');
 export const sofa3: Builder = (s, kit) => upholstered(s, kit, 3, 'sofa-3');
 
+/** Back and arm thicknesses (m) of the 2D symbol (sofaParts, in cm). */
+function sofaPartsM(w: number, d: number): { bt: number; aw: number } {
+  const { back, arm } = sofaParts(w * 100, d * 100);
+  return { bt: back / 100, aw: arm / 100 };
+}
+
 /**
- * plan-chambre's armchair widened into a sofa of `seats` cushions: same legs, seat block, back
- * (20 cm, against -z) and arms (at most 14 cm); the 2D symbol of the sofas uses the same parts.
+ * plan-chambre's armchair widened into a sofa of `seats` cushions: legs, seat block, back against
+ * -z and arms in front of it, with the back and arm thicknesses of the 2D symbol (sofaParts).
  */
 function upholstered(s: FurnitureSpec, kit: Kit, seats: number, name: string) {
   const { w, d, h } = s;
@@ -38,8 +45,7 @@ function upholstered(s: FurnitureSpec, kit: Kit, seats: number, name: string) {
   const g = named(name);
   const fab = main(s, '#7f9c83');
   const cushion = s.custom ? s.color : '#93ae96';
-  const aw = Math.min(0.14, w / 5);
-  const bt = Math.min(0.2, d * 0.25);
+  const { bt, aw } = sofaPartsM(w, d);
   const k = Math.min(1, h / 0.85);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(p.cyl(0.02, 0.015, 0.1 * k, '#3a332c', sx * (w / 2 - 0.08), 0.05 * k, sz * (d / 2 - 0.08)));
   g.add(p.rbox(w, 0.3 * k, d, 0.05, fab, 0, 0.25 * k, 0, { roughness: 0.95 }));
@@ -50,7 +56,7 @@ function upholstered(s: FurnitureSpec, kit: Kit, seats: number, name: string) {
   }
   g.add(p.rbox(w, h - 0.1 * k, bt, 0.06, fab, 0, 0.1 * k + (h - 0.1 * k) / 2, -d / 2 + bt / 2, { roughness: 0.95 }));
   const armH = Math.min(0.52, h * 0.62);
-  for (const sx of [-1, 1]) g.add(p.rbox(aw, armH, d, 0.05, fab, sx * (w / 2 - aw / 2), 0.1 * k + armH / 2, 0, { roughness: 0.95 }));
+  for (const sx of [-1, 1]) g.add(p.rbox(aw, armH, d - bt, 0.05, fab, sx * (w / 2 - aw / 2), 0.1 * k + armH / 2, bt / 2, { roughness: 0.95 }));
   return g;
 }
 
@@ -64,8 +70,7 @@ export const sofaCorner: Builder = (s, kit) => {
   const g = named('sofa-corner');
   const fab = main(s, '#7f9c83');
   const cushion = s.custom ? s.color : '#93ae96';
-  const bt = Math.min(0.25, d * 0.25);
-  const at = Math.min(0.18, w * 0.1);
+  const { bt, aw: at } = sofaPartsM(w, d);
   const k = Math.min(1, h / 0.85);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(p.cyl(0.02, 0.015, 0.1 * k, '#3a332c', sx * (w / 2 - 0.08), 0.05 * k, sz * (d / 2 - 0.08)));
   g.add(p.rbox(w, 0.3 * k, d, 0.05, fab, 0, 0.25 * k, 0, { roughness: 0.95 }));

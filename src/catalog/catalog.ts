@@ -68,10 +68,10 @@ const UNDER = { acceptsUnder: true } as const;
 
 export const CATALOG: CatalogEntry[] = [
   // Chambre
-  sym('bed-90', 'Lit 90', 'Chambre', 90, 190, 50, BEDROOM),
-  sym('bed-140', 'Lit 140', 'Chambre', 140, 190, 50, BEDROOM),
-  sym('bed-160', 'Lit 160', 'Chambre', 160, 200, 50, BEDROOM),
-  sym('bed-180', 'Lit 180', 'Chambre', 180, 200, 50, BEDROOM),
+  sym('bed-90', 'Lit 90', 'Chambre', 90, 190, 90, BEDROOM),
+  sym('bed-140', 'Lit 140', 'Chambre', 140, 190, 90, BEDROOM),
+  sym('bed-160', 'Lit 160', 'Chambre', 160, 200, 90, BEDROOM),
+  sym('bed-180', 'Lit 180', 'Chambre', 180, 200, 90, BEDROOM),
   sym('nightstand', 'Table de nuit', 'Chambre', 45, 40, 50, BEDROOM),
   sym('wardrobe', 'Armoire', 'Chambre', 120, 60, 200, BEDROOM),
   sym('dresser', 'Commode', 'Chambre', 100, 50, 85, BEDROOM),

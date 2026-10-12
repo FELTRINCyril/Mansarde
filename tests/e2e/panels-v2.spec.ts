@@ -276,6 +276,63 @@ test('header at 1440 px: a 30 character name is whole, the display options are i
   await expect(page.getByTestId('display-menu-panel')).toHaveCount(0);
 });
 
+test('header at 1280 and 1100 px: nothing overflows, the name keeps 12 characters, undo and redo as icons', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await createProject(page, 'Maison de campagne à Montargis');
+  await interiorRoom(page);
+  await addObjects(page, [
+    ['bed-90', 'Lit', 100, 150],
+    ['generic-rect', 'Coffre', 100, 230, { width: 80, depth: 60, height: 40 }],
+  ]);
+  await expect(page.getByTestId('alert-counter')).toBeVisible();
+  const header = page.locator('.header');
+  const undo = page.getByRole('button', { name: 'Annuler', exact: true });
+  const redo = page.getByRole('button', { name: 'Rétablir', exact: true });
+  // at 1440 the undo and redo buttons show their words
+  await expect(undo).toHaveText('Annuler', { useInnerText: true });
+  await expect(undo.locator('svg')).toBeHidden();
+  for (const width of [1280, 1100]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await header.evaluate((el) => el.scrollWidth - el.clientWidth), `overflow at ${width}`).toBeLessThanOrEqual(0);
+    const exportBox = (await page.getByTestId('open-export').boundingBox())!;
+    expect(exportBox.x + exportBox.width, `Exporter at ${width}`).toBeLessThanOrEqual(width);
+    // the visible part of the name holds its first 12 characters
+    const room = await page.getByTestId('project-name').evaluate((el: HTMLInputElement) => {
+      const cs = getComputedStyle(el);
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const inner = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      return inner - ctx.measureText(el.value.slice(0, 12)).width;
+    });
+    expect(room, `name at ${width}`).toBeGreaterThanOrEqual(0);
+    // icons only below 1300 px, the same accessible names and titles
+    await expect(undo).toHaveText('', { useInnerText: true });
+    await expect(undo).toHaveAttribute('title', /^Annuler/);
+    await expect(redo).toHaveAttribute('title', /^Rétablir/);
+    await expect(undo.locator('svg')).toBeVisible();
+  }
+  await undo.click();
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect(redo).toBeDisabled();
+});
+
+test('"Affichage" menu: closes when the focus leaves it (Tab out)', async ({ page }) => {
+  await createProject(page, 'Menu');
+  await page.getByTestId('display-menu').click();
+  await expect(page.getByTestId('display-menu-panel')).toBeVisible();
+  // button -> select -> watermark -> grid -> out of the menu
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');
+  await expect(page.getByRole('checkbox', { name: 'Grille' })).toBeFocused();
+  await expect(page.getByTestId('display-menu-panel')).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('display-menu-panel')).toHaveCount(0);
+  // Shift+Tab out of the button closes it too
+  await page.getByTestId('display-menu').click();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByTestId('display-menu-panel')).toHaveCount(0);
+});
+
 test('pose menu: "Posé sur un meuble" lifts the object onto the furniture under its center', async ({ page }) => {
   await createProject(page, 'Pose');
   await interiorRoom(page);
@@ -304,6 +361,23 @@ test('pose menu: "Posé sur un meuble" lifts the object onto the furniture under
   await page.keyboard.press('ControlOrMeta+z');
   await expect(page.getByTestId('object-pose')).toHaveValue('onTop');
   await expect(page.getByTestId('object-elevation')).toHaveValue('50');
+
+  // "Mural" keeps the laying height; from "Mural" to a floor pose: back to 0 in one step
+  await page.getByTestId('object-pose').selectOption('wall');
+  await expect(page.getByTestId('object-elevation')).toHaveValue('50');
+  await page.getByTestId('object-elevation').fill('150');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('object-elevation')).toHaveValue('150');
+  for (const floorPose of ['floor', 'covering', 'tuckable']) {
+    await page.getByTestId('object-pose').selectOption(floorPose);
+    await expect(page.getByTestId('object-elevation')).toHaveValue('0');
+    expect((await levelState(page)).objects.find((o) => o.name === 'Lampe')).toMatchObject({ pose: floorPose, elevation: 0 });
+    await page.getByTestId('plan-canvas').click({ position: { x: 3, y: 3 } });
+    await page.keyboard.press('ControlOrMeta+z');
+    await clickWorld(page, { x: 125, y: 100 });
+    await expect(page.getByTestId('object-pose')).toHaveValue('wall');
+    await expect(page.getByTestId('object-elevation')).toHaveValue('150');
+  }
 });
 
 test('room panel: interior width 420 typed gives 12,60 m2; a refused size stays red with its reason', async ({ page }) => {
@@ -339,10 +413,35 @@ test('room panel: interior width 420 typed gives 12,60 m2; a refused size stays 
   await page.getByTestId('room-depth').fill('5');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('room-size-error')).toHaveText('Dimension minimale : 10 cm.');
+  // the reason is linked to the refused field
+  const describedBy = await page.getByTestId('room-depth').getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  await expect(page.locator(`[id="${describedBy}"]`)).toHaveText('Dimension minimale : 10 cm.');
+  // undo (header button): the level changes, the refused text and its red border go
+  await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+  await expect(page.getByTestId('room-width')).toHaveValue('400');
+  await expect(page.getByTestId('room-depth')).toHaveValue('300');
+  await expect(page.getByTestId('room-depth')).toHaveAttribute('aria-invalid', 'false');
+  await expect(page.getByTestId('room-depth')).not.toHaveAttribute('aria-describedby');
+  await expect(page.getByTestId('room-size-error')).toHaveCount(0);
+  // same after a redo
+  await page.getByTestId('room-depth').fill('5');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('room-depth')).toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('button', { name: 'Rétablir', exact: true }).click();
+  await expect(page.getByTestId('room-width')).toHaveValue('420');
+  await expect(page.getByTestId('room-depth')).toHaveValue('300');
+  await expect(page.getByTestId('room-depth')).toHaveAttribute('aria-invalid', 'false');
   await page.getByTestId('room-depth').fill('320');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('room-area')).toHaveText('13,44 m²');
   await expect(page.getByTestId('room-size-error')).toHaveCount(0);
+  // an unreadable text: "Valeur invalide", linked to the field
+  await page.getByTestId('room-width').fill('abc');
+  await page.keyboard.press('Enter');
+  const hint = await page.getByTestId('room-width').getAttribute('aria-describedby');
+  await expect(page.locator(`[id="${hint}"]`)).toHaveText('Valeur invalide');
+  await expect(page.getByTestId('room-width-error')).toHaveAttribute('id', hint!);
 });
 
 test('room panel: "La pièce voisine sera modifiée." when the moving wall is shared', async ({ page }) => {

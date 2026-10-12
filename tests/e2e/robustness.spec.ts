@@ -90,3 +90,51 @@ test('the reported plan is drawn, and broken plans neither blank the home screen
   // only the errors the boundaries caught (React reports them), nothing uncaught
   expect(errors).toEqual([]);
 });
+
+test('stored projects the app cannot read are listed as "Projet illisible" and can be deleted', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await createProject(page, 'Lisible');
+  await page.getByTestId('back-to-projects').click();
+  await expect(projectItem(page, 'Lisible')).toHaveCount(1);
+  // a newer format version, a record without levels, a record with nothing readable
+  await page.evaluate(async () => {
+    const ps = window.__planMaison!.projectStore;
+    const meta = (await ps.listProjects()).find((m) => m.name === 'Lisible')!;
+    const p = (await ps.getProject(meta.id))! as unknown as Record<string, unknown>;
+    const save = (r: Record<string, unknown>) => ps.saveProject(r as never);
+    await save({ ...p, id: 'future', name: 'Futur', formatVersion: 99, updatedAt: '2026-05-04T10:20:00.000Z' });
+    const noLevels: Record<string, unknown> = { ...p, id: 'nolevels', name: 'Sans niveaux', updatedAt: '2026-05-03T10:20:00.000Z' };
+    delete noLevels.levels;
+    await save(noLevels);
+    await save({ id: 'bare' });
+  });
+  await page.reload();
+  const items = page.getByTestId('project-item');
+  await expect(items).toHaveCount(4);
+  const unreadable = page.locator('[data-testid="project-item"][data-unreadable="true"]');
+  await expect(unreadable).toHaveCount(3);
+  await expect(unreadable.getByTestId('project-name-cell')).toHaveText(['Projet illisible', 'Projet illisible', 'Projet illisible']);
+  const future = unreadable.filter({ hasText: 'Futur' });
+  await expect(future).toContainText('modifié le 04/05/2026');
+  await expect(unreadable.filter({ hasText: 'Sans niveaux' })).toHaveCount(1);
+  // only Supprimer: an unreadable project cannot be opened, renamed, duplicated or exported
+  await expect(future.getByRole('button')).toHaveText(['Supprimer']);
+
+  await future.getByRole('button', { name: 'Supprimer' }).click();
+  const confirm = page.getByTestId('confirm-dialog');
+  await expect(confirm).toContainText('Supprimer définitivement le projet illisible "Futur" ?');
+  await confirm.getByRole('button', { name: 'Supprimer' }).click();
+  await expect(items).toHaveCount(3);
+  await expect(items.filter({ hasText: 'Futur' })).toHaveCount(0);
+  // the record without anything readable is deletable too
+  await unreadable.filter({ hasNotText: 'Sans niveaux' }).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(confirm).toContainText('Supprimer définitivement ce projet illisible ?');
+  await confirm.getByRole('button', { name: 'Supprimer' }).click();
+  await expect(items).toHaveCount(2);
+
+  // the readable project still opens
+  await projectItem(page, 'Lisible').getByRole('button', { name: 'Ouvrir' }).click();
+  await expect(page.getByTestId('editor')).toBeVisible();
+  expect(errors).toEqual([]);
+});
