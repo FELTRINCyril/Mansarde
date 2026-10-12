@@ -1,7 +1,9 @@
 import type { Draft } from 'immer';
 import { MAX_CUPBOARD_DOORS } from '../model/defaults';
+import { newId } from '../model/ids';
 import type { Cupboard, Id, Level } from '../model/types';
-import { fitCupboardOnWall } from '../geometry/clearances';
+import { cupboardCopyOffset, fitCupboardOnWall } from '../geometry/clearances';
+import { deriveLevel } from '../geometry/derived';
 import { cupboardFitsWall, cupboardTopProfile } from '../geometry/cupboards';
 import { wallLength } from '../geometry/walls';
 import { CommandError, getLevel, touch, type Recipe } from './apply';
@@ -13,6 +15,7 @@ const ERR_WALL_NOT_FOUND = 'Mur introuvable';
 const ERR_NO_ROOM = 'Pas assez de place sur ce mur';
 const ERR_DOORS = 'Nombre de portes invalide';
 const ERR_PLINTH = 'Socle plus haut que le dessus du placard.';
+const ERR_NO_ROOM_FOR_COPY = 'Pas assez de place sur ce mur pour un autre placard.';
 
 /** Below this (cm), the offset given by the free stretch is the current one (no spurious patch). */
 const OFFSET_EPS = 1e-9;
@@ -136,6 +139,33 @@ export function updateCupboard(levelId: Id, id: Id, patch: Partial<Omit<Cupboard
     const heightsChange = entries.some(([key, value]) => HEIGHT_KEYS.has(key) && value !== c[key]);
     requireValidCupboard(level, next, heightsChange);
     if (writeChanges(c, entries)) touch(draft);
+  };
+}
+
+/**
+ * Adds a copy of each cupboard (each id once) with all its settings, right next to it on the same
+ * face (cupboardCopyOffset: after it, else before it, on the free stretch of the face, never over
+ * a cupboard of that face nor over a copy made before). The copies are validated as new cupboards
+ * (addCupboard). Refused (ERR_NO_ROOM_FOR_COPY) when one of them fits nowhere on that face; the
+ * new ids in `out`.
+ */
+export function duplicateCupboards(levelId: Id, ids: Id[], out?: { ids: Id[] }): Recipe {
+  return (draft) => {
+    const level = getLevel(draft, levelId);
+    const sources: Cupboard[] = [...new Set(ids)].map((id) => ({ ...requireCupboard(level, id) }));
+    const copies: Id[] = [];
+    // the walls do not change here: their derived geometry is computed once
+    const d = sources.length > 0 ? deriveLevel(levelSnapshot(level)) : undefined;
+    for (const c of sources) {
+      const offset = cupboardCopyOffset(levelSnapshot(level), c, d);
+      if (offset === null) throw new CommandError(ERR_NO_ROOM_FOR_COPY);
+      const copy: Cupboard = { ...c, id: newId(), offset };
+      requireValidCupboard(level, copy, true);
+      level.cupboards[copy.id] = copy;
+      copies.push(copy.id);
+    }
+    if (out) out.ids = copies;
+    if (copies.length > 0) touch(draft);
   };
 }
 
