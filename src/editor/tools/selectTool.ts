@@ -12,7 +12,6 @@ import { fitCupboardOnWall, wallFaceInterval } from '@/core/geometry/clearances'
 import { deriveLevel } from '@/core/geometry/derived';
 import { hitTest, hitTestRect } from '@/core/geometry/hit';
 import { openingCutRing } from '@/core/geometry/openings';
-import { poseFixes } from '../settlePose';
 import { slopeFrame } from '@/core/geometry/slopes';
 import { snapObjectToWalls, snapPoint, type Guide } from '@/core/geometry/snap';
 import { add, dist, dot, len, lerp, normalize, perp, rad2deg, scale, sub } from '@/core/geometry/vec';
@@ -25,6 +24,7 @@ import { handleTarget, hitHandle, hitVolumeHandle, objectLocalToWorld, volumeHan
 import { closeNumericInput, openNumericInput } from '../numericOverlay';
 import { roomDimensionAt } from '../roomDimensions';
 import type { SelectionItem } from '../selection';
+import { poseFixes } from '../settlePose';
 import { activeLevel, type EditorState, type EditorStore } from '../store';
 import { worldToScreen } from '../view';
 import { beamLengthDim } from './beamTool';
