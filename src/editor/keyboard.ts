@@ -182,7 +182,8 @@ function nudgeRecipe(store: EditorStore, delta: Vec2): Recipe | null {
  * 3. global shortcuts: V M R P F C T B K tools; Escape cancels the gesture or clears the selection;
  *    Delete / Backspace deletes the selection; Mod+Z undo, Mod+Shift+Z and Mod+Y redo (during a
  *    gesture all three only cancel it); Mod+C copies
- *    the selected objects, Mod+V pastes them at +20 +20, Mod+D duplicates them; arrows nudge the
+ *    the selected objects, Mod+V pastes them at +20 +20, Mod+D duplicates the selected objects,
+ *    cupboards, slopes and beams (duplicate.ts); arrows nudge the
  *    selection by 1 cm (10 with Shift), one history entry per press, or, with nothing selected,
  *    pan the view by PAN_STEP px (PAN_STEP_SHIFT with Shift; not while the plan is hidden behind
  *    the 3D view); 0 fits the view.

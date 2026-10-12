@@ -22,8 +22,8 @@ export interface ToolContext {
 export interface PointerInfo { world: Vec2; screen: Vec2; button: number; shift: boolean; alt: boolean; meta: boolean; detail: number }
 
 /**
- * Pointer routing (PlanCanvas): wheel, middle button and space + drag are the canvas' own (zoom,
- * pan); every other pointer event goes to the active tool, with pointer capture from down to up.
+ * Pointer routing (PlanCanvas): wheel and pinch, right and middle buttons and space + drag are the
+ * canvas' own (zoom, pan); every other pointer event goes to the active tool, with pointer capture from down to up.
  * Keys go through handleGlobalKey (keyboard.ts), which offers them to onKeyDown first, except
  * while the user types in a field.
  */
