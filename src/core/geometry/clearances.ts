@@ -184,6 +184,33 @@ export function fitCupboardOnWall(
   return { offset: Math.min(hi - width / 2, Math.max(lo + width / 2, at)), fits: true };
 }
 
+/**
+ * Offset of a copy of the cupboard right next to it on the same face: just after it along the
+ * wall (offset + width), else just before it (offset - width), each kept on the free stretch of
+ * the face (fitCupboardOnWall, raw). A place overlapping a cupboard of `level` standing against
+ * that face (the original included) is not taken. Null when neither side has room.
+ */
+export function cupboardCopyOffset(
+  level: Level,
+  c: Pick<Cupboard, 'wallId' | 'side' | 'offset' | 'width'>,
+  d: DerivedLevel = deriveLevel(level),
+): number | null {
+  const half = c.width / 2;
+  for (const along of [c.offset + c.width, c.offset - c.width]) {
+    const fit = fitCupboardOnWall(level, c.wallId, c.side, c.width, along, true, d);
+    if (!fit.fits) continue;
+    const taken = Object.values(level.cupboards).some(
+      (o) =>
+        o.wallId === c.wallId &&
+        o.side === c.side &&
+        fit.offset - half < o.offset + o.width / 2 - CUPBOARD_FIT_EPS &&
+        o.offset - o.width / 2 < fit.offset + half - CUPBOARD_FIT_EPS,
+    );
+    if (!taken) return fit.offset;
+  }
+  return null;
+}
+
 /** The cupboard lies on the free stretch of its face (wallFaceInterval on its side, CUPBOARD_FIT_EPS tolerance): no wall in the way. */
 export function cupboardOnFreeStretch(level: Level, c: Pick<Cupboard, 'wallId' | 'side' | 'offset' | 'width'>, d: DerivedLevel = deriveLevel(level)): boolean {
   const [lo, hi] = wallFaceInterval(level, c.wallId, c.offset, d, c.side);

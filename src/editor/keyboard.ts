@@ -1,23 +1,22 @@
 import type { Recipe } from '@/core/commands/apply';
 import { moveBeams } from '@/core/commands/beams';
 import { moveCupboard } from '@/core/commands/cupboards';
-import { moveObjects, pasteObjects } from '@/core/commands/objects';
+import { moveObjects } from '@/core/commands/objects';
 import { moveOpening } from '@/core/commands/openings';
 import { moveSlopes } from '@/core/commands/slopes';
 import { moveNodes } from '@/core/commands/walls';
 import { fitCupboardOnWall } from '@/core/geometry/clearances';
 import { dot } from '@/core/geometry/vec';
 import { wallFrame } from '@/core/geometry/walls';
-import type { Id, PlacedObject, Vec2 } from '@/core/model/types';
+import type { Id, Vec2 } from '@/core/model/types';
 import { deletableCount, deleteSelectionRecipe } from './deleteSelection';
+import { copySelection, duplicateSelection, paste } from './duplicate';
 import type { SelectionItem } from './selection';
-import { settledCopies, withPose } from './settlePose';
+import { withPose } from './settlePose';
 import { activeLevel, type EditorStore, type ToolId } from './store';
 import { TOOLS } from './tools/registry';
 import type { ToolContext } from './tools/types';
 
-/** Offset of pasted and duplicated objects (cm). */
-export const PASTE_OFFSET: Vec2 = { x: 20, y: 20 };
 const NUDGE = 1;
 const NUDGE_SHIFT = 10;
 
@@ -108,54 +107,6 @@ export function deleteSelection(store: EditorStore): void {
   const level = activeLevel(s);
   if (!level || deletableCount(s.selection) === 0) return;
   if (s.execute('Supprimer', deleteSelectionRecipe(level.id, s.selection))) store.getState().setSelection([]);
-}
-
-function selectedObjects(store: EditorStore): PlacedObject[] {
-  const s = store.getState();
-  const level = activeLevel(s);
-  if (!level) return [];
-  return idsOf(s.selection, 'object')
-    .map((id) => level.objects[id])
-    .filter((o): o is PlacedObject => !!o);
-}
-
-/**
- * Adds copies of the objects at +PASTE_OFFSET (one history entry), an 'onTop' copy posed on its
- * support there (settledCopies, spec 5.3), and selects them; the new ids, or null when refused.
- */
-function pasteCopies(store: EditorStore, label: string, objects: PlacedObject[]): Id[] | null {
-  const s = store.getState();
-  const level = activeLevel(s);
-  if (!s.project || !level || objects.length === 0) return null;
-  const out = { ids: [] as Id[] };
-  const copies = settledCopies(level, objects, PASTE_OFFSET, s.project.customObjects);
-  if (!s.execute(label, pasteObjects(level.id, copies, PASTE_OFFSET, out))) return null;
-  store.getState().setSelection(out.ids.map((id) => ({ kind: 'object', id })));
-  return out.ids;
-}
-
-function copySelection(store: EditorStore): boolean {
-  const objects = selectedObjects(store);
-  if (objects.length === 0) return false;
-  store.getState().setClipboard(objects.map((o) => structuredClone(o)));
-  return true;
-}
-
-/** Pastes the clipboard; the clipboard then follows the copies, so that pasting again cascades. */
-function paste(store: EditorStore): boolean {
-  const clipboard = store.getState().clipboard;
-  if (clipboard.length === 0) return false;
-  if (pasteCopies(store, 'Coller', clipboard)) {
-    store.getState().setClipboard(clipboard.map((o) => ({ ...o, x: o.x + PASTE_OFFSET.x, y: o.y + PASTE_OFFSET.y })));
-  }
-  return true;
-}
-
-function duplicateSelection(store: EditorStore): boolean {
-  const objects = selectedObjects(store);
-  if (objects.length === 0) return false;
-  pasteCopies(store, 'Dupliquer', objects);
-  return true;
 }
 
 /**

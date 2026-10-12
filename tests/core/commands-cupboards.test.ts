@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addCupboard, deleteCupboards, moveCupboard, updateCupboard } from '@/core/commands/cupboards';
+import { addCupboard, deleteCupboards, duplicateCupboards, moveCupboard, updateCupboard } from '@/core/commands/cupboards';
 import { addSlope } from '@/core/commands/slopes';
 import { CUPBOARDS_DO_NOT_FIT, reconcileCupboards } from '@/core/commands/reconcile';
 import { addWallChain, deleteWalls, joinNodeToWall, mergeNode, moveNodes, moveWalls, setWallLength, setWallThickness, splitWall } from '@/core/commands/walls';
@@ -13,6 +13,7 @@ import { levelId, lvl, noop, projectFrom, refuse, run } from './helpers';
 const NO_ROOM = 'Pas assez de place sur ce mur';
 const TOO_SHORT = 'Le mur est trop court pour ses placards';
 const PLINTH = 'Socle plus haut que le dessus du placard.';
+const NO_ROOM_FOR_COPY = 'Pas assez de place sur ce mur pour un autre placard.';
 
 /** 400 x 300 room (axes); top wall (0,0)->(400,0) has the room on its left. */
 function setup(): { p: Project; top: Id; right: Id } {
@@ -401,5 +402,70 @@ describe('plinth and gap bounds (T8 fix round)', () => {
     run(sloped, updateCupboard(lid, id, { heightMode: 'fixed', height: 100 }));
     // a new cupboard there is refused, as before
     expect(refuse(sloped, addCupboard(lid, createCupboard(top, 200, 'left', { heightMode: 'ceiling', plinth: 10, gap: 2 })))).toBe(PLINTH);
+  });
+});
+
+describe('duplicateCupboards: a copy right next to the original on the same face', () => {
+  // top wall (0,0)->(400,0), 20 cm thick: the free stretch of its room face is [10, 390]
+  const duplicate = (p: Project, ids: Id[]) => {
+    const out = { ids: [] as Id[] };
+    const next = run(p, duplicateCupboards(levelId(p), ids, out));
+    return { next, ids: out.ids, copies: out.ids.map((id) => lvl(next).cupboards[id]!) };
+  };
+
+  it('puts the copy just after the original (offset + width) and keeps every setting', () => {
+    const { p, top } = setup();
+    const settings = { width: 100, depth: 55, plinth: 12, heightMode: 'ceiling', height: 210, gap: 5, doorCount: 3, doorType: 'sliding', color: '#123456' } as const;
+    const { p: p1, id, c } = withCupboard(p, top, 200, settings);
+    const { next, ids, copies } = duplicate(p1, [id]);
+    expect(ids).toHaveLength(1);
+    expect(ids[0]).not.toBe(id);
+    expect(copies[0]).toEqual({ ...c, id: ids[0], offset: 300 });
+    expect(lvl(next).cupboards[id]).toEqual(c);
+  });
+
+  it('goes to the other side when there is no room after it (clamped onto the face, never over the original)', () => {
+    const { p, top } = setup();
+    const { p: p1, id } = withCupboard(p, top, 330, { width: 100 }); // [280, 380]: after it, [340, 390] would overlap
+    expect(duplicate(p1, [id]).copies[0]!.offset).toBe(230);
+  });
+
+  it('a cupboard already on that face counts: the copy goes to the free side, then a further copy is refused', () => {
+    const { p, top } = setup();
+    const { p: p1, id } = withCupboard(p, top, 200, { width: 100 });
+    const { next } = duplicate(p1, [id]); // copy at 300
+    const { next: next2, copies } = duplicate(next, [id]);
+    expect(copies[0]!.offset).toBe(100);
+    expect(refuse(next2, duplicateCupboards(levelId(next2), [id]))).toBe(NO_ROOM_FOR_COPY);
+  });
+
+  it('a cupboard on the other face does not count', () => {
+    const { p, top } = setup();
+    const { p: p1, id } = withCupboard(p, top, 200, { width: 100 });
+    const other = createCupboard(top, 300, 'right', { width: 100 });
+    const p2 = run(p1, addCupboard(levelId(p1), other));
+    expect(duplicate(p2, [id]).copies[0]!.offset).toBe(300);
+  });
+
+  it('refuses when the copy fits nowhere on that face, with a message that says so', () => {
+    const { p, top } = setup();
+    const { p: p1, id } = withCupboard(p, top, 200, { width: 300 });
+    expect(refuse(p1, duplicateCupboards(levelId(p1), [id]))).toBe(NO_ROOM_FOR_COPY);
+  });
+
+  it('duplicates several cupboards at once, each copy seeing the previous ones', () => {
+    const { p, top } = setup();
+    const { p: p1, id: a } = withCupboard(p, top, 60, { width: 60 }); // [30, 90]
+    const { p: p2, id: b } = withCupboard(p1, top, 300, { width: 60 }); // [270, 330]
+    const { copies } = duplicate(p2, [a, b]);
+    expect(copies.map((c) => c.offset)).toEqual([120, 360]);
+    // an id given twice is duplicated once
+    expect(duplicate(p2, [a, a]).ids).toHaveLength(1);
+  });
+
+  it('refuses an unknown cupboard; no ids is a no-op', () => {
+    const { p } = setup();
+    expect(refuse(p, duplicateCupboards(levelId(p), ['ghost']))).toBe('Placard introuvable');
+    noop(p, duplicateCupboards(levelId(p), []));
   });
 });

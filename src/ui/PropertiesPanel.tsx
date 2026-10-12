@@ -23,6 +23,7 @@ import { ObjectProperties } from './ObjectProperties';
 import { BeamProperties } from './BeamProperties';
 import { ChecksPanel } from './ChecksPanel';
 import { CupboardProperties } from './CupboardProperties';
+import { DuplicateButton } from './DuplicateButton';
 import { RoomSizeFields } from './RoomSizeFields';
 import { SlopeProperties } from './SlopeProperties';
 
@@ -260,6 +261,7 @@ export function PropertiesPanel(): JSX.Element | null {
       {selection.length > 1 && <MultiProperties key={selection.map((i) => i.id).join(',')} level={level} selection={selection} />}
       {selection.length > 0 && (
         <div className="panel-section">
+          <DuplicateButton selection={selection} />
           <DeleteButton selection={selection} />
         </div>
       )}
