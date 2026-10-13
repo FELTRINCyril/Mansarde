@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOG, getCatalogEntry } from '../../src/catalog/catalog';
+import { BUILTIN_CATALOG, CATALOG, getCatalogEntry } from '../../src/catalog/catalog';
 import { SYMBOLS, GenericSymbol } from '../../src/catalog/symbols';
 
 const FORBIDDEN = /[\u2014\u2013\u2026\u00a0\u00d7\u2018\u2019\u201c\u201d\u2192]/;
@@ -48,7 +48,7 @@ describe('catalog data', () => {
   });
 
   it('contains the 44 expected entries with exact values', () => {
-    expect(CATALOG).toHaveLength(44);
+    expect(BUILTIN_CATALOG).toHaveLength(44);
     const e = (id: string) => getCatalogEntry(id);
     expect(e('bed-140')).toMatchObject({ name: 'Lit 140', category: 'Chambre', width: 140, depth: 190, height: 90 }); // V2-R33: headboard
     expect(e('crib')).toMatchObject({ name: 'Berceau', width: 60, depth: 120, height: 90 });
@@ -84,8 +84,8 @@ describe('catalog data', () => {
     expect(e('pouf')).toMatchObject({ name: 'Pouf', category: 'Séjour', width: 50, depth: 50, height: 40, pose: 'tuckable' });
   });
 
-  it('only wall-mounted entries carry a default elevation', () => {
-    for (const e of CATALOG) {
+  it('only wall-mounted parametric entries carry a default elevation', () => {
+    for (const e of BUILTIN_CATALOG) {
       if (e.id === 'tv-wall' || e.id === 'shelf-wall') expect(e.elevation, e.id).toBeGreaterThan(0);
       else expect(e.elevation, e.id).toBeUndefined();
     }
@@ -96,13 +96,13 @@ describe('catalog data', () => {
       tv: 'onTop', 'tv-wall': 'wall', 'shelf-wall': 'wall', 'rug-round': 'covering', 'rug-rect': 'covering',
       plant: 'floor', 'bedside-lamp': 'onTop', microwave: 'onTop', pouf: 'tuckable', chair: 'tuckable',
     };
-    for (const e of CATALOG) expect(e.pose, e.id).toBe(expected[e.id] ?? 'floor');
+    for (const e of BUILTIN_CATALOG) expect(e.pose, e.id).toBe(expected[e.id] ?? 'floor');
     expect(getCatalogEntry('desk')?.acceptsUnder).toBe(true);
     expect(getCatalogEntry('chair')?.acceptsUnder).toBeUndefined();
   });
 
   it('uses the shape "symbol" for every non-generic entry and only those', () => {
-    for (const e of CATALOG) {
+    for (const e of BUILTIN_CATALOG) {
       if (GENERIC_IDS.includes(e.id)) expect(e.shape, e.id).not.toBe('symbol');
       else expect(e.shape, e.id).toBe('symbol');
     }
@@ -111,11 +111,11 @@ describe('catalog data', () => {
 
 describe('symbols', () => {
   it('has a symbol for every non-generic entry and no stray keys', () => {
-    for (const e of CATALOG) {
+    for (const e of BUILTIN_CATALOG) {
       if (GENERIC_IDS.includes(e.id)) expect(SYMBOLS[e.id], e.id).toBeUndefined();
       else expect(SYMBOLS[e.id], e.id).toBeTypeOf('function');
     }
-    const ids = new Set(CATALOG.map((e) => e.id));
+    const ids = new Set(BUILTIN_CATALOG.map((e) => e.id));
     for (const key of Object.keys(SYMBOLS)) expect(ids.has(key), key).toBe(true);
   });
 
@@ -130,7 +130,7 @@ describe('symbols', () => {
   }
 
   it('renders at the catalog default size and with a large lineUnit', () => {
-    for (const e of CATALOG) {
+    for (const e of BUILTIN_CATALOG) {
       if (e.shape !== 'symbol') continue;
       assertClean(render(e.id, e.width, e.depth, 0.5));
       assertClean(render(e.id, e.width, e.depth, 4));

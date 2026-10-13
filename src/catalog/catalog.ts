@@ -1,6 +1,7 @@
 // Type-only imports: src/core (the V1 -> V2 migration) reads this module, so it must never pull
-// React or a browser API (symbols live in symbols.tsx).
+// React or a browser API (symbols live in symbols.tsx). generated/models.ts is plain data.
 import type { GenericShape, LShapeParams, ObjectPose } from '../core/model/types';
+import modelData from './generated/models.json';
 
 export type CatalogCategory =
   | 'Chambre'
@@ -8,8 +9,41 @@ export type CatalogCategory =
   | 'Bureau et repas'
   | 'Cuisine'
   | 'Salle de bain'
+  | 'Luminaires'
+  | 'Décoration'
+  | 'Extérieur'
+  | 'Divers'
   | 'Structure'
   | 'Génériques';
+
+/** Display order of the categories in the catalog panel. */
+export const CATEGORY_ORDER: CatalogCategory[] = ['Chambre', 'Séjour', 'Bureau et repas', 'Cuisine', 'Salle de bain', 'Luminaires', 'Décoration', 'Extérieur', 'Divers', 'Structure', 'Génériques'];
+
+export type ModelStyle = 'simple' | 'realiste';
+
+/**
+ * A downloaded 3D model (spec 2026-10-13): its GLB is public/models/<id>.glb, normalized into the
+ * unit box, stretched to the object's size; its top view is in public/models/outlines.json,
+ * loaded by the plan when needed (src/render/modelOutlines.ts).
+ */
+export interface ModelInfo {
+  style: ModelStyle;
+}
+
+/** A downloaded model as tools/models/publish.ts writes it in generated/models.json. */
+export interface ModelEntryData {
+  id: string;
+  name: string;
+  category: CatalogCategory;
+  width: number;
+  depth: number;
+  height: number;
+  pose: ObjectPose;
+  elevation?: number;
+  acceptsUnder?: boolean;
+  carriesOnTop?: boolean;
+  style: ModelStyle;
+}
 
 export interface CatalogEntry {
   id: string;
@@ -28,10 +62,12 @@ export interface CatalogEntry {
   pose: ObjectPose;
   /** Tables and desks: 'tuckable' objects may stand under them. */
   acceptsUnder?: boolean;
-  /** Default height of the underside (cm) of a new object; absent means 0. Wall-mounted entries only. */
+  /** Default height of the underside (cm) of a new object; absent means 0. Wall-mounted entries and ceiling lights. */
   elevation?: number;
   /** Wall-mounted entries that 'onTop' objects can stand on (shelves, ruling V2-R37). */
   carriesOnTop?: boolean;
+  /** Downloaded 3D model (drawn by its outline in 2D, its GLB in 3D). */
+  model?: ModelInfo;
 }
 
 const BEDROOM = '#d9c8b4';
@@ -41,6 +77,25 @@ const KITCHEN = '#c4d3de';
 const BATH = '#bfdbe0';
 const STRUCTURE = '#d0d0d0';
 const GENERIC = '#dddddd';
+const LIGHTS = '#e6dcb0';
+const DECOR = '#d8c8d8';
+const OUTDOOR = '#c8d8b8';
+const MISC = '#dddddd';
+
+/** Default fill of each category (the 2D tint of the plan, not a material). */
+const CATEGORY_COLOR: Record<CatalogCategory, string> = {
+  Chambre: BEDROOM,
+  Séjour: LIVING,
+  'Bureau et repas': DINING,
+  Cuisine: KITCHEN,
+  'Salle de bain': BATH,
+  Luminaires: LIGHTS,
+  Décoration: DECOR,
+  Extérieur: OUTDOOR,
+  Divers: MISC,
+  Structure: STRUCTURE,
+  Génériques: GENERIC,
+};
 
 function sym(
   id: string,
@@ -69,7 +124,8 @@ function sym(
 }
 const UNDER = { acceptsUnder: true } as const;
 
-export const CATALOG: CatalogEntry[] = [
+/** The parametric entries, drawn by the code (symbols.tsx, scene3d/furniture). */
+export const BUILTIN_CATALOG: CatalogEntry[] = [
   // Chambre
   sym('bed-90', 'Lit 90', 'Chambre', 90, 190, 90, BEDROOM),
   sym('bed-140', 'Lit 140', 'Chambre', 140, 190, 90, BEDROOM),
@@ -134,6 +190,39 @@ export const CATALOG: CatalogEntry[] = [
   },
 ];
 
-export function getCatalogEntry(id: string): CatalogEntry | undefined {
-  return CATALOG.find((e) => e.id === id);
+function modelEntry(m: ModelEntryData): CatalogEntry {
+  return {
+    id: m.id,
+    name: m.name,
+    category: m.category,
+    width: m.width,
+    depth: m.depth,
+    height: m.height,
+    color: CATEGORY_COLOR[m.category],
+    shape: 'symbol',
+    pose: m.pose,
+    ...(m.acceptsUnder ? { acceptsUnder: true } : {}),
+    ...(m.elevation !== undefined ? { elevation: m.elevation } : {}),
+    ...(m.carriesOnTop ? { carriesOnTop: true } : {}),
+    model: { style: m.style },
+  };
 }
+
+/** The downloaded models, as tools/models/publish.ts writes them (sorted by category, then name). */
+const MODEL_ENTRIES = modelData as ModelEntryData[];
+
+/** Every entry: the parametric ones, then the downloaded models. */
+export const CATALOG: CatalogEntry[] = [...BUILTIN_CATALOG, ...MODEL_ENTRIES.map(modelEntry)];
+
+const BY_ID = new Map(CATALOG.map((e) => [e.id, e]));
+
+export function getCatalogEntry(id: string): CatalogEntry | undefined {
+  return BY_ID.get(id);
+}
+
+/** URL of the GLB of a downloaded model; `base` is the app base URL (import.meta.env.BASE_URL). */
+export const modelUrl = (id: string, base: string): string => `${base}models/${id}.glb`;
+/** URL of the top views of every downloaded model ({ id: [outline rings, detail rings] }). */
+export const modelOutlinesUrl = (base: string): string => `${base}models/outlines.json`;
+/** URL of the catalog icon of a downloaded model. */
+export const modelIconUrl = (id: string, base: string): string => `${base}models/icons/${id}.webp`;

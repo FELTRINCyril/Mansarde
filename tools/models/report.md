@@ -1,0 +1,744 @@
+# Modèles 3D publiés
+
+Généré par `tools/models/publish.ts`.
+
+- Objets publiés : 1117
+- Poids total des GLB : 39812 Ko, médiane 22 Ko, maximum 149 Ko
+
+## Par source
+
+| Source | Objets |
+|---|---|
+| Contributions | 341 |
+| Scopia | 198 |
+| Poly Haven | 134 |
+| BlendSwap CC-0 | 120 |
+| Kenney Furniture Kit | 120 |
+| BlendSwap CC-BY | 77 |
+| LucaPresidente | 57 |
+| KatorLegaz | 47 |
+| Quaternius Furniture Pack | 23 |
+
+## Par catégorie
+
+| Catégorie | Objets |
+|---|---|
+| Séjour | 302 |
+| Cuisine | 157 |
+| Extérieur | 106 |
+| Décoration | 98 |
+| Bureau et repas | 97 |
+| Divers | 93 |
+| Chambre | 88 |
+| Salle de bain | 77 |
+| Luminaires | 68 |
+| Structure | 31 |
+
+## Écartés (682)
+
+| Raison | Nombre |
+|---|---|
+| curation | 231 |
+| trinket | 99 |
+| door or window | 84 |
+| too many materials | 71 |
+| food or drink | 54 |
+| out | 37 |
+| too heavy | 36 |
+| duplicate | 23 |
+| kept in curation but not staged | 15 |
+| category Vehicles | 11 |
+| category Characters | 8 |
+| category Doors and windows | 7 |
+| conversion failed | 2 |
+| animal | 1 |
+| empty render (0.40 %) | 1 |
+| empty render (0.49 %) | 1 |
+| empty render (0.59 %) | 1 |
+
+<details><summary>Détail</summary>
+
+- `kenney/kenney/bear` : curation: hunting trophy
+- `kenney/kenney/doorway` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/doorwayFront` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/doorwayOpen` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/floorCorner` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/floorCornerRound` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/floorFull` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/floorHalf` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/kitchenBarEnd` : curation: fragment of the bar
+- `kenney/kenney/paneling` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/stairsOpenSingle` : curation: same as stairsOpen
+- `kenney/kenney/televisionAntenna` : curation: accessory
+- `kenney/kenney/wall` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallCorner` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallCornerRond` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallDoorway` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallDoorwayWide` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallHalf` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallWindow` : curation: building part (the app draws walls, floors and openings)
+- `kenney/kenney/wallWindowSlide` : curation: building part (the app draws walls, floors and openings)
+- `sh3d/blendswap-cc0/butter` : food or drink
+- `sh3d/blendswap-cc0/caffe_final` : trinket: 10 cm
+- `sh3d/blendswap-cc0/cartoon_biplane` : curation: toy or model
+- `sh3d/blendswap-cc0/cissors_swap` : trinket
+- `sh3d/blendswap-cc0/comb` : trinket
+- `sh3d/blendswap-cc0/cosmeticsPot` : trinket: 8 cm
+- `sh3d/blendswap-cc0/deer` : animal
+- `sh3d/blendswap-cc0/housePuzzle` : curation: toy or model
+- `sh3d/blendswap-cc0/knifeStandSwap` : trinket
+- `sh3d/blendswap-cc0/mamadeira` : food or drink
+- `sh3d/blendswap-cc0/pallet` : curation: road, building or site element (not furniture)
+- `sh3d/blendswap-cc0/plasticCup` : trinket: 10 cm
+- `sh3d/blendswap-cc0/poolTable` : too many materials: 25
+- `sh3d/blendswap-cc0/ruler` : trinket
+- `sh3d/blendswap-cc0/table_football` : too many materials: 9
+- `sh3d/blendswap-cc0/teddyBear` : curation: toy or model
+- `sh3d/blendswap-cc0/tetrapak` : food or drink
+- `sh3d/blendswap-cc0/textMarker` : trinket: 10 cm
+- `sh3d/blendswap-cc0/toiletBrush` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/yogurtBottle` : food or drink
+- `sh3d/blendswap-cc0/flacon` : food or drink
+- `sh3d/blendswap-cc0/headphones` : trinket
+- `sh3d/blendswap-cc0/iphone` : trinket: 12 cm
+- `sh3d/blendswap-cc0/ammoBox` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/cupboard` : too many materials: 9
+- `sh3d/blendswap-cc0/electricGuitar` : too many materials: 9
+- `sh3d/blendswap-cc0/basketball` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/umbrellaFolded` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/kalender` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/numberLock` : trinket: 10 cm
+- `sh3d/blendswap-cc0/potty` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/slippersSeparated` : trinket
+- `sh3d/blendswap-cc0/beerGlass` : food or drink
+- `sh3d/blendswap-cc0/bread` : food or drink
+- `sh3d/blendswap-cc0/cardGame` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/chicken` : category Characters
+- `sh3d/blendswap-cc0/cuckooClock` : too many materials: 12
+- `sh3d/blendswap-cc0/horse2` : category Characters
+- `sh3d/blendswap-cc0/briefcase` : trinket
+- `sh3d/blendswap-cc0/emergencySign` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/forkLift` : category Vehicles
+- `sh3d/blendswap-cc0/handbag` : trinket
+- `sh3d/blendswap-cc0/motorbike` : curation: toy or model
+- `sh3d/blendswap-cc0/shippingContainer` : out of scale: 606 cm
+- `sh3d/blendswap-cc0/showerStall` : too many materials: 10
+- `sh3d/blendswap-cc0/tennisRacket` : curation: small accessory, not furniture
+- `sh3d/blendswap-cc0/bootieSeparated` : curation: clothing
+- `sh3d/blendswap-cc0/cupcake` : trinket: 8 cm
+- `sh3d/blendswap-cc0/hotDog` : food or drink
+- `sh3d/blendswap-cc0/peterbilt` : category Vehicles
+- `sh3d/blendswap-cc0/rock1` : curation: road, building or site element (not furniture)
+- `sh3d/blendswap-cc0/rock2` : curation: road, building or site element (not furniture)
+- `sh3d/blendswap-cc0/rock3` : curation: road, building or site element (not furniture)
+- `sh3d/blendswap-cc0/woodToy` : trinket: 12 cm
+- `sh3d/blendswap-ccby/backpack` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/beer_bottle` : food or drink
+- `sh3d/blendswap-ccby/book` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/carrito-de-madera` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/choppingBoard` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/clock` : trinket: 7 cm
+- `sh3d/blendswap-ccby/coffee_cup` : food or drink
+- `sh3d/blendswap-ccby/fork` : food or drink
+- `sh3d/blendswap-ccby/gift` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/glass` : food or drink
+- `sh3d/blendswap-ccby/kitchenKnife` : trinket
+- `sh3d/blendswap-ccby/kitchenTools` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/knife` : food or drink
+- `sh3d/blendswap-ccby/largePan` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/lipStick` : trinket: 10 cm
+- `sh3d/blendswap-ccby/mobile` : trinket: 11 cm
+- `sh3d/blendswap-ccby/radio` : too many materials: 10
+- `sh3d/blendswap-ccby/spoon` : food or drink
+- `sh3d/blendswap-ccby/suit` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/thermometer` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/wallDoubleSocket` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/wallSocket` : trinket: 8 cm
+- `sh3d/blendswap-ccby/wheelchair` : too heavy: 350 KB
+- `sh3d/blendswap-ccby/wire-coathanger` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/towel` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/rubix2` : trinket: 6 cm
+- `sh3d/blendswap-ccby/ballonFoot` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/breadBox` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/kitchenScale` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/mediumIndoorPlant` : too many materials: 9
+- `sh3d/blendswap-ccby/utensilsPot` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/wirelessOfficePhone3` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/yuccaPlant` : too many materials: 10
+- `sh3d/blendswap-ccby/bike` : category Vehicles
+- `sh3d/blendswap-ccby/bulldog` : category Characters
+- `sh3d/blendswap-ccby/cocktailGlass` : food or drink
+- `sh3d/blendswap-ccby/coffeePress` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/espressokettle` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/fordFocus` : too many materials: 11
+- `sh3d/blendswap-ccby/hamburger` : trinket: 11 cm
+- `sh3d/blendswap-ccby/horse` : category Characters
+- `sh3d/blendswap-ccby/siameseCat` : category Characters
+- `sh3d/blendswap-ccby/suitcase` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/sunglasses` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/tableTennisBat` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/toyTrain` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/xylophone` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/mp3Station` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/dafTruck` : category Vehicles
+- `sh3d/blendswap-ccby/surveillanceCamera` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/tulips` : too many materials: 14
+- `sh3d/blendswap-ccby/campingLamp` : curation: small accessory, not furniture
+- `sh3d/blendswap-ccby/fitnessTower` : too many materials: 10
+- `sh3d/blendswap-ccby/saltShaker` : trinket: 8 cm
+- `sh3d/scopia/parque` : too many materials: 10
+- `sh3d/scopia/bowl` : curation: small accessory, not furniture
+- `sh3d/scopia/old_jar` : trinket
+- `sh3d/scopia/pottery` : trinket: 11 cm
+- `sh3d/scopia/sushi_tray` : curation: small accessory, not furniture
+- `sh3d/scopia/kitchen_tool1` : curation: small accessory, not furniture
+- `sh3d/scopia/kitchen_tool2` : curation: small accessory, not furniture
+- `sh3d/scopia/kitchen_tool3` : curation: small accessory, not furniture
+- `sh3d/scopia/kitchen_tool4` : curation: small accessory, not furniture
+- `sh3d/scopia/tray` : curation: small accessory, not furniture
+- `sh3d/scopia/wine_bottle` : food or drink
+- `sh3d/scopia/pencil1` : curation: small accessory, not furniture
+- `sh3d/scopia/puerta` : door or window
+- `sh3d/scopia/seat_leon` : too many materials: 10
+- `sh3d/scopia/apples` : food or drink
+- `sh3d/scopia/bathroom_vanity` : too many materials: 9
+- `sh3d/scopia/crib` : too heavy: 185 KB
+- `sh3d/scopia/bandeja` : curation: small accessory, not furniture
+- `sh3d/scopia/calla_lily_with_roses` : too many materials: 9
+- `sh3d/scopia/com_bath` : food or drink
+- `sh3d/scopia/com_bath2_cepillo` : curation: small accessory, not furniture
+- `sh3d/scopia/com_bath2_esponja` : trinket: 10 cm
+- `sh3d/scopia/com_bath2_jabon_pijo` : food or drink
+- `sh3d/scopia/com_bath2_peineta` : trinket: 7 cm
+- `sh3d/scopia/com_bath2_soap` : curation: small accessory, not furniture
+- `sh3d/scopia/creamer` : curation: small accessory, not furniture
+- `sh3d/scopia/cup` : food or drink
+- `sh3d/scopia/glasses` : food or drink
+- `sh3d/scopia/medicoscopia_bottle` : trinket: 9 cm
+- `sh3d/scopia/medicoscopia_bottle2` : food or drink
+- `sh3d/scopia/medicoscopia_box` : trinket: 11 cm
+- `sh3d/scopia/penbox` : too many materials: 13
+- `sh3d/scopia/phone` : curation: small accessory, not furniture
+- `sh3d/scopia/sugar` : trinket: 10 cm
+- `sh3d/scopia/teapot` : curation: small accessory, not furniture
+- `sh3d/scopia/pencil2` : curation: small accessory, not furniture
+- `sh3d/scopia/basic_camera` : trinket: 10 cm
+- `sh3d/scopia/birthday_cake` : too many materials: 9
+- `sh3d/scopia/christmas_tree` : too heavy: 305 KB
+- `sh3d/scopia/clothes_washing_machine` : too many materials: 9
+- `sh3d/scopia/dryer_machine` : too many materials: 9
+- `sh3d/scopia/folded_clothes` : curation: small accessory, not furniture
+- `sh3d/scopia/intercom_with_screen` : curation: small accessory, not furniture
+- `sh3d/scopia/intercom` : curation: small accessory, not furniture
+- `sh3d/scopia/mp3_base_for_ipad` : curation: small accessory, not furniture
+- `sh3d/scopia/reflex_camera` : curation: small accessory, not furniture
+- `sh3d/scopia/sneakersSeparated` : curation: small accessory, not furniture
+- `sh3d/scopia/womanShoesSeparated` : curation: small accessory, not furniture
+- `sh3d/scopia/broom` : curation: small accessory, not furniture
+- `sh3d/scopia/shovel` : curation: small accessory, not furniture
+- `sh3d/scopia/ficus` : too heavy: 919 KB
+- `sh3d/scopia/flipper` : too many materials: 9
+- `sh3d/scopia/cat` : category Characters
+- `sh3d/scopia/dog` : category Characters
+- `sh3d/scopia/elevator-door` : door or window
+- `sh3d/scopia/elevator` : door or window
+- `sh3d/scopia/peugeot-308` : too many materials: 15
+- `sh3d/scopia/renault-scenic` : too many materials: 10
+- `sh3d/scopia/yamaha-yzr-r6` : too many materials: 13
+- `sh3d/scopia/garden-faucet` : curation: small accessory, not furniture
+- `sh3d/scopia/punching-ball` : curation: small accessory, not furniture
+- `sh3d/scopia/scooter` : category Vehicles
+- `sh3d/scopia/shopping-basket` : curation: small accessory, not furniture
+- `sh3d/scopia/squeezer` : curation: small accessory, not furniture
+- `sh3d/scopia/stroller` : category Vehicles
+- `sh3d/scopia/tricycle` : category Vehicles
+- `sh3d/scopia/aquarium` : too many materials: 9
+- `sh3d/scopia/bonsai-tree` : too heavy: 159 KB
+- `sh3d/scopia/doll-house` : too many materials: 21
+- `sh3d/scopia/doll` : curation: small accessory, not furniture
+- `sh3d/scopia/garage-door` : door or window
+- `sh3d/scopia/mocassinSeparated` : curation: small accessory, not furniture
+- `sh3d/scopia/rabbit` : category Characters
+- `sh3d/scopia/roasted-chicken` : food or drink
+- `sh3d/scopia/swimming-pool` : out of scale: 1713 cm
+- `sh3d/scopia/truck` : conversion failed: UV index 3772 is out of bounds
+- `sh3d/scopia/turn-window` : door or window
+- `sh3d/scopia/tablet` : curation: small accessory, not furniture
+- `sh3d/scopia/door` : door or window
+- `sh3d/scopia/double_door_2` : door or window
+- `sh3d/scopia/double_door_with_little_part` : door or window
+- `sh3d/scopia/double_door` : door or window
+- `sh3d/scopia/window_2x1_medium_with_large_pane` : door or window
+- `sh3d/scopia/window_2x1_with_sliders` : door or window
+- `sh3d/scopia/window_2x3_arched` : door or window
+- `sh3d/scopia/window_2x3_regular` : door or window
+- `sh3d/scopia/window_2x3` : door or window
+- `sh3d/scopia/window_2x4_arched` : door or window
+- `sh3d/scopia/window_2x4` : door or window
+- `sh3d/scopia/window_2x6` : door or window
+- `sh3d/scopia/window_3x1` : door or window
+- `sh3d/scopia/window_4x1` : door or window
+- `sh3d/scopia/window_4x3_arched` : door or window
+- `sh3d/scopia/window_4x3` : door or window
+- `sh3d/scopia/window_4x5` : door or window
+- `sh3d/scopia/robe` : curation: small accessory, not furniture
+- `sh3d/scopia/casquette` : curation: small accessory, not furniture
+- `sh3d/scopia/chapeau` : curation: small accessory, not furniture
+- `sh3d/scopia/casque` : curation: small accessory, not furniture
+- `sh3d/scopia/short-shadows` : curation: small accessory, not furniture
+- `sh3d/scopia/pantalon-shadows` : curation: small accessory, not furniture
+- `sh3d/scopia/blouson` : curation: small accessory, not furniture
+- `sh3d/scopia/jupe` : curation: small accessory, not furniture
+- `sh3d/scopia/jupe-doeskin` : curation: small accessory, not furniture
+- `sh3d/scopia/chaussette` : curation: small accessory, not furniture
+- `sh3d/scopia/bicycle` : category Vehicles
+- `sh3d/scopia/bus` : too many materials: 9
+- `sh3d/scopia/scooter2` : too many materials: 12
+- `sh3d/scopia/suv` : too many materials: 11
+- `sh3d/scopia/chevrolet` : too many materials: 10
+- `sh3d/scopia/van` : too many materials: 9
+- `sh3d/scopia/smart-car` : too many materials: 13
+- `sh3d/scopia/montre-with-pose` : trinket: 9 cm
+- `sh3d/scopia/montre` : curation: small accessory, not furniture
+- `sh3d/scopia/bague` : trinket: 2 cm
+- `sh3d/scopia/ensemble-assiette-couteau-fourchette-cuillere-verre` : food or drink
+- `sh3d/scopia/scie-egoine` : curation: small accessory, not furniture
+- `sh3d/scopia/rouleau-de-ruban-adhesif` : curation: small accessory, not furniture
+- `sh3d/scopia/pelle` : curation: small accessory, not furniture
+- `sh3d/scopia/passage-a-niveau` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/passage-pieton` : out of scale: 750 cm
+- `sh3d/scopia/cone` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/perceuse-electrique` : curation: small accessory, not furniture
+- `sh3d/scopia/marteau` : curation: small accessory, not furniture
+- `sh3d/scopia/tournevis` : curation: small accessory, not furniture
+- `sh3d/scopia/meuleuse-electrique` : curation: small accessory, not furniture
+- `sh3d/scopia/gant-textured` : curation: small accessory, not furniture
+- `sh3d/scopia/cendrier` : curation: small accessory, not furniture
+- `sh3d/scopia/billet-10-euros` : curation: small accessory, not furniture
+- `sh3d/scopia/billet-20-euros` : curation: small accessory, not furniture
+- `sh3d/scopia/billet-50-euros` : curation: small accessory, not furniture
+- `sh3d/scopia/candelabre` : out of scale: 738 cm
+- `sh3d/scopia/rails` : out of scale: 1000 cm
+- `sh3d/scopia/fleche-tout-droit` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/fleche-tourner-a-droite-et-direct` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/fleche-tourner-a-droite` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/stationnement-creneau` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/stationnement-en-bataille` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/stationnement-epi-45` : out of scale: 802 cm
+- `sh3d/scopia/stationnement-epi-60` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/stationnement-epi-75` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/keys` : trinket: 12 cm
+- `sh3d/scopia/glass_door` : door or window
+- `sh3d/scopia/big-football-goal` : out of scale: 732 cm
+- `sh3d/scopia/bush` : too heavy: 213 KB
+- `sh3d/scopia/CCTV` : curation: small accessory, not furniture
+- `sh3d/scopia/entry-bell-ring` : trinket: 10 cm
+- `sh3d/scopia/entry-bell-speech-unit` : curation: small accessory, not furniture
+- `sh3d/scopia/garage-door2` : door or window
+- `sh3d/scopia/skateboard` : category Vehicles
+- `sh3d/scopia/smoke-detector` : trinket: 10 cm
+- `sh3d/scopia/tv-remote-control` : trinket
+- `sh3d/scopia/ps4-joystick` : curation: small accessory, not furniture
+- `sh3d/scopia/rounded-antenna` : trinket: 9 cm
+- `sh3d/scopia/rounded-dimmer` : trinket: 9 cm
+- `sh3d/scopia/rounded-double-switch` : trinket: 9 cm
+- `sh3d/scopia/rounded-plug-TypeA` : trinket: 9 cm
+- `sh3d/scopia/rounded-plug-TypeB` : trinket: 9 cm
+- `sh3d/scopia/rounded-plug-TypeCFlat` : trinket: 9 cm
+- `sh3d/scopia/rounded-plug-TypeE` : trinket: 9 cm
+- `sh3d/scopia/rounded-plug-TypeG` : trinket: 9 cm
+- `sh3d/scopia/rounded-RJ-45` : trinket: 9 cm
+- `sh3d/scopia/rounded-switch` : trinket: 9 cm
+- `sh3d/scopia/square-antenna` : trinket: 9 cm
+- `sh3d/scopia/square-dimmer` : trinket: 9 cm
+- `sh3d/scopia/square-double-switch` : trinket: 9 cm
+- `sh3d/scopia/square-plug-TypeA` : trinket: 9 cm
+- `sh3d/scopia/square-plug-TypeB` : trinket: 9 cm
+- `sh3d/scopia/square-plug-TypeCFlat` : trinket: 9 cm
+- `sh3d/scopia/square-plug-TypeE` : trinket: 9 cm
+- `sh3d/scopia/square-plug-TypeG` : trinket: 9 cm
+- `sh3d/scopia/square-RJ-45` : trinket: 9 cm
+- `sh3d/scopia/square-switch` : trinket: 9 cm
+- `sh3d/scopia/antenna-whites` : trinket: 9 cm
+- `sh3d/scopia/dimmer-whites` : trinket: 9 cm
+- `sh3d/scopia/double-switch-whites` : trinket: 9 cm
+- `sh3d/scopia/plug-TypeA-whites` : trinket: 9 cm
+- `sh3d/scopia/plug-TypeB-whites` : trinket: 9 cm
+- `sh3d/scopia/plug-TypeCFlat-whites` : trinket: 9 cm
+- `sh3d/scopia/plug-TypeE-whites` : trinket: 9 cm
+- `sh3d/scopia/plug-TypeG-whites` : trinket: 9 cm
+- `sh3d/scopia/RJ-45-whites` : trinket: 9 cm
+- `sh3d/scopia/switch-whites` : trinket: 9 cm
+- `sh3d/scopia/high-hedge` : too heavy: 770 KB
+- `sh3d/scopia/escalator` : out of scale: 882 cm
+- `sh3d/scopia/basin` : curation: small accessory, not furniture
+- `sh3d/scopia/hedge` : too heavy: 440 KB
+- `sh3d/scopia/small-oven` : too many materials: 9
+- `sh3d/scopia/mannequinMale` : too many materials: 16
+- `sh3d/scopia/mannequinBrunette` : too many materials: 16
+- `sh3d/scopia/pince-coupante` : curation: small accessory, not furniture
+- `sh3d/scopia/acacia` : too heavy: 520 KB
+- `sh3d/scopia/ficusTree` : too heavy: 263 KB
+- `sh3d/scopia/bowlWithFruits` : food or drink
+- `sh3d/scopia/bowlWithSalad` : food or drink
+- `sh3d/scopia/cityBus` : too many materials: 14
+- `sh3d/scopia/coconutTree` : too heavy: 213 KB
+- `sh3d/scopia/coconutTreeBended` : too heavy: 211 KB
+- `sh3d/scopia/copperBeech` : too heavy: 207 KB
+- `sh3d/scopia/deepFryerWithFrenchFries` : too many materials: 10
+- `sh3d/scopia/electronicScale` : curation: small accessory, not furniture
+- `sh3d/scopia/frenchFries` : food or drink
+- `sh3d/scopia/glassDoor2` : door or window
+- `sh3d/scopia/japaneseMaple` : too heavy: 161 KB
+- `sh3d/scopia/kitchenKnifeStandSet` : trinket
+- `sh3d/scopia/poplar` : too heavy: 690 KB
+- `sh3d/scopia/palm` : too heavy: 205 KB
+- `sh3d/scopia/paperTowelHolder` : curation: small accessory, not furniture
+- `sh3d/scopia/peachBlossom` : out of scale: 746 cm
+- `sh3d/scopia/pine` : too heavy: 485 KB
+- `sh3d/scopia/pineSnow` : too heavy: 522 KB
+- `sh3d/scopia/sabalPalmeto` : out of scale: 1150 cm
+- `sh3d/scopia/sandwichMaker` : food or drink
+- `sh3d/scopia/spiceTower` : too many materials: 16
+- `sh3d/scopia/steak` : food or drink
+- `sh3d/scopia/sycamoreMaple` : too heavy: 315 KB
+- `sh3d/scopia/toaster` : food or drink
+- `sh3d/scopia/renaultKangoo` : too many materials: 21
+- `sh3d/scopia/tasDeVetements` : curation: small accessory, not furniture
+- `sh3d/scopia/parpaing` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/litiere` : curation: small accessory, not furniture
+- `sh3d/scopia/double_plain_door_with_little_part` : door or window
+- `sh3d/scopia/cageALapin` : too many materials: 11
+- `sh3d/scopia/roueAvecJante` : curation: small accessory, not furniture
+- `sh3d/scopia/tasDeTerre` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/tasDeSable` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/tasDeGravillons` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/tasDeGravats` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/voiesFerreesAiguillage` : out of scale: 2007 cm
+- `sh3d/scopia/voiesFerreesCourbe10m` : out of scale: 1045 cm
+- `sh3d/scopia/voiesFerreesCourbe20m` : out of scale: 2034 cm
+- `sh3d/scopia/voiesFerreesCourbe40m` : out of scale: 3933 cm
+- `sh3d/scopia/voiesFerreesDroit1m` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/voiesFerreesDroit10m` : out of scale: 1000 cm
+- `sh3d/scopia/routeCourbe2VoiesAvecTrottoirs26m` : out of scale: 2706 cm
+- `sh3d/scopia/routeCourbe1VoieAvecTrottoirs26m` : out of scale: 2660 cm
+- `sh3d/scopia/routeCourbe2VoiesAvecTrottoirs6.5m` : out of scale: 1112 cm
+- `sh3d/scopia/routeCourbe1VoieAvecTrottoirs6.5m` : out of scale: 770 cm
+- `sh3d/scopia/routeCourbe1VoieAvecTrottoirs13m` : out of scale: 1376 cm
+- `sh3d/scopia/routeCourbe2VoiesAvecTrottoirs13m` : out of scale: 1421 cm
+- `sh3d/scopia/route2VoiesAvecTrottoirs` : out of scale: 1300 cm
+- `sh3d/scopia/route1VoieAvecTrottoirs` : out of scale: 1300 cm
+- `sh3d/scopia/croisement2et2` : out of scale: 1045 cm
+- `sh3d/scopia/croisement1et1` : out of scale: 695 cm
+- `sh3d/scopia/croisement1et2` : out of scale: 1045 cm
+- `sh3d/scopia/pont2Voies` : out of scale: 1300 cm
+- `sh3d/scopia/pont1Voie` : out of scale: 1300 cm
+- `sh3d/scopia/separateurDeVoie` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/pilierPont1Voie` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/autoroute2Voies` : out of scale: 5200 cm
+- `sh3d/scopia/routeCourbe1VoieAvecTrottoirs90Deg` : out of scale: 695 cm
+- `sh3d/scopia/routeCourbe2VoiesAvecTrottoirs90Deg` : out of scale: 1045 cm
+- `sh3d/scopia/break` : too many materials: 20
+- `sh3d/scopia/caravane` : too many materials: 20
+- `sh3d/scopia/filElectrique` : empty render (0.40 %)
+- `sh3d/scopia/fille` : too many materials: 15
+- `sh3d/scopia/boy` : too many materials: 21
+- `sh3d/scopia/locomotive` : too many materials: 29
+- `sh3d/scopia/nourrison` : too many materials: 11
+- `sh3d/scopia/pickup` : too many materials: 22
+- `sh3d/scopia/poteau-en-beton` : out of scale: 1202 cm
+- `sh3d/scopia/poteau-en-bois` : out of scale: 1202 cm
+- `sh3d/scopia/remorque` : too many materials: 18
+- `sh3d/scopia/tramway` : too heavy: 156 KB
+- `sh3d/scopia/wagon` : too heavy: 163 KB
+- `sh3d/scopia/suv2` : too many materials: 22
+- `sh3d/scopia/carSegmentA` : too many materials: 15
+- `sh3d/scopia/carSegmentB` : too many materials: 16
+- `sh3d/scopia/revueOuverte` : curation: small accessory, not furniture
+- `sh3d/scopia/foldedNewspaper` : curation: small accessory, not furniture
+- `sh3d/scopia/newspapersPile` : curation: small accessory, not furniture
+- `sh3d/scopia/openedNewspaper` : curation: small accessory, not furniture
+- `sh3d/scopia/feu-de-signalisation-simple` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/feu-de-signalisation-avec-signalisation-au-dessus` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/fil-electrique-1m` : empty render (0.49 %)
+- `sh3d/scopia/4x4` : too many materials: 19
+- `sh3d/scopia/pileRevues` : curation: small accessory, not furniture
+- `sh3d/scopia/revue` : curation: small accessory, not furniture
+- `sh3d/scopia/monospace` : too many materials: 13
+- `sh3d/scopia/decapotable` : too many materials: 17
+- `sh3d/scopia/sportive` : too many materials: 14
+- `sh3d/scopia/flipFlops` : curation: small accessory, not furniture
+- `sh3d/scopia/electricWheelchair` : too many materials: 29
+- `sh3d/scopia/food-box-corn-flakes` : food or drink
+- `sh3d/scopia/food-box-pasta` : food or drink
+- `sh3d/scopia/food-spaghetti-box` : food or drink
+- `sh3d/scopia/japanese-toilet` : too many materials: 11
+- `sh3d/scopia/kitchen-glass-jar-high` : food or drink
+- `sh3d/scopia/kitchen-glass-jar-low` : food or drink
+- `sh3d/scopia/microphone-with-foot` : too many materials: 10
+- `sh3d/scopia/mixer-tap-for-bath-and-shower` : curation: small accessory, not furniture
+- `sh3d/scopia/mixer-tap-for-bath` : curation: small accessory, not furniture
+- `sh3d/scopia/mixer-tap-for-shower` : curation: small accessory, not furniture
+- `sh3d/scopia/shower-cabin-with-seat` : too many materials: 15
+- `sh3d/scopia/stair-lift-rail` : curation: road, building or site element (not furniture)
+- `sh3d/scopia/walker-with-wheels` : too many materials: 10
+- `sh3d/scopia/walker` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/screen-door` : category Doors and windows
+- `sh3d/katorlegaz/window-01` : door or window
+- `sh3d/katorlegaz/window-08` : door or window
+- `sh3d/katorlegaz/window-08-02` : door or window
+- `sh3d/katorlegaz/exterior-door-01` : door or window
+- `sh3d/katorlegaz/exterior-door-02` : door or window
+- `sh3d/katorlegaz/exterior-door-03` : door or window
+- `sh3d/katorlegaz/exterior-door-05` : door or window
+- `sh3d/katorlegaz/exterior-door-07` : door or window
+- `sh3d/katorlegaz/window-shutter` : category Doors and windows
+- `sh3d/katorlegaz/spray-bottle` : food or drink
+- `sh3d/katorlegaz/ashtray` : trinket: 8 cm
+- `sh3d/katorlegaz/bowl` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/coffee-mug` : food or drink
+- `sh3d/katorlegaz/12-oz-glass` : trinket: 10 cm
+- `sh3d/katorlegaz/highball-glass` : food or drink
+- `sh3d/katorlegaz/oil-servers` : food or drink
+- `sh3d/katorlegaz/dinner-plate` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/bread-plate` : trinket
+- `sh3d/katorlegaz/plate-and-ustensils` : food or drink
+- `sh3d/katorlegaz/flashlight` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/clothes-hanger` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/concept-sedan-01v2` : too many materials: 11
+- `sh3d/katorlegaz/concept-sedan-02` : too many materials: 15
+- `sh3d/katorlegaz/concept-sedan-02-sport` : too many materials: 15
+- `sh3d/katorlegaz/female-01-casual-clothing` : too many materials: 13
+- `sh3d/katorlegaz/male-01-suit` : too many materials: 13
+- `sh3d/katorlegaz/scooter` : too many materials: 11
+- `sh3d/katorlegaz/tape-measure` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/VW-new-beetle` : too many materials: 16
+- `sh3d/katorlegaz/window-blinds` : curation: road, building or site element (not furniture)
+- `sh3d/katorlegaz/concept-sedan-01v1` : too many materials: 11
+- `sh3d/katorlegaz/concrete-sidewalk` : curation: road, building or site element (not furniture)
+- `sh3d/katorlegaz/fire-hydrant` : curation: road, building or site element (not furniture)
+- `sh3d/katorlegaz/hanging-clothes1` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/hanging-clothes2` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/hose-reel` : curation: road, building or site element (not furniture)
+- `sh3d/katorlegaz/newspaper` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/oriental-rug` : curation: texture lost in the source (renders blank)
+- `sh3d/katorlegaz/red-wine-bottle-01` : food or drink
+- `sh3d/katorlegaz/showerHeadAndFaucet` : curation: small accessory, not furniture
+- `sh3d/katorlegaz/stapler` : trinket: 12 cm
+- `sh3d/contributions/bidon` : food or drink
+- `sh3d/contributions/robinet` : curation: small accessory, not furniture
+- `sh3d/contributions/boiteMetal` : trinket: 11 cm
+- `sh3d/contributions/parfumAmbiance` : trinket: 9 cm
+- `sh3d/contributions/rasoir` : curation: small accessory, not furniture
+- `sh3d/contributions/shampoo` : curation: small accessory, not furniture
+- `sh3d/contributions/gelDouche` : food or drink
+- `sh3d/contributions/boiteDeMouchoirs` : curation: small accessory, not furniture
+- `sh3d/contributions/tube` : trinket: 7 cm
+- `sh3d/contributions/petitReveil` : trinket: 9 cm
+- `sh3d/contributions/p40` : curation: toy or model
+- `sh3d/contributions/fivePanesWindowWithWallPart` : door or window
+- `sh3d/contributions/rectangularFivePanesWindow` : door or window
+- `sh3d/contributions/frontDoorDark` : door or window
+- `sh3d/contributions/garageDoor` : door or window
+- `sh3d/contributions/patioGlassDoorUnit` : door or window
+- `sh3d/contributions/pictureWindow` : door or window
+- `sh3d/contributions/simpleShutter` : category Doors and windows
+- `sh3d/contributions/sixDoorFrenchStyle` : door or window
+- `sh3d/contributions/frenchDoors` : door or window
+- `sh3d/contributions/traditionalShutter` : category Doors and windows
+- `sh3d/contributions/twoPartsShutter` : category Doors and windows
+- `sh3d/contributions/verreFlute` : curation: small accessory, not furniture
+- `sh3d/contributions/verreLongDrink` : food or drink
+- `sh3d/contributions/mug` : trinket: 11 cm
+- `sh3d/contributions/assietteVerresCouverts` : food or drink
+- `sh3d/contributions/smallGlass` : trinket: 10 cm
+- `sh3d/contributions/carafeEau` : curation: small accessory, not furniture
+- `sh3d/contributions/verreEau` : trinket: 7 cm
+- `sh3d/contributions/carafeVin` : food or drink
+- `sh3d/contributions/verreVin` : trinket: 10 cm
+- `sh3d/contributions/bocalPoisson` : curation: small accessory, not furniture
+- `sh3d/contributions/fut` : food or drink
+- `sh3d/contributions/pompeBiere` : food or drink
+- `sh3d/contributions/priseTelephonique` : trinket: 8 cm
+- `sh3d/contributions/marteau` : curation: small accessory, not furniture
+- `sh3d/contributions/prise` : trinket: 8 cm
+- `sh3d/contributions/scie` : curation: small accessory, not furniture
+- `sh3d/contributions/tournevis` : curation: small accessory, not furniture
+- `sh3d/contributions/interrupteur` : trinket: 8 cm
+- `sh3d/contributions/priseTV` : trinket: 8 cm
+- `sh3d/contributions/horlogeUbuntu` : curation: small accessory, not furniture
+- `sh3d/contributions/venetianBlind` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/etau` : curation: small accessory, not furniture
+- `sh3d/contributions/souris` : trinket: 10 cm
+- `sh3d/contributions/peugeot103` : category Vehicles
+- `sh3d/contributions/DianaWindow` : door or window
+- `sh3d/contributions/emergencyGlassDoubleDoor` : door or window
+- `sh3d/contributions/guitar` : curation: small accessory, not furniture
+- `sh3d/contributions/arch` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/electricOutlet` : trinket: 11 cm
+- `sh3d/contributions/electricOutlet2` : trinket: 11 cm
+- `sh3d/contributions/lightSwitch` : trinket: 11 cm
+- `sh3d/contributions/bike` : category Vehicles
+- `sh3d/contributions/accordionFoldDoors` : door or window
+- `sh3d/contributions/pavesDeVerre` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/boucheVMC` : curation: small accessory, not furniture
+- `sh3d/contributions/bouteille` : food or drink
+- `sh3d/contributions/stylo` : trinket
+- `sh3d/contributions/appleIpod` : trinket: 10 cm
+- `sh3d/contributions/pile` : trinket: 5 cm
+- `sh3d/contributions/polygonalRoof` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/toitureArdoiseRouge` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/sphere` : curation: small accessory, not furniture
+- `sh3d/contributions/kleed_grieks` : too heavy: 185 KB
+- `sh3d/contributions/rainGutterPart1` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/rainGutterPart2` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/garageDoor2` : door or window
+- `sh3d/contributions/doorGlassPanels` : door or window
+- `sh3d/contributions/door1` : door or window
+- `sh3d/contributions/fancyWindow` : door or window
+- `sh3d/contributions/newWindowDk` : door or window
+- `sh3d/contributions/windowFrostedGlass` : door or window
+- `sh3d/contributions/glassDoorsOpened` : door or window
+- `sh3d/contributions/patioDoorOpened` : door or window
+- `sh3d/contributions/patioDoor` : door or window
+- `sh3d/contributions/patioSideDoor` : door or window
+- `sh3d/contributions/fancyFrontDoor` : door or window
+- `sh3d/contributions/antenaParabolica` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/antenaTV` : too heavy: 220 KB
+- `sh3d/contributions/autocuiseur` : curation: small accessory, not furniture
+- `sh3d/contributions/baguettePain` : food or drink
+- `sh3d/contributions/baguettes` : curation: small accessory, not furniture
+- `sh3d/contributions/bd` : curation: small accessory, not furniture
+- `sh3d/contributions/bdOuverte` : curation: small accessory, not furniture
+- `sh3d/contributions/bolDeRiz` : trinket: 11 cm
+- `sh3d/contributions/casserole` : curation: small accessory, not furniture
+- `sh3d/contributions/couteauADecouper` : trinket
+- `sh3d/contributions/couteauAPain` : food or drink
+- `sh3d/contributions/eponge` : trinket: 10 cm
+- `sh3d/contributions/fer` : curation: small accessory, not furniture
+- `sh3d/contributions/grillePain` : food or drink
+- `sh3d/contributions/invoice` : curation: small accessory, not furniture
+- `sh3d/contributions/livreAvecReliure` : curation: small accessory, not furniture
+- `sh3d/contributions/livreJava` : curation: small accessory, not furniture
+- `sh3d/contributions/pileMagazines` : curation: small accessory, not furniture
+- `sh3d/contributions/pizza` : food or drink
+- `sh3d/contributions/plancheADecouper` : curation: small accessory, not furniture
+- `sh3d/contributions/plancheARepasser` : curation: small accessory, not furniture
+- `sh3d/contributions/poele` : curation: small accessory, not furniture
+- `sh3d/contributions/potBrossesADent` : curation: small accessory, not furniture
+- `sh3d/contributions/savon` : curation: small accessory, not furniture
+- `sh3d/contributions/secheCheveux` : curation: small accessory, not furniture
+- `sh3d/contributions/sh3dMag` : curation: small accessory, not furniture
+- `sh3d/contributions/SweetHome3DKompakt` : curation: small accessory, not furniture
+- `sh3d/contributions/toast` : trinket: 10 cm
+- `sh3d/contributions/cageFuret` : curation: small accessory, not furniture
+- `sh3d/contributions/swimmingPool` : out of scale: 832 cm
+- `sh3d/contributions/bathroom_fan` : door or window
+- `sh3d/contributions/bucket` : curation: small accessory, not furniture
+- `sh3d/contributions/citrouille` : curation: small accessory, not furniture
+- `sh3d/contributions/clothes_line` : too many materials: 9
+- `sh3d/contributions/craftsmanDoorClosed` : door or window
+- `sh3d/contributions/gaz` : food or drink
+- `sh3d/contributions/sliderPocketDoor` : door or window
+- `sh3d/contributions/solar_panel_140W` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/suits_racked` : curation: clothing
+- `sh3d/contributions/vent_round` : door or window
+- `sh3d/contributions/washer_dryer` : too many materials: 9
+- `sh3d/contributions/window_2x3_frame_sill` : door or window
+- `sh3d/contributions/window_deep` : door or window
+- `sh3d/contributions/window_flat_roof_skylight_bubble` : category Doors and windows
+- `sh3d/contributions/window_shutter` : category Doors and windows
+- `sh3d/contributions/window_double_3x3` : door or window
+- `sh3d/contributions/door_window_thick_double_2x4` : door or window
+- `sh3d/contributions/door_window_thick_double` : door or window
+- `sh3d/contributions/door_window_thick` : door or window
+- `sh3d/contributions/window_double_2x3_frame_sill` : door or window
+- `sh3d/contributions/window_double_frame_sill` : door or window
+- `sh3d/contributions/window_stain_glass` : door or window
+- `sh3d/contributions/fixed_window_2x2` : door or window
+- `sh3d/contributions/window_shop` : door or window
+- `sh3d/contributions/window_urban_neoclassic` : door or window
+- `sh3d/contributions/stairs_rail` : empty render (0.59 %)
+- `sh3d/contributions/cornice` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/corniceConcaveCorner` : trinket: 10 cm
+- `sh3d/contributions/door_glass` : door or window
+- `sh3d/contributions/double_door` : door or window
+- `sh3d/contributions/flag_hinged_pole` : out of scale: 820 cm
+- `sh3d/contributions/glass_door_framless` : door or window
+- `sh3d/contributions/glassblock` : door or window
+- `sh3d/contributions/japanesedoor` : door or window
+- `sh3d/contributions/metalBeam` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/quarterSlope` : out of scale: 800 cm
+- `sh3d/contributions/revdoor` : door or window
+- `sh3d/contributions/scissors` : trinket
+- `sh3d/contributions/storeCalifornien` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/street_light_modern` : out of scale: 770 cm
+- `sh3d/contributions/traffic_light_ped` : curation: road, building or site element (not furniture)
+- `sh3d/contributions/bump` : curation: small accessory, not furniture
+- `sh3d/contributions/doubleFrenchWindow2` : door or window
+- `sh3d/contributions/doubleWindow2` : door or window
+- `sh3d/contributions/frenchWindow2` : door or window
+- `sh3d/contributions/frontDoor2` : door or window
+- `sh3d/contributions/smallWindow2` : door or window
+- `sh3d/contributions/window2` : door or window
+- `sh3d/contributions/minispot` : trinket: 7 cm
+- `sh3d/contributions/wheelchairSymbol` : curation: small accessory, not furniture
+- `sh3d/lucapresidente/cucina` : too many materials: 10
+- `sh3d/lucapresidente/blocks` : curation: small accessory, not furniture
+- `sh3d/lucapresidente/letters` : curation: small accessory, not furniture
+- `sh3d/lucapresidente/smiley` : curation: small accessory, not furniture
+- `sh3d/lucapresidente/train` : curation: small accessory, not furniture
+- `polyhaven/polyhaven/Chandelier_01` : too heavy: 157 KB
+- `polyhaven/polyhaven/GothicCabinet_01` : too heavy: 153 KB
+- `polyhaven/polyhaven/bar_chair_round_01` : too heavy: 408 KB
+- `polyhaven/polyhaven/book_encyclopedia_set_01` : too heavy: 354 KB
+- `polyhaven/polyhaven/chess_set` : too heavy: 179 KB
+- `polyhaven/polyhaven/gaming_console` : too heavy: 272 KB
+- `polyhaven/polyhaven/modern_coffee_table_02` : too heavy: 291 KB
+- `polyhaven/polyhaven/modern_wooden_cabinet` : too heavy: 254 KB
+- `polyhaven/polyhaven/outdoor_table_chair_set_01` : too heavy: 159 KB
+- `polyhaven/polyhaven/potted_plant_01` : too heavy: 185 KB
+- `polyhaven/polyhaven/potted_plant_02` : too heavy: 161 KB
+- `polyhaven/polyhaven/treasure_chest` : too heavy: 156 KB
+- `polyhaven/polyhaven/vintage_cabinet_01` : too heavy: 154 KB
+- `polyhaven/polyhaven/vintage_grandfather_clock_01` : conversion failed: Invalid typed array length: 696
+- `polyhaven/Chandelier_01` : kept in curation but not staged
+- `polyhaven/GothicCabinet_01` : kept in curation but not staged
+- `polyhaven/bar_chair_round_01` : kept in curation but not staged
+- `polyhaven/book_encyclopedia_set_01` : kept in curation but not staged
+- `polyhaven/chess_set` : kept in curation but not staged
+- `polyhaven/decorative_book_set_01` : kept in curation but not staged
+- `polyhaven/gaming_console` : kept in curation but not staged
+- `polyhaven/modern_coffee_table_02` : kept in curation but not staged
+- `polyhaven/modern_wooden_cabinet` : kept in curation but not staged
+- `polyhaven/outdoor_table_chair_set_01` : kept in curation but not staged
+- `polyhaven/potted_plant_01` : kept in curation but not staged
+- `polyhaven/potted_plant_02` : kept in curation but not staged
+- `polyhaven/treasure_chest` : kept in curation but not staged
+- `polyhaven/vintage_cabinet_01` : kept in curation but not staged
+- `polyhaven/vintage_grandfather_clock_01` : kept in curation but not staged
+- `sh-bs0-pedestrian-railing2` : duplicate of sh-bs0-pedestrian-railing1
+- `sh-kl-porch-column-03` : duplicate of sh-kl-porch-column-01
+- `sh-scopia-chair` : duplicate of sh-bs0-chair2
+- `sh-scopia-chair3` : duplicate of sh-bs0-silla-blanca
+- `sh-scopia-iron-railing-separated-hooks-3` : duplicate of sh-kl-iron-railing-02
+- `sh-scopia-tatami` : duplicate of sh-bs0-tatami
+- `sh-scopia-wooden-office-pear-table-rect` : duplicate of sh-bs0-lb-desk
+- `sh-bsby-chair-with-cushion` : duplicate of sh-bs0-chair-with-cushion
+- `sh-bsby-couch3` : duplicate of sh-bs0-couch
+- `sh-bsby-ella-chair-f` : duplicate of sh-scopia-plastic-chair
+- `sh-bsby-table` : duplicate of sh-scopia-table4
+- `sh-contrib-bureau3` : duplicate of sh-bsby-biurko3
+- `sh-contrib-chair2` : duplicate of sh-bsby-chair4
+- `sh-contrib-fencepost2` : duplicate of sh-contrib-fencepost1
+- `sh-contrib-office-desk` : duplicate of sh-bs0-lb-desk
+- `sh-contrib-privacy-fence2` : duplicate of sh-contrib-privacy-fence
+- `sh-contrib-rounded-edges-railing1` : duplicate of sh-contrib-rounded-edges-railing
+- `sh-contrib-shower-cabin` : duplicate of kn-shower
+- `sh-contrib-sofa4` : duplicate of sh-scopia-clear-sofa
+- `sh-contrib-square-coffee-table` : duplicate of kn-table-coffee-square
+- `sh-contrib-tavolo-fratino` : duplicate of sh-scopia-white-kitchen-table
+- `sh-lp-lavello` : duplicate of sh-contrib-cabinet-with-basin
+- `sh-lp-scrivania160-w` : duplicate of sh-bs0-lb-desk
+
+</details>
