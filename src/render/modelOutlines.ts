@@ -58,6 +58,8 @@ export function loadModelOutlines(fetchTable: () => Promise<Table> = defaultFetc
       console.warn('top views of the 3D models could not be loaded', e);
       failedAt = now();
       loading = null;
+      // wake the plans up when a retry is allowed: an open plan asks again (useModelOutlines)
+      setTimeout(notify, RETRY_MS);
     },
   );
   loading = attempt;
@@ -87,10 +89,14 @@ export const showsModels = (objects: Iterable<PlacedObject>): boolean => {
   return false;
 };
 
-const subscribe = (l: () => void) => {
+/** Calls `l` when the top views change (loaded, or a retry allowed); returns the unsubscribe. */
+export const subscribeModelOutlines = (l: () => void): (() => void) => {
   listeners.add(l);
-  return () => listeners.delete(l);
+  return () => {
+    listeners.delete(l);
+  };
 };
+const subscribe = subscribeModelOutlines;
 const snapshot = () => version;
 
 /**
@@ -100,8 +106,9 @@ const snapshot = () => version;
  */
 export function useModelOutlines(needed: boolean): number {
   const v = useSyncExternalStore(subscribe, snapshot, snapshot);
+  // `v` too: after a failure, notify (RETRY_MS later) makes an open plan try again
   useEffect(() => {
     if (needed) void loadModelOutlines();
-  }, [needed]);
+  }, [needed, v]);
   return v;
 }

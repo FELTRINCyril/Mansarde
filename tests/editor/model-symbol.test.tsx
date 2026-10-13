@@ -66,6 +66,21 @@ describe('ObjectsLayer with downloaded models', () => {
     expect(m).not.toContain('<rect');
   });
 
+  it('wakes the open plans up once a retry is allowed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { subscribeModelOutlines } = await import('@/render/modelOutlines');
+    const listener = vi.fn();
+    const unsubscribe = subscribeModelOutlines(listener);
+    await loadModelOutlines(() => Promise.reject(new Error('offline')), () => 0);
+    expect(listener).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(RETRY_MS);
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    warn.mockRestore();
+    vi.useRealTimers();
+  });
+
   it('keeps the boxes when the top views cannot be loaded, and retries after a delay', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     let clock = 1000;

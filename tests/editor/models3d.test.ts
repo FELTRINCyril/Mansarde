@@ -249,6 +249,25 @@ describe('downloaded models in the furniture layer', () => {
     expect(calls.filter((u) => u === urlOf(MODEL.id))).toHaveLength(2);
   });
 
+  it('evict frees the tinted materials of the models it frees, and only those', async () => {
+    const { lib, settle } = await loaded();
+    lib.get(MODEL.id);
+    lib.get(OTHER.id);
+    settle.get(urlOf(MODEL.id))!.resolve(unitModel());
+    settle.get(urlOf(OTHER.id))!.resolve(unitModel());
+    await flush();
+    const base = meshes(lib.get(MODEL.id)!)[0]!.material as MeshStandardMaterial;
+    const kept = meshes(lib.get(OTHER.id)!)[0]!.material as MeshStandardMaterial;
+    const freed = lib.tinted(MODEL.id, base, '#ff0000');
+    const stays = lib.tinted(OTHER.id, kept, '#ff0000');
+    const freedSpy = vi.spyOn(freed, 'dispose');
+    const staysSpy = vi.spyOn(stays, 'dispose');
+    lib.evict(new Set([OTHER.id]));
+    expect(freedSpy).toHaveBeenCalled();
+    expect(staysSpy).not.toHaveBeenCalled();
+    expect(lib.tinted(OTHER.id, kept, '#ff0000')).toBe(stays);
+  });
+
   it('loads each model once for many objects, two models in parallel', async () => {
     const { lib, calls } = await loaded();
     const layer = new FurnitureLayer(new Kit(), null, lib);
