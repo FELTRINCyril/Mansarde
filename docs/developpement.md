@@ -155,11 +155,12 @@ npm run models                    # stage, render, publish
 
 - `npm run stage` télécharge les sources (`sources.json`, empreintes figées dans
   `sources.lock.json`), convertit chaque modèle en GLB normalisé dans une boîte unité,
-  optimisé (meshopt, textures WebP) et calcule son contour vu de dessus ; résultat dans `stage/`
+  optimisé (meshopt, textures WebP) ; résultat dans `stage/`
   (ignoré par git).
 - `npm run render` rend des planches de contrôle (`stage/sheets/`).
 - `npm run publish` applique la curation (`curation/*.json` : noms, tailles, poses, exclusions),
-  rend les icônes et écrit `public/models/` (GLB, icônes, `outlines.json`, licences),
+  rend les icônes (vue 3/4) et les vues de dessus du plan (orthographiques, arêtes tracées) et
+  écrit `public/models/` (GLB, `icons/`, `top/`, licences),
   `src/catalog/generated/` (`models.json`, `credits.json`), `ids.lock` et `report.md`.
   `node publish.ts --sheets` produit aussi les planches de revue (`stage/review/`).
 
@@ -167,8 +168,9 @@ Règles :
 
 - **Ne jamais renommer ni retirer un identifiant publié** (`kn-...`, `ph-...`, `sh-...`) : les
   projets enregistrés le référencent. `ids.lock` en garde la liste et un test l'impose.
-- Budgets : GLB de 150 Ko au plus, 10 000 triangles, 8 matières ; contour de 64 points.
-- La liste des modèles est dans le paquet principal (environ 31 Ko compressé) ; les contours,
+- Budgets : GLB de 150 Ko au plus, 5 000 triangles, 8 matières ; vue de dessus de 384 px au plus.
+  Changer le budget de triangles reconvertit tous les modèles au prochain `stage`.
+- La liste des modèles est dans le paquet principal (environ 31 Ko compressé) ; les vues de dessus,
   les crédits et les GLB sont chargés à la demande.
 
 ## Conventions

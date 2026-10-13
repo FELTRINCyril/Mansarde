@@ -131,8 +131,10 @@ ph-ceramic-vase-01
 ph-ceramic-vase-02
 ph-ceramic-vase-03
 ph-ceramic-vase-04
+ph-chandelier-01
 ph-chandelier-02
 ph-chandelier-03
+ph-chess-set
 ph-chinese-armchair
 ph-chinese-cabinet
 ph-chinese-chandelier
@@ -162,6 +164,7 @@ ph-gallinera-table
 ph-garden-gnome
 ph-gothic-coffee-table
 ph-gothicbed-01
+ph-gothiccabinet-01
 ph-gothiccommode-01
 ph-greenchair-01
 ph-hanging-industrial-lamp
@@ -191,6 +194,7 @@ ph-modern-coffee-table-01
 ph-old-bed-frame
 ph-ornate-mirror-01
 ph-ottoman-01
+ph-outdoor-table-chair-set-01
 ph-painted-wooden-bench
 ph-painted-wooden-cabinet
 ph-painted-wooden-cabinet-02
@@ -204,6 +208,7 @@ ph-painted-wooden-table
 ph-planter-box-01
 ph-planter-box-03
 ph-plastic-monobloc-chair-01
+ph-potted-plant-02
 ph-potted-plant-04
 ph-projector-screen
 ph-rockingchair-01
@@ -231,6 +236,8 @@ ph-street-lamp-02
 ph-television-01
 ph-television-02
 ph-throw-pillows-01
+ph-treasure-chest
+ph-vintage-cabinet-01
 ph-vintage-day-bed
 ph-vintage-electric-kettle
 ph-vintage-microwave
@@ -542,6 +549,7 @@ sh-contrib-chair-granmother
 sh-contrib-chair-high
 sh-contrib-chair-office-x
 sh-contrib-chair-office-y
+sh-contrib-chair2
 sh-contrib-chaise-cuisine
 sh-contrib-chaise-orange
 sh-contrib-child-bed
@@ -943,6 +951,7 @@ sh-scopia-blue-pine-snow
 sh-scopia-boston-fern
 sh-scopia-box-room
 sh-scopia-burlap-sofa
+sh-scopia-bush
 sh-scopia-camping-tent
 sh-scopia-candle
 sh-scopia-captains-bed
@@ -994,6 +1003,7 @@ sh-scopia-ext-chair
 sh-scopia-ext-table
 sh-scopia-external-unity-air-conditioning
 sh-scopia-farola1
+sh-scopia-ficus-tree
 sh-scopia-fireplace1
 sh-scopia-fireplace2
 sh-scopia-folding-armchair

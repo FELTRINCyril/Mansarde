@@ -8,7 +8,11 @@ import sharp from 'sharp';
 import { pickMainMaterial, type MaterialStat } from './mainMaterial.ts';
 import { computeOutline, type TopTriangle } from './outline.ts';
 
-export const BUDGET = { bytes: 150 * 1024, tris: 10_000, materials: 8 };
+/**
+ * Per model: file size, triangles (5 000 since 13/10/2026: a whole house of different realistic
+ * models stays fluid, the detail lost is not visible at room distance), materials (draw calls).
+ */
+export const BUDGET = { bytes: 150 * 1024, tris: 5_000, materials: 8 };
 
 let io: NodeIO | null = null;
 async function getIO(): Promise<NodeIO> {

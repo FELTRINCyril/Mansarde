@@ -32,6 +32,8 @@ export interface Scene3DInput {
   /** Object names (task 12). */
   showLabels: boolean;
   hideAllWalls: boolean;
+  /** Small objects cast their shadow (unchecked "Ombres des petits objets": faster). */
+  smallShadows: boolean;
 }
 
 export interface Scene3D {
@@ -425,7 +427,7 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
         fitBox = [...lower.values()].reduce((b, s) => unionBounds(b, s.box), shown!.box);
         rig.setBounds(fitBox);
       }
-      const objectsChanged = furniture.sync(input.level, input.project.customObjects, input.showLabels);
+      const objectsChanged = furniture.sync(input.level, input.project.customObjects, input.showLabels, input.smallShadows);
       const cupboardsChanged = cupboards.sync(input.level, shown!.d);
       tints.sync(alertTargets(input.alerts));
       // materials of rebuilt or removed objects and cupboards (a color changed): disposed once unused

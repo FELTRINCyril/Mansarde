@@ -8,6 +8,22 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
 
 ## Écarts à la spec
 
+- **Vue de dessus en image** (spec 6, changé le 13/10/2026 après essai par l'utilisateur). Le
+  contour au trait calculé sur une grille donnait des bords en escalier et perdait tout ce qui fait
+  reconnaître un objet (oreillers, tête de lit) : jugé "très moche" à l'usage. Le plan dessine
+  maintenant une image du modèle vu de dessus (caméra orthographique, éclairage rasant, arêtes de
+  plus de 35 degrés tracées), 384 px au plus, `public/models/top/<id>.webp`, étirée à la taille de
+  l'objet. Le navigateur ne charge que celles des objets posés ; une image absente donne le
+  rectangle. Les exports l'intègrent en data URL (matricielle : moins nette qu'un trait en très
+  gros plan) ; une image manquante est signalée. La couleur choisie par l'utilisateur ne change que
+  la 3D. Les deux points suivants (contours) sont donc caducs.
+- **Budget de triangles abaissé** de 10 000 à 5 000 (mesure d'une maison de 300 objets
+  différents : 31 images par seconde au lieu de 49 avec les meubles d'origine, voir Mesures).
+- **"Ombres des petits objets"** : case de la barre d'outils 3D (pas du menu "Affichage", qui est
+  celui du plan), seule option d'affichage mémorisée par le navigateur (`localStorage`), car elle
+  dépend de l'ordinateur. Petit objet : posé sur un meuble, tapis, ou plus grande dimension sous
+  80 cm.
+
 - **Contours hors du bundle** (spec 5 et 10). La spec mettait les contours 2D dans les données du
   catalogue. Mesuré : 1,66 Mo, soit 349 Ko compressé, trois fois le budget de 120 Ko, à cause
   d'une longue traîne (10 % des modèles dépassent 338 points). Les contours sont donc dans
@@ -100,6 +116,22 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
 | 60 objets différents en 3D : triangles | 266 000 | 438 000 à 455 000 |
 | 60 modèles téléchargés : chargement complet depuis l'ouverture de la 3D | - | 2,6 à 5,4 s (serveur local de dev) |
 | GLB publiés | - | 1 117, 39,8 Mo au total, médiane 22 Ko, maximum 149 Ko |
+
+### Maison de 300 objets, puce Apple M2 (vraie carte graphique, 13/10/2026)
+
+12 pièces, 300 objets tous différents (pire cas : une vraie maison répète ses modèles), images
+par seconde mesurées pendant une rotation de caméra simulée (à lire en comparaison : deux mesures
+identiques varient de 10 %).
+
+| | Meubles d'origine | Téléchargés, 10 000 triangles | Téléchargés, 5 000 triangles | Idem, sans ombres des petits objets |
+|---|---|---|---|---|
+| Plan : mise à jour après un déplacement | 32 ms | 33 ms (contours) | 32 ms (vues de dessus) | 33 ms |
+| 3D : images par seconde | 49 à 55 | 31 | 42 | 44 |
+| 3D : triangles | 1,3 M | 3,7 M | 2,5 M | 2,3 M |
+| 3D : premier affichage complet | 0,6 à 0,8 s | 6,2 s | 3,2 s | - |
+
+Les vues de dessus : 1 127 images, 7,6 Mo au total, médiane 3,8 Ko. Les GLB passent de 39,8 à
+34,9 Mo avec le budget de 5 000 triangles.
 
 Les modèles téléchargés coûtent moins d'appels de dessin que les meubles paramétriques : leurs
 pièces sont fusionnées par matière. Durée d'image non mesurée : le navigateur de test dessine la

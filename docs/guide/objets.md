@@ -29,11 +29,12 @@ redimensionnent, se tournent et se vérifient comme les autres objets, avec troi
   pas ; une grosse (une chaise deux fois plus large) le déforme. Pour un lit, un canapé ou une
   table que vous redimensionnez beaucoup, préférez les meubles dessinés par Mansarde ci-dessous,
   qui s'adaptent sans déformation.
-- **Plan** : l'objet est dessiné par son contour vu de dessus. Juste après l'ouverture d'un
-  projet, il peut apparaître un instant comme un simple rectangle, le temps de charger les
-  contours.
+- **Plan** : l'objet est dessiné par sa vue de dessus, une image du modèle 3D vu d'en haut (on y
+  reconnaît les oreillers d'un lit, le dossier d'un canapé). Elle suit la taille, la rotation et le
+  miroir de l'objet. Si l'image ne peut pas être chargée, l'objet apparaît comme un rectangle.
 - **Couleur** : l'objet garde ses couleurs d'origine ; une couleur choisie dans son panneau
-  s'applique à sa partie principale (le tissu d'un canapé, la façade d'un meuble).
+  s'applique à sa partie principale (le tissu d'un canapé, la façade d'un meuble) dans la 3D.
+  La vue de dessus du plan garde les couleurs d'origine.
 
 Les auteurs et licences sont dans "Crédits des modèles 3D", en bas du catalogue.
 

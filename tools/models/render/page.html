@@ -61,6 +61,56 @@
         });
         return { data, coverage: opaque / (SIZE * SIZE) };
       };
+      // Top view for the plan: orthographic, seen from above, x right and the front (+z) at the
+      // bottom of the image like on the plan; the image covers exactly the w x d footprint.
+      const top = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.01, 100);
+      window.renderTop = async (url, w, h, d, px, edges = 35) => {
+        const gltf = await loader.loadAsync(url);
+        const body = gltf.scene;
+        body.scale.set(w / 100, h / 100, d / 100);
+        scene.add(body);
+        const W = Math.max(1, Math.round((px * w) / Math.max(w, d)));
+        const H = Math.max(1, Math.round((px * d) / Math.max(w, d)));
+        renderer.setSize(W, H);
+        top.left = -w / 200; top.right = w / 200; top.top = d / 200; top.bottom = -d / 200;
+        top.position.set(0, h / 100 + 1, 0);
+        top.up.set(0, 0, -1);
+        top.lookAt(0, 0, 0);
+        top.updateProjectionMatrix();
+        // relief: a raking light from the back left, and the sharp edges drawn as lines
+        const saved = [sun.position.clone(), sun.intensity];
+        sun.position.set(-2, 3, -1.5);
+        sun.intensity = 2.2;
+        const lines = [];
+        if (edges) {
+          body.updateMatrixWorld(true);
+          body.traverse((n) => {
+            if (!n.isMesh) return;
+            const e = new THREE.LineSegments(new THREE.EdgesGeometry(n.geometry, edges), new THREE.LineBasicMaterial({ color: 0x3a3a3a, transparent: true, opacity: 0.85 }));
+            e.matrixAutoUpdate = false;
+            e.matrix.copy(n.matrixWorld);
+            scene.add(e);
+            lines.push(e);
+          });
+        }
+        renderer.render(scene, top);
+        for (const l of lines) { scene.remove(l); l.geometry.dispose(); l.material.dispose(); }
+        sun.position.copy(saved[0]);
+        sun.intensity = saved[1];
+        const data = renderer.domElement.toDataURL('image/png');
+        scene.remove(body);
+        body.traverse((n) => {
+          if (n.isMesh) {
+            n.geometry.dispose();
+            for (const m of [n.material].flat()) {
+              for (const v of Object.values(m)) if (v && v.isTexture) v.dispose();
+              m.dispose();
+            }
+          }
+        });
+        renderer.setSize(SIZE, SIZE);
+        return data;
+      };
       window.ready = true;
     </script>
   </body>

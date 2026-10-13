@@ -62,6 +62,13 @@ l'aménagement en entier.
 La case **"Noms des objets"** (cochée par défaut) affiche une étiquette avec le nom de chaque
 meuble. Décochez-la pour une vue plus épurée.
 
+## Ombres des petits objets
+
+La case **"Ombres des petits objets"** (cochée par défaut) fait projeter leur ombre aux petits
+objets : ceux posés sur un meuble, les tapis et tout objet de moins de 80 cm. Décochez-la pour une
+3D plus fluide dans un projet très meublé : les grands meubles gardent leur ombre. Ce réglage est
+mémorisé par le navigateur, d'une session à l'autre.
+
 ## Niveaux inférieurs
 
 La case **"Afficher les niveaux inférieurs"** empile sous le niveau actif les niveaux placés

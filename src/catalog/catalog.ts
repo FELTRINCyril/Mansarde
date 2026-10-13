@@ -23,8 +23,8 @@ export type ModelStyle = 'simple' | 'realiste';
 
 /**
  * A downloaded 3D model (spec 2026-10-13): its GLB is public/models/<id>.glb, normalized into the
- * unit box, stretched to the object's size; its top view is in public/models/outlines.json,
- * loaded by the plan when needed (src/render/modelOutlines.ts).
+ * unit box, stretched to the object's size; the plan draws its top view, an image rendered from
+ * the model (public/models/top/<id>.webp).
  */
 export interface ModelInfo {
   style: ModelStyle;
@@ -222,7 +222,7 @@ export function getCatalogEntry(id: string): CatalogEntry | undefined {
 
 /** URL of the GLB of a downloaded model; `base` is the app base URL (import.meta.env.BASE_URL). */
 export const modelUrl = (id: string, base: string): string => `${base}models/${id}.glb`;
-/** URL of the top views of every downloaded model ({ id: [outline rings, detail rings] }). */
-export const modelOutlinesUrl = (base: string): string => `${base}models/outlines.json`;
+/** URL of the top view of a downloaded model (seen from above, front at the bottom, covering w x d). */
+export const modelTopUrl = (id: string, base: string): string => `${base}models/top/${id}.webp`;
 /** URL of the catalog icon of a downloaded model. */
 export const modelIconUrl = (id: string, base: string): string => `${base}models/icons/${id}.webp`;

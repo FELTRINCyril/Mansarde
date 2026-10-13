@@ -8,7 +8,7 @@ import {
 } from '@/export/pageLayout';
 import { exportPdf } from '@/export/pdf';
 import { exportPng } from '@/export/png';
-import { modelOutlinesLoaded, showsModels } from '@/render/modelOutlines';
+import { modelTopDataUrls } from '@/export/modelTops';
 import { useEditor } from '@/editor/store';
 import { blobToBase64, downloadBlob } from '@/storage/files';
 import type { ProjectStore } from '@/storage/db';
@@ -106,17 +106,19 @@ export function ExportDialog(p: { projectStore: ProjectStore; onExportJson(proje
     setError(null);
     try {
       const imageDataUrls = await backgroundDataUrls(p.projectStore, level);
+      const tops = await modelTopDataUrls(level);
+      const modelImageUrls = tops.urls;
       if (tab === 'pdf') {
-        const blob = await exportPdf({ project, level, spec, imageDataUrls, date: new Date(), dimMode });
+        const blob = await exportPdf({ project, level, spec, imageDataUrls, modelImageUrls, date: new Date(), dimMode });
         downloadBlob(exportFileName(project.name, level.name, 'pdf'), blob);
       } else {
-        const blob = await exportPng({ project, level, resolution, imageDataUrls, dimMode });
+        const blob = await exportPng({ project, level, resolution, imageDataUrls, modelImageUrls, dimMode });
         downloadBlob(exportFileName(project.name, level.name, 'png'), blob);
       }
       p.onClose();
-      // the top views of the downloaded models could not be loaded: the export drew their boxes
-      if (showsModels(Object.values(level.objects)) && !modelOutlinesLoaded()) {
-        useEditor.getState().showToast('Contours des objets téléchargés indisponibles : ils sont dessinés en rectangles dans l\'export.');
+      // top views that could not be fetched: the export drew their boxes
+      if (tops.missing.length > 0) {
+        useEditor.getState().showToast(`Vue de dessus indisponible pour ${tops.missing.length} objet(s) téléchargé(s) : dessiné(s) en rectangle dans l'export.`);
       }
     } catch (e) {
       setError(messageOf(e) === ERR_EMPTY_LEVEL ? 'Ce niveau est vide.' : `Export impossible : ${messageOf(e)}`);

@@ -112,7 +112,8 @@ export function textSvg(text: string, w: number, h: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><text x="2" y="${h - 4}" font-family="Helvetica" font-size="9" fill="#000">${esc}</text></svg>`;
 }
 
-const optsHash = (o: ConvertOptions): string => createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 10);
+// the budget is part of the key: changing it converts every model again
+const optsHash = (o: ConvertOptions): string => createHash('sha1').update(JSON.stringify({ ...o, budget: BUDGET })).digest('hex').slice(0, 10);
 
 async function stageItem(item: RawItem, prev: StagedItem | undefined): Promise<StagedItem> {
   const over = curation(item.source).override?.[item.library === item.source ? item.key : `${item.library}/${item.key}`] ?? {};

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BUILTIN_CATALOG, CATALOG, CATEGORY_ORDER, getCatalogEntry, modelIconUrl, modelUrl } from '../../src/catalog/catalog';
@@ -7,7 +7,6 @@ import credits from '../../src/catalog/generated/credits.json';
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const PUBLIC = path.join(ROOT, 'public');
 const MODEL_CREDITS = (credits as { models: Record<string, { source: string; library: string; author: string; license: string; url?: string }> }).models;
-const outlines = JSON.parse(readFileSync(path.join(ROOT, 'public', 'models', 'outlines.json'), 'utf8')) as Record<string, [number[][], number[][]]>;
 const LICENSES = ['CC0', 'CC-BY 3.0', 'CC-BY 3.0 US', 'Free Art License 1.3', 'Free Art License 1.3 / CC-BY 3.0'];
 const models = CATALOG.filter((e) => e.model);
 const lock = readFileSync(path.join(ROOT, 'tools', 'models', 'ids.lock'), 'utf8').split('\n').filter(Boolean);
@@ -32,21 +31,22 @@ describe('downloaded models in the catalog', () => {
     expect(missing.map((e) => e.id)).toEqual([]);
   });
 
-  it('has a sane top view for every model, and no stray one', () => {
-    expect(Object.keys(outlines).sort()).toEqual(models.map((e) => e.id).sort());
-    for (const e of models) {
-      const m = e.model!;
-      const [outline, detail] = outlines[e.id]!;
-      expect(outline.length, e.id).toBeGreaterThan(0);
-      expect(outline.reduce((s, r) => s + r.length / 2, 0), e.id).toBeLessThanOrEqual(64);
-      expect(detail.reduce((s, r) => s + r.length / 2, 0), e.id).toBeLessThanOrEqual(32);
-      for (const ring of [...outline, ...detail]) {
-        expect(ring.length % 2, e.id).toBe(0);
-        expect(ring.length, e.id).toBeGreaterThanOrEqual(6);
-        for (const v of ring) expect(Number.isInteger(v) && Math.abs(v) <= 500, e.id).toBe(true);
-      }
-      expect(['simple', 'realiste']).toContain(m.style);
+  it('ships the top view of every model for the plan, an image no larger than 384 px', () => {
+    const top = path.join(PUBLIC, 'models', 'top');
+    const files = readdirSync(top).filter((f) => f.endsWith('.webp'));
+    expect(files.map((f) => f.slice(0, -5)).sort()).toEqual(models.map((e) => e.id).sort());
+    for (const f of files) {
+      const b = readFileSync(path.join(top, f));
+      // RIFF....WEBP header, and a size a plan can afford
+      expect(b.subarray(0, 4).toString('ascii') + b.subarray(8, 12).toString('ascii'), f).toBe('RIFFWEBP');
+      expect(b.length, f).toBeLessThan(80 * 1024);
     }
+    // the former outlines are gone
+    expect(existsSync(path.join(PUBLIC, 'models', 'outlines.json'))).toBe(false);
+  });
+
+  it('keeps every model a known style', () => {
+    for (const e of models) expect(['simple', 'realiste']).toContain(e.model!.style);
   });
 
   it('places every model in a known category with a sensible pose', () => {

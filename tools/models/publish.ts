@@ -2,7 +2,7 @@
  * Stage 3 of the models build (spec 4.2, 4.3, 5): merges the staged models with the curation,
  * renders the icons at the catalog size, and publishes
  *   public/models/<id>.glb, public/models/icons/<id>.webp, public/models/LICENSES/*.txt,
- *   src/catalog/generated/models.json, src/catalog/generated/credits.json, public/models/outlines.json,
+ *   public/models/top/<id>.webp (plan top view), src/catalog/generated/models.json, src/catalog/generated/credits.json,
  *   tools/models/ids.lock (published ids, never shrinks), tools/models/report.md.
  *   node publish.ts [--sheets]   (--sheets: also contact sheets of the published models, stage/review/)
  */
@@ -11,7 +11,6 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import path from 'node:path';
 import sharp from 'sharp';
 import { cleanName, slug } from './lib/names.ts';
-import { capPoints } from './lib/outline.ts';
 import { autoExclusion, categoryOf, CEILING_HEIGHT, flagsOf, normalizeLicense, poseOf, type Category, type Pose } from './lib/rules.ts';
 import type { StagedItem } from './lib/types.ts';
 import { contactSheets, renderAll } from './render/render.ts';
@@ -23,9 +22,9 @@ const PUBLIC = path.join(APP, 'public', 'models');
 const GENERATED = path.join(APP, 'src', 'catalog', 'generated');
 const ICON_CACHE = path.join(STAGE, 'icons');
 const ICON_SIZE = 96;
-/** Most points of a top view (outline, detail), so that outlines.json stays light. */
-const OUTLINE_POINTS = 64;
-const DETAIL_POINTS = 32;
+/** Top view of the plan: rendered at TOP_RENDER px on its longest side, published at TOP_SIZE px. */
+const TOP_RENDER = 768;
+const TOP_SIZE = 384;
 
 interface Entry {
   /** Explicit catalog id, when the default one collides with another model's. */
@@ -66,8 +65,6 @@ export interface Published {
   acceptsUnder?: boolean;
   carriesOnTop?: boolean;
   style: 'simple' | 'realiste';
-  outline: number[][];
-  detail: number[][];
   credit: { source: string; library: string; author: string; license: string; url?: string };
   glb: string;
   bytes: number;
@@ -166,8 +163,6 @@ function toEntry(s: StagedItem, problems: string[]): Published | string {
     ...(e.acceptsUnder ? { acceptsUnder: true } : {}),
     ...(e.carriesOnTop ? { carriesOnTop: true } : {}),
     style: s.source === 'kenney' || s.source === 'quaternius' ? 'simple' : 'realiste',
-    outline: capPoints(s.outline!, OUTLINE_POINTS),
-    detail: capPoints(s.detail!, DETAIL_POINTS),
     credit: { source: SOURCE_LABEL[s.source]!, library: lib?.label ?? SOURCE_LABEL[s.source]!, author: s.creator ?? '', license, ...(s.pageUrl ? { url: s.pageUrl } : {}) },
     glb: path.join(STAGE, s.glb!),
     bytes: s.bytes!,
@@ -207,23 +202,28 @@ function numberNames(list: Published[]): void {
   }
 }
 
-async function icons(list: Published[]): Promise<Map<string, Buffer>> {
-  mkdirSync(ICON_CACHE, { recursive: true });
-  const keyOf = (p: Published) => createHash('sha1').update(readFileSync(p.glb)).update(`${p.width}|${p.height}|${p.depth}|v1`).digest('hex');
+/** Icons (3/4 view) or plan top views of the models, rendered once and cached by model and size. */
+async function renders(list: Published[], top: boolean): Promise<Map<string, Buffer>> {
+  const cache = top ? path.join(STAGE, 'tops') : ICON_CACHE;
+  mkdirSync(cache, { recursive: true });
+  const keyOf = (p: Published) => createHash('sha1').update(readFileSync(p.glb)).update(`${p.width}|${p.height}|${p.depth}|${top ? `top-${TOP_RENDER}-v1` : 'v1'}`).digest('hex');
   const out = new Map<string, Buffer>();
   const missing: Published[] = [];
   for (const p of list) {
-    const f = path.join(ICON_CACHE, `${keyOf(p)}.png`);
+    const f = path.join(cache, `${keyOf(p)}.png`);
     if (existsSync(f)) out.set(p.id, readFileSync(f));
     else missing.push(p);
   }
   if (missing.length) {
-    console.log(`rendering ${missing.length} icons`);
-    const res = await renderAll(missing.map((p) => ({ glb: p.glb, w: p.width, h: p.height, d: p.depth })), (n) => n % 100 === 0 && console.log(`  ${n} / ${missing.length}`));
+    console.log(`rendering ${missing.length} ${top ? 'top views' : 'icons'}`);
+    const res = await renderAll(
+      missing.map((p) => ({ glb: p.glb, w: p.width, h: p.height, d: p.depth, ...(top ? { top: TOP_RENDER } : {}) })),
+      (n) => n % 100 === 0 && console.log(`  ${n} / ${missing.length}`),
+    );
     missing.forEach((p, i) => {
       const png = res[i]!.png;
       if (!png) return;
-      writeFileSync(path.join(ICON_CACHE, `${keyOf(p)}.png`), png);
+      writeFileSync(path.join(cache, `${keyOf(p)}.png`), png);
       out.set(p.id, png);
     });
   }
@@ -271,23 +271,29 @@ async function main(): Promise<void> {
     ids.add(p.id);
   }
   numberNames(kept);
-  const pngs = await icons(kept);
+  const pngs = await renders(kept, false);
+  const tops = await renders(kept, true);
   const published = kept.filter((p) => {
-    if (pngs.has(p.id)) return true;
-    rejected.push([p.id, 'icon render failed']);
+    if (pngs.has(p.id) && tops.has(p.id)) return true;
+    rejected.push([p.id, pngs.has(p.id) ? 'top view render failed' : 'icon render failed']);
     return false;
   });
   published.sort((a, b) => a.category.localeCompare(b.category, 'fr') || a.name.localeCompare(b.name, 'fr') || a.id.localeCompare(b.id));
 
   // files
   mkdirSync(path.join(PUBLIC, 'icons'), { recursive: true });
+  mkdirSync(path.join(PUBLIC, 'top'), { recursive: true });
   const want = new Set(published.map((p) => p.id));
+  for (const f of readdirSync(path.join(PUBLIC, 'top'))) if (f.endsWith('.webp') && !want.has(f.slice(0, -5))) rmSync(path.join(PUBLIC, 'top', f));
+  // the plan used to draw outlines (public/models/outlines.json): replaced by the top views
+  rmSync(path.join(PUBLIC, 'outlines.json'), { force: true });
   for (const f of readdirSync(PUBLIC)) if (f.endsWith('.glb') && !want.has(f.slice(0, -4))) rmSync(path.join(PUBLIC, f));
-  // (outlines.json is rewritten below)
   for (const f of readdirSync(path.join(PUBLIC, 'icons'))) if (f.endsWith('.webp') && !want.has(f.slice(0, -5))) rmSync(path.join(PUBLIC, 'icons', f));
   for (const p of published) {
     copyFileSync(p.glb, path.join(PUBLIC, `${p.id}.glb`));
     await sharp(pngs.get(p.id)!).resize(ICON_SIZE, ICON_SIZE).webp({ quality: 82, alphaQuality: 90 }).toFile(path.join(PUBLIC, 'icons', `${p.id}.webp`));
+    // the image covers the footprint exactly: the plan stretches it to the object's w x d
+    await sharp(tops.get(p.id)!).resize(TOP_SIZE, TOP_SIZE, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80, alphaQuality: 90 }).toFile(path.join(PUBLIC, 'top', `${p.id}.webp`));
   }
   mkdirSync(path.join(PUBLIC, 'LICENSES'), { recursive: true });
   for (const lib of Object.keys(SH3D_LIBS)) copyFileSync(path.join(ROOT, '.cache', `sh3d-${lib}`, 'LICENSE.TXT'), path.join(PUBLIC, 'LICENSES', `sweethome3d-${lib}.txt`));
@@ -301,9 +307,6 @@ async function main(): Promise<void> {
   // JSON (not TS literals): typed loosely by TypeScript, parsed fast by the browser (JSON.parse)
   writeFileSync(path.join(GENERATED, 'models.json'), `[\n${rows.join(',\n')}\n]\n`);
   for (const old of ['models.ts', 'credits.ts']) rmSync(path.join(GENERATED, old), { force: true });
-  // top views, loaded by the plan only when it shows a downloaded model (src/render/modelOutlines.ts)
-  const outlines = Object.fromEntries(published.map((p) => [p.id, [p.outline, p.detail]]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
-  writeFileSync(path.join(PUBLIC, 'outlines.json'), JSON.stringify(outlines));
   const credits = published.map((p) => `  ${tsLiteral(p.id)}: ${tsLiteral(p.credit)}`);
   const libraries = Object.entries(LIBRARIES).filter(([name]) => published.some((p) => p.credit.library === name));
   for (const p of published) if (!LIBRARIES[p.credit.library]) throw new Error(`no LIBRARIES entry for ${p.credit.library}`);

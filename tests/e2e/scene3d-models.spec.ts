@@ -42,10 +42,16 @@ test('a downloaded model: catalog, plan outline, 3D model', async ({ page }) => 
   await expect.poll(() => item.locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0);
   await item.click();
 
-  // the plan draws its top view once the outlines arrive
+  // the plan draws its top view, an image that really loads
   const object = page.locator('[data-kind="object"]');
   await expect(object).toHaveCount(1);
-  await expect(object.locator('path[fill-rule="evenodd"]')).toHaveCount(1, { timeout: 15_000 });
+  const top = object.locator('image[data-kind="model-top"]');
+  await expect(top).toHaveCount(1);
+  const href = await top.getAttribute('href');
+  expect(href).toMatch(/models\/top\/kn-kitchen-fridge\.webp$/);
+  const res = await page.request.get(href!);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['content-type']).toContain('image/webp');
 
   await page.getByTestId('view-3d').click();
   await expect(page.getByTestId('scene3d-canvas')).toBeVisible({ timeout: 30_000 });
@@ -54,6 +60,31 @@ test('a downloaded model: catalog, plan outline, 3D model', async ({ page }) => 
   // loaded is not shown: the objects waiting for their model are rebuilt with it
   await expect.poll(() => page.evaluate(() => window.__planMaison3D!.modelsWaiting), { timeout: 30_000 }).toBe(0);
   expect(errors).toEqual([]);
+});
+
+test('a missing top view falls back to the box', async ({ page }) => {
+  await page.route('**/models/top/**', (route) => route.fulfill({ status: 404, body: '' }));
+  await createProject(page, 'Sans vue de dessus');
+  await room(page);
+  await search(page).fill('réfrigérateur combiné');
+  await page.getByTestId('catalog-item-catalog-kn-kitchen-fridge').click();
+  const object = page.locator('[data-kind="object"]');
+  await expect(object.locator('rect')).toHaveCount(1);
+  await expect(object.locator('image')).toHaveCount(0);
+});
+
+test('3D: the small objects shadows option is kept by the browser', async ({ page }) => {
+  await createProject(page, 'Ombres');
+  await room(page);
+  await page.getByTestId('view-3d').click();
+  await expect(page.getByTestId('scene3d-canvas')).toBeVisible({ timeout: 30_000 });
+  const box = page.getByTestId('small-shadows-3d');
+  await expect(box).toBeChecked();
+  await box.uncheck();
+  expect(await page.evaluate(() => localStorage.getItem('mansarde.smallShadows3d'))).toBe('false');
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => window.__planMaison?.store.getState().display.smallShadows3d)).toBe(false);
+  await page.evaluate(() => localStorage.removeItem('mansarde.smallShadows3d'));
 });
 
 test('catalog: capped search, style filter, credits', async ({ page }) => {

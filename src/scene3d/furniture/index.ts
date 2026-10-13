@@ -162,6 +162,26 @@ export function buildObject3D(o: PlacedObject, customObjects: Record<Id, CustomO
   return g;
 }
 
+/** Below this largest dimension (cm), or set on furniture or on the floor, an object is "small". */
+const SMALL_CM = 80;
+
+/** A small object (vase, lamp, books, rug...): its shadow is the first to go when the 3D must be fast. */
+export const isSmallObject = (o: PlacedObject): boolean =>
+  o.pose === 'onTop' || o.pose === 'covering' || Math.max(o.width, o.depth, o.height) < SMALL_CM;
+
+/**
+ * Casts the shadows of `group` as its builder chose (kept in userData.castShadowBase), except
+ * for a small object when `smallShadows` is off.
+ */
+function applyShadows(group: Group, o: PlacedObject, smallShadows: boolean): void {
+  const off = !smallShadows && isSmallObject(o);
+  group.traverse((n) => {
+    if (!(n instanceof Mesh) || n.userData.outline) return;
+    if (n.userData.castShadowBase === undefined) n.userData.castShadowBase = n.castShadow;
+    n.castShadow = !off && n.userData.castShadowBase === true;
+  });
+}
+
 /** Height (m) of an object's label above its top, as plan-chambre (18 cm). */
 const LABEL_ABOVE = 0.18;
 
@@ -180,6 +200,7 @@ export class FurnitureLayer {
   private readonly makeLabel: ((text: string) => Object3D) | null;
   private readonly freeLabel: (label: Object3D) => void;
   private levelId: Id | null = null;
+  private smallShadows = true;
   /** Number of object groups built since the start (tests). */
   buildCount = 0;
 
@@ -192,8 +213,13 @@ export class FurnitureLayer {
   }
 
   /** Shows the objects of `level` (null: none). True when an object group was added or removed. */
-  sync(level: Level | null, customObjects: Record<Id, CustomObjectDef>, showLabels: boolean): boolean {
+  sync(level: Level | null, customObjects: Record<Id, CustomObjectDef>, showLabels: boolean, smallShadows = true): boolean {
     let changed = false;
+    // the option changed: the shadows of every shown object, without rebuilding anything
+    if (smallShadows !== this.smallShadows) {
+      this.smallShadows = smallShadows;
+      for (const b of this.built.values()) applyShadows(b.group, b.o, smallShadows);
+    }
     if (!level || level.id !== this.levelId) changed = this.clear();
     this.levelId = level?.id ?? null;
     if (!level) return changed;
@@ -212,6 +238,7 @@ export class FurnitureLayer {
       if (!b) {
         const def = o.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
         const group = buildObject3D(o, customObjects, this.kit, this.models);
+        applyShadows(group, o, this.smallShadows);
         this.buildCount++;
         changed = true;
         let label: Object3D | null = null;

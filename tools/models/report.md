@@ -2,16 +2,16 @@
 
 Généré par `tools/models/publish.ts`.
 
-- Objets publiés : 1117
-- Poids total des GLB : 39812 Ko, médiane 22 Ko, maximum 149 Ko
+- Objets publiés : 1127
+- Poids total des GLB : 34929 Ko, médiane 20 Ko, maximum 150 Ko
 
 ## Par source
 
 | Source | Objets |
 |---|---|
-| Contributions | 341 |
-| Scopia | 198 |
-| Poly Haven | 134 |
+| Contributions | 342 |
+| Scopia | 200 |
+| Poly Haven | 141 |
 | BlendSwap CC-0 | 120 |
 | Kenney Furniture Kit | 120 |
 | BlendSwap CC-BY | 77 |
@@ -23,38 +23,36 @@ Généré par `tools/models/publish.ts`.
 
 | Catégorie | Objets |
 |---|---|
-| Séjour | 302 |
+| Séjour | 306 |
 | Cuisine | 157 |
-| Extérieur | 106 |
-| Décoration | 98 |
-| Bureau et repas | 97 |
+| Extérieur | 109 |
+| Décoration | 100 |
+| Bureau et repas | 96 |
 | Divers | 94 |
-| Chambre | 88 |
+| Chambre | 89 |
 | Salle de bain | 77 |
-| Luminaires | 68 |
+| Luminaires | 69 |
 | Structure | 30 |
 
-## Écartés (682)
+## Écartés (665)
 
 | Raison | Nombre |
 |---|---|
 | curation | 231 |
 | trinket | 99 |
 | door or window | 84 |
-| too many materials | 71 |
+| too many materials | 73 |
 | food or drink | 54 |
-| out | 37 |
-| too heavy | 36 |
-| duplicate | 23 |
-| kept in curation but not staged | 15 |
+| out | 42 |
+| duplicate | 22 |
+| too heavy | 21 |
 | category Vehicles | 11 |
 | category Characters | 8 |
+| kept in curation but not staged | 8 |
 | category Doors and windows | 7 |
 | conversion failed | 2 |
+| icon render failed | 2 |
 | animal | 1 |
-| empty render (0.40 %) | 1 |
-| empty render (0.49 %) | 1 |
-| empty render (0.59 %) | 1 |
 
 <details><summary>Détail</summary>
 
@@ -202,7 +200,7 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/seat_leon` : too many materials: 10
 - `sh3d/scopia/apples` : food or drink
 - `sh3d/scopia/bathroom_vanity` : too many materials: 9
-- `sh3d/scopia/crib` : too heavy: 185 KB
+- `sh3d/scopia/crib` : too heavy: 168 KB
 - `sh3d/scopia/bandeja` : curation: small accessory, not furniture
 - `sh3d/scopia/calla_lily_with_roses` : too many materials: 9
 - `sh3d/scopia/com_bath` : food or drink
@@ -224,7 +222,7 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/pencil2` : curation: small accessory, not furniture
 - `sh3d/scopia/basic_camera` : trinket: 10 cm
 - `sh3d/scopia/birthday_cake` : too many materials: 9
-- `sh3d/scopia/christmas_tree` : too heavy: 305 KB
+- `sh3d/scopia/christmas_tree` : too heavy: 289 KB
 - `sh3d/scopia/clothes_washing_machine` : too many materials: 9
 - `sh3d/scopia/dryer_machine` : too many materials: 9
 - `sh3d/scopia/folded_clothes` : curation: small accessory, not furniture
@@ -253,7 +251,7 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/stroller` : category Vehicles
 - `sh3d/scopia/tricycle` : category Vehicles
 - `sh3d/scopia/aquarium` : too many materials: 9
-- `sh3d/scopia/bonsai-tree` : too heavy: 159 KB
+- `sh3d/scopia/bonsai-tree` : too heavy: 150 KB
 - `sh3d/scopia/doll-house` : too many materials: 21
 - `sh3d/scopia/doll` : curation: small accessory, not furniture
 - `sh3d/scopia/garage-door` : door or window
@@ -330,7 +328,6 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/keys` : trinket: 12 cm
 - `sh3d/scopia/glass_door` : door or window
 - `sh3d/scopia/big-football-goal` : out of scale: 732 cm
-- `sh3d/scopia/bush` : too heavy: 213 KB
 - `sh3d/scopia/CCTV` : curation: small accessory, not furniture
 - `sh3d/scopia/entry-bell-ring` : trinket: 10 cm
 - `sh3d/scopia/entry-bell-speech-unit` : curation: small accessory, not furniture
@@ -372,19 +369,18 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/high-hedge` : too heavy: 770 KB
 - `sh3d/scopia/escalator` : out of scale: 882 cm
 - `sh3d/scopia/basin` : curation: small accessory, not furniture
-- `sh3d/scopia/hedge` : too heavy: 440 KB
+- `sh3d/scopia/hedge` : too heavy: 433 KB
 - `sh3d/scopia/small-oven` : too many materials: 9
 - `sh3d/scopia/mannequinMale` : too many materials: 16
 - `sh3d/scopia/mannequinBrunette` : too many materials: 16
 - `sh3d/scopia/pince-coupante` : curation: small accessory, not furniture
 - `sh3d/scopia/acacia` : too heavy: 520 KB
-- `sh3d/scopia/ficusTree` : too heavy: 263 KB
 - `sh3d/scopia/bowlWithFruits` : food or drink
 - `sh3d/scopia/bowlWithSalad` : food or drink
 - `sh3d/scopia/cityBus` : too many materials: 14
-- `sh3d/scopia/coconutTree` : too heavy: 213 KB
-- `sh3d/scopia/coconutTreeBended` : too heavy: 211 KB
-- `sh3d/scopia/copperBeech` : too heavy: 207 KB
+- `sh3d/scopia/coconutTree` : out of scale: 1100 cm
+- `sh3d/scopia/coconutTreeBended` : out of scale: 1000 cm
+- `sh3d/scopia/copperBeech` : out of scale: 800 cm
 - `sh3d/scopia/deepFryerWithFrenchFries` : too many materials: 10
 - `sh3d/scopia/electronicScale` : curation: small accessory, not furniture
 - `sh3d/scopia/frenchFries` : food or drink
@@ -392,7 +388,7 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/japaneseMaple` : too heavy: 161 KB
 - `sh3d/scopia/kitchenKnifeStandSet` : trinket
 - `sh3d/scopia/poplar` : too heavy: 690 KB
-- `sh3d/scopia/palm` : too heavy: 205 KB
+- `sh3d/scopia/palm` : out of scale: 1200 cm
 - `sh3d/scopia/paperTowelHolder` : curation: small accessory, not furniture
 - `sh3d/scopia/peachBlossom` : out of scale: 746 cm
 - `sh3d/scopia/pine` : too heavy: 485 KB
@@ -401,7 +397,7 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/sandwichMaker` : food or drink
 - `sh3d/scopia/spiceTower` : too many materials: 16
 - `sh3d/scopia/steak` : food or drink
-- `sh3d/scopia/sycamoreMaple` : too heavy: 315 KB
+- `sh3d/scopia/sycamoreMaple` : too heavy: 211 KB
 - `sh3d/scopia/toaster` : food or drink
 - `sh3d/scopia/renaultKangoo` : too many materials: 21
 - `sh3d/scopia/tasDeVetements` : curation: small accessory, not furniture
@@ -440,7 +436,7 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/routeCourbe2VoiesAvecTrottoirs90Deg` : out of scale: 1045 cm
 - `sh3d/scopia/break` : too many materials: 20
 - `sh3d/scopia/caravane` : too many materials: 20
-- `sh3d/scopia/filElectrique` : empty render (0.40 %)
+- `sh3d/scopia/filElectrique` : out of scale: 2287 cm
 - `sh3d/scopia/fille` : too many materials: 15
 - `sh3d/scopia/boy` : too many materials: 21
 - `sh3d/scopia/locomotive` : too many materials: 29
@@ -449,8 +445,8 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/poteau-en-beton` : out of scale: 1202 cm
 - `sh3d/scopia/poteau-en-bois` : out of scale: 1202 cm
 - `sh3d/scopia/remorque` : too many materials: 18
-- `sh3d/scopia/tramway` : too heavy: 156 KB
-- `sh3d/scopia/wagon` : too heavy: 163 KB
+- `sh3d/scopia/tramway` : too many materials: 15
+- `sh3d/scopia/wagon` : too many materials: 26
 - `sh3d/scopia/suv2` : too many materials: 22
 - `sh3d/scopia/carSegmentA` : too many materials: 15
 - `sh3d/scopia/carSegmentB` : too many materials: 16
@@ -460,7 +456,6 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/scopia/openedNewspaper` : curation: small accessory, not furniture
 - `sh3d/scopia/feu-de-signalisation-simple` : curation: road, building or site element (not furniture)
 - `sh3d/scopia/feu-de-signalisation-avec-signalisation-au-dessus` : curation: road, building or site element (not furniture)
-- `sh3d/scopia/fil-electrique-1m` : empty render (0.49 %)
 - `sh3d/scopia/4x4` : too many materials: 19
 - `sh3d/scopia/pileRevues` : curation: small accessory, not furniture
 - `sh3d/scopia/revue` : curation: small accessory, not furniture
@@ -658,7 +653,6 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/contributions/fixed_window_2x2` : door or window
 - `sh3d/contributions/window_shop` : door or window
 - `sh3d/contributions/window_urban_neoclassic` : door or window
-- `sh3d/contributions/stairs_rail` : empty render (0.59 %)
 - `sh3d/contributions/cornice` : curation: road, building or site element (not furniture)
 - `sh3d/contributions/corniceConcaveCorner` : trinket: 10 cm
 - `sh3d/contributions/door_glass` : door or window
@@ -688,34 +682,20 @@ Généré par `tools/models/publish.ts`.
 - `sh3d/lucapresidente/letters` : curation: small accessory, not furniture
 - `sh3d/lucapresidente/smiley` : curation: small accessory, not furniture
 - `sh3d/lucapresidente/train` : curation: small accessory, not furniture
-- `polyhaven/polyhaven/Chandelier_01` : too heavy: 157 KB
-- `polyhaven/polyhaven/GothicCabinet_01` : too heavy: 153 KB
 - `polyhaven/polyhaven/bar_chair_round_01` : too heavy: 408 KB
-- `polyhaven/polyhaven/book_encyclopedia_set_01` : too heavy: 354 KB
-- `polyhaven/polyhaven/chess_set` : too heavy: 179 KB
+- `polyhaven/polyhaven/book_encyclopedia_set_01` : too heavy: 326 KB
 - `polyhaven/polyhaven/gaming_console` : too heavy: 272 KB
-- `polyhaven/polyhaven/modern_coffee_table_02` : too heavy: 291 KB
-- `polyhaven/polyhaven/modern_wooden_cabinet` : too heavy: 254 KB
-- `polyhaven/polyhaven/outdoor_table_chair_set_01` : too heavy: 159 KB
-- `polyhaven/polyhaven/potted_plant_01` : too heavy: 185 KB
-- `polyhaven/polyhaven/potted_plant_02` : too heavy: 161 KB
-- `polyhaven/polyhaven/treasure_chest` : too heavy: 156 KB
-- `polyhaven/polyhaven/vintage_cabinet_01` : too heavy: 154 KB
+- `polyhaven/polyhaven/modern_coffee_table_02` : too heavy: 286 KB
+- `polyhaven/polyhaven/modern_wooden_cabinet` : too heavy: 225 KB
+- `polyhaven/polyhaven/potted_plant_01` : too heavy: 180 KB
 - `polyhaven/polyhaven/vintage_grandfather_clock_01` : conversion failed: Invalid typed array length: 696
-- `polyhaven/Chandelier_01` : kept in curation but not staged
-- `polyhaven/GothicCabinet_01` : kept in curation but not staged
 - `polyhaven/bar_chair_round_01` : kept in curation but not staged
 - `polyhaven/book_encyclopedia_set_01` : kept in curation but not staged
-- `polyhaven/chess_set` : kept in curation but not staged
 - `polyhaven/decorative_book_set_01` : kept in curation but not staged
 - `polyhaven/gaming_console` : kept in curation but not staged
 - `polyhaven/modern_coffee_table_02` : kept in curation but not staged
 - `polyhaven/modern_wooden_cabinet` : kept in curation but not staged
-- `polyhaven/outdoor_table_chair_set_01` : kept in curation but not staged
 - `polyhaven/potted_plant_01` : kept in curation but not staged
-- `polyhaven/potted_plant_02` : kept in curation but not staged
-- `polyhaven/treasure_chest` : kept in curation but not staged
-- `polyhaven/vintage_cabinet_01` : kept in curation but not staged
 - `polyhaven/vintage_grandfather_clock_01` : kept in curation but not staged
 - `sh-bs0-pedestrian-railing2` : duplicate of sh-bs0-pedestrian-railing1
 - `sh-kl-porch-column-03` : duplicate of sh-kl-porch-column-01
@@ -729,7 +709,6 @@ Généré par `tools/models/publish.ts`.
 - `sh-bsby-ella-chair-f` : duplicate of sh-scopia-plastic-chair
 - `sh-bsby-table` : duplicate of sh-scopia-table4
 - `sh-contrib-bureau3` : duplicate of sh-bsby-biurko3
-- `sh-contrib-chair2` : duplicate of sh-bsby-chair4
 - `sh-contrib-fencepost2` : duplicate of sh-contrib-fencepost1
 - `sh-contrib-office-desk` : duplicate of sh-bs0-lb-desk
 - `sh-contrib-privacy-fence2` : duplicate of sh-contrib-privacy-fence
@@ -740,5 +719,7 @@ Généré par `tools/models/publish.ts`.
 - `sh-contrib-tavolo-fratino` : duplicate of sh-scopia-white-kitchen-table
 - `sh-lp-lavello` : duplicate of sh-contrib-cabinet-with-basin
 - `sh-lp-scrivania160-w` : duplicate of sh-bs0-lb-desk
+- `sh-scopia-fil-electrique-1m` : icon render failed
+- `sh-contrib-stairs-rail` : icon render failed
 
 </details>

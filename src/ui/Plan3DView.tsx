@@ -46,6 +46,7 @@ function inputOf(s: EditorState): Scene3DInput | null {
     alerts: alertsOf(s, level),
     showLabels: s.display.labels3d,
     hideAllWalls: s.display.hideWalls3d,
+    smallShadows: s.display.smallShadows3d,
   };
 }
 
@@ -56,6 +57,7 @@ const sameInput = (a: Scene3DInput, b: Scene3DInput): boolean =>
   a.alerts === b.alerts &&
   a.showLabels === b.showLabels &&
   a.hideAllWalls === b.hideAllWalls &&
+  a.smallShadows === b.smallShadows &&
   a.lowerLevels.length === b.lowerLevels.length &&
   a.lowerLevels.every((l, i) => l === b.lowerLevels[i]);
 
@@ -186,6 +188,10 @@ function Scene3DHost(): JSX.Element {
           <label className="check">
             <input type="checkbox" checked={display.lowerLevels3d} onChange={(e) => setDisplay({ lowerLevels3d: e.target.checked })} />
             Afficher les niveaux inférieurs
+          </label>
+          <label className="check" title="Décocher rend la 3D plus fluide avec beaucoup d'objets">
+            <input type="checkbox" data-testid="small-shadows-3d" checked={display.smallShadows3d} onChange={(e) => setDisplay({ smallShadows3d: e.target.checked })} />
+            Ombres des petits objets
           </label>
         </div>
       )}

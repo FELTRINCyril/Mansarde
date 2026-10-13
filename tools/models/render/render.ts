@@ -22,6 +22,8 @@ export interface RenderJob {
   w: number;
   h: number;
   d: number;
+  /** Top view for the plan (orthographic, from above, `top` px on the longest side) instead of the icon. */
+  top?: number;
 }
 export interface RenderResult { png: Buffer | null; reason?: string }
 
@@ -54,12 +56,20 @@ export async function renderAll(jobs: RenderJob[], onProgress?: (n: number) => v
     for (const [i, job] of jobs.entries()) {
       files.set(String(i), job.glb);
       try {
-        const r = await page.evaluate(
-          ([url, w, h, d]) => (window as unknown as { renderModel: (u: string, w: number, h: number, d: number) => Promise<{ data: string; coverage: number }> }).renderModel(url, w, h, d),
-          [`/model/${i}`, job.w, job.h, job.d] as [string, number, number, number],
-        );
-        if (r.coverage < MIN_COVERAGE) out.push({ png: null, reason: `empty render (${(r.coverage * 100).toFixed(2)} %)` });
-        else out.push({ png: Buffer.from(r.data.split(',')[1]!, 'base64') });
+        if (job.top) {
+          const data = await page.evaluate(
+            ([url, w, h, d, px]) => (window as unknown as { renderTop: (u: string, w: number, h: number, d: number, px: number) => Promise<string> }).renderTop(url, w, h, d, px),
+            [`/model/${i}`, job.w, job.h, job.d, job.top] as [string, number, number, number, number],
+          );
+          out.push({ png: Buffer.from(data.split(',')[1]!, 'base64') });
+        } else {
+          const r = await page.evaluate(
+            ([url, w, h, d]) => (window as unknown as { renderModel: (u: string, w: number, h: number, d: number) => Promise<{ data: string; coverage: number }> }).renderModel(url, w, h, d),
+            [`/model/${i}`, job.w, job.h, job.d] as [string, number, number, number],
+          );
+          if (r.coverage < MIN_COVERAGE) out.push({ png: null, reason: `empty render (${(r.coverage * 100).toFixed(2)} %)` });
+          else out.push({ png: Buffer.from(r.data.split(',')[1]!, 'base64') });
+        }
       } catch (e) {
         out.push({ png: null, reason: `render failed: ${(e as Error).message.split('\n')[0]}` });
       }
