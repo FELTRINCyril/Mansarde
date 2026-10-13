@@ -121,6 +121,10 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
   minuscules, et la publication vérifie que chaque GLB publié est celui préparé pour son modèle
   (même taille) et qu'aucun GLB n'est publié deux fois (un test le vérifie aussi).
 - **Export sans `OffscreenCanvas`** (Safari avant 16.4) : réencodage PNG par un canvas de la page.
+- **Poids des PDF** : une vue de dessus en PNG pèse environ 45 Ko contre 7 Ko en WebP (estimation
+  de la revue sur 28 images, non mesurée sur un PDF réel) ; un modèle répété ne compte qu'une fois.
+  Un plan de 100 modèles différents ajoute donc quelques Mo au PDF. Suite possible si c'est gênant :
+  réduire la taille des PNG d'export.
 - **Pendant le chargement** d'une vue de dessus, l'écran montre le rectangle de l'objet dessous
   (il n'est jamais invisible) ; une image en échec est retentée au retour du réseau (`online`).
 - **Non retenu** : sens d'éclairage des vues de dessus qui tourne avec l'objet (cosmétique) ;
