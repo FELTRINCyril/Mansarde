@@ -6,6 +6,7 @@ import type { CustomObjectDef, GenericShape, LShapeParams } from '@/core/model/t
 import { CATALOG_DRAG_TYPE } from '@/editor/placeObject';
 import { useEditor } from '@/editor/store';
 import { filterCatalog, fold, orderCatalog, SEARCH_LIMIT, type StyleFilter } from './catalogFilter';
+import { CreditsDialog } from './CreditsDialog';
 import { run } from './run';
 
 const PREVIEW_PX = 34;
@@ -76,6 +77,7 @@ export function CatalogPanel(p: { onPlace(ref: string): void }): JSX.Element {
   const [query, setQuery] = useState('');
   const [style, setStyle] = useState<StyleFilter>('all');
   const [open, setOpen] = useState<Set<string>>(() => new Set([MY_OBJECTS, 'Chambre']));
+  const [showCredits, setShowCredits] = useState(false);
 
   const custom = useMemo(
     () => Object.values(customObjects).map<Item>((d) => ({ ref: `custom:${d.id}`, name: d.name, w: d.width, d: d.depth, custom: d })),
@@ -197,6 +199,12 @@ export function CatalogPanel(p: { onPlace(ref: string): void }): JSX.Element {
           );
         })}
       </div>
+      <div className="catalog-foot">
+        <button type="button" className="btn btn-small btn-ghost" data-testid="open-credits" onClick={() => setShowCredits(true)}>
+          Crédits des modèles 3D
+        </button>
+      </div>
+      {showCredits && <CreditsDialog onClose={() => setShowCredits(false)} />}
     </aside>
   );
 }

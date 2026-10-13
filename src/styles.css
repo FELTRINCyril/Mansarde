@@ -1503,3 +1503,30 @@ select {
 .catalog-icon {
   object-fit: contain;
 }
+
+/* Credits of the 3D models (spec 2026-10-13, section 9) */
+.credits {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.credits-group summary {
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.credits-list {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.credits-author {
+  color: var(--text-muted);
+}
+
+.catalog-foot {
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--border);
+}
