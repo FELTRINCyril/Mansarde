@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script type="importmap">
+      { "imports": { "three": "/three/build/three.module.js", "three/addons/": "/three/examples/jsm/" } }
+    </script>
+  </head>
+  <body style="margin: 0">
+    <script type="module">
+      // Renders one normalized model (unit box) at its catalog size, 3/4 front view, transparent
+      // background, with the loader setup of the app (GLTFLoader + MeshoptDecoder).
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+      import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+      const SIZE = 192;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      renderer.setSize(SIZE, SIZE);
+      renderer.setClearColor(0x000000, 0);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      document.body.appendChild(renderer.domElement);
+      const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 2.2));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+      sun.position.set(2, 4, 3);
+      scene.add(sun);
+      const camera = new THREE.PerspectiveCamera(28, 1, 0.01, 100);
+
+      window.renderModel = async (url, w, h, d) => {
+        const gltf = await loader.loadAsync(url);
+        const body = gltf.scene;
+        body.scale.set(w / 100, h / 100, d / 100);
+        scene.add(body);
+        const r = Math.hypot(w, h, d) / 200;
+        const dir = new THREE.Vector3(0.75, 0.62, 1).normalize();
+        const center = new THREE.Vector3(0, h / 200, 0);
+        const dist = (r / Math.sin(THREE.MathUtils.degToRad(14))) * 1.02;
+        camera.position.copy(center).addScaledVector(dir, dist);
+        camera.near = dist / 100;
+        camera.far = dist * 4;
+        camera.updateProjectionMatrix();
+        camera.lookAt(center);
+        renderer.render(scene, camera);
+        const gl = renderer.getContext();
+        const px = new Uint8Array(SIZE * SIZE * 4);
+        gl.readPixels(0, 0, SIZE, SIZE, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        let opaque = 0;
+        for (let i = 3; i < px.length; i += 4) if (px[i] > 0) opaque++;
+        const data = renderer.domElement.toDataURL('image/png');
+        scene.remove(body);
+        body.traverse((n) => {
+          if (n.isMesh) {
+            n.geometry.dispose();
+            for (const m of [n.material].flat()) {
+              for (const v of Object.values(m)) if (v && v.isTexture) v.dispose();
+              m.dispose();
+            }
+          }
+        });
+        return { data, coverage: opaque / (SIZE * SIZE) };
+      };
+      window.ready = true;
+    </script>
+  </body>
+</html>

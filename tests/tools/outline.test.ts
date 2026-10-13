@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeOutline, type TopTriangle } from '../../tools/models/lib/outline';
+import { capPoints, computeOutline, type TopTriangle } from '../../tools/models/lib/outline';
 
 type P = [number, number, number];
 const quad = (x0: number, z0: number, x1: number, z1: number, y = 0): TopTriangle[] => [
@@ -105,5 +105,38 @@ describe('computeOutline', () => {
 
   it('returns nothing for no triangles', () => {
     expect(computeOutline([])).toEqual({ outline: [], detail: [] });
+  });
+});
+
+describe('capPoints', () => {
+  const circle = (n: number, r = 500): number[] => Array.from({ length: n }, (_, i) => [Math.round(r * Math.cos((2 * Math.PI * i) / n)), Math.round(r * Math.sin((2 * Math.PI * i) / n))]).flat();
+
+  it('leaves small rings untouched', () => {
+    const ring = [-500, -500, 500, -500, 500, 500, -500, 500];
+    expect(capPoints([ring], 64)).toEqual([ring]);
+  });
+
+  it('simplifies until the total fits, keeping the shape', () => {
+    const rings = capPoints([circle(400), circle(300, 200)], 64);
+    const total = rings.reduce((s, r) => s + r.length / 2, 0);
+    expect(total).toBeLessThanOrEqual(64);
+    expect(rings).toHaveLength(2);
+    expect(Math.abs(ringArea(rings[0]!) / (Math.PI * 500 * 500) - 1)).toBeLessThan(0.05);
+  });
+
+  it('simplifies a single ring further rather than dropping it', () => {
+    const rings = capPoints([circle(600), circle(500, 300)], 6);
+    expect(rings.length).toBeGreaterThan(0);
+    expect(rings.reduce((s, r) => s + r.length / 2, 0)).toBeLessThanOrEqual(6);
+    expect(rings.reduce((s, r) => s + r.length / 2, 0)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('drops the smallest rings rather than looping forever', () => {
+    const many = Array.from({ length: 40 }, (_, i) => circle(12, 20 + i));
+    const rings = capPoints(many, 64);
+    expect(rings.reduce((s, r) => s + r.length / 2, 0)).toBeLessThanOrEqual(64);
+    expect(rings.length).toBeGreaterThan(0);
+    // the largest ring is kept (simplified within 1.6 % of the box, so most of its area stays)
+    expect(Math.max(...rings.map(ringArea)) / Math.max(...many.map(ringArea))).toBeGreaterThan(0.8);
   });
 });

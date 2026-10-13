@@ -1,0 +1,31 @@
+{
+  "kenney": {
+    "url": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+    "page": "https://kenney.nl/assets/furniture-kit",
+    "author": "Kenney",
+    "license": "CC0"
+  },
+  "quaternius": {
+    "url": "https://opengameart.org/sites/default/files/Furniture%20Pack%20by%20%40Quaternius.zip",
+    "page": "https://opengameart.org/content/furniture-low-poly",
+    "author": "Quaternius",
+    "license": "CC0"
+  },
+  "sh3d": {
+    "page": "https://www.sweethome3d.com/importModels.jsp",
+    "libraries": {
+      "blendswap-cc0": { "url": "https://sourceforge.net/projects/sweethome3d/files/SweetHome3D-models/3DModels-1.9.3/3DModels-BlendSwap-CC-0-1.9.3.zip/download", "license": "Public domain" },
+      "blendswap-ccby": { "url": "https://sourceforge.net/projects/sweethome3d/files/SweetHome3D-models/3DModels-1.9.3/3DModels-BlendSwap-CC-BY-1.9.3.zip/download", "license": "CC-BY" },
+      "scopia": { "url": "https://sourceforge.net/projects/sweethome3d/files/SweetHome3D-models/3DModels-1.9.3/3DModels-Scopia-1.9.3.zip/download", "license": "CC-BY" },
+      "katorlegaz": { "url": "https://sourceforge.net/projects/sweethome3d/files/SweetHome3D-models/3DModels-1.9.3/3DModels-KatorLegaz-1.9.3.zip/download", "license": "CC-BY" },
+      "contributions": { "url": "https://sourceforge.net/projects/sweethome3d/files/SweetHome3D-models/3DModels-1.9.3/3DModels-Contributions-1.9.3.zip/download", "license": "Free Art License" },
+      "lucapresidente": { "url": "https://sourceforge.net/projects/sweethome3d/files/SweetHome3D-models/3DModels-1.9.3/3DModels-LucaPresidente-1.9.3.zip/download", "license": "Free Art License" }
+    }
+  },
+  "polyhaven": {
+    "api": "https://api.polyhaven.com",
+    "page": "https://polyhaven.com/a/",
+    "license": "CC0",
+    "resolution": "1k"
+  }
+}

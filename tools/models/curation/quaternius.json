@@ -1,0 +1,261 @@
+{
+ "materialColors": {
+  "Wood": "#b88a5c",
+  "DarkWood": "#6e4b33",
+  "DarkBrown": "#5a3d2b",
+  "White": "#f2efe8",
+  "Sheets": "#e8e2d4",
+  "Cover2": "#8e3d3a",
+  "Cover3": "#3d5c8e",
+  "Cover4": "#4c7a4a",
+  "Pages": "#f0e8d2",
+  "Green": "#5f9a55",
+  "Red": "#b3473f",
+  "Sofa": "#7d8ea6",
+  "Metal": "#9a9a9a",
+  "Top": "#eee0bd",
+  "Vase": "#4f7fa8"
+ },
+ "keep": {
+  "Bed": {
+   "name": "Lit rustique",
+   "category": "Chambre",
+   "width": 150,
+   "depth": 210,
+   "height": 95
+  },
+  "BedKing": {
+   "name": "Lit rustique king size",
+   "category": "Chambre",
+   "width": 190,
+   "depth": 210,
+   "height": 95
+  },
+  "BookCase": {
+   "name": "Bibliothèque rustique étroite",
+   "category": "Séjour",
+   "width": 60,
+   "depth": 40,
+   "height": 200
+  },
+  "BookCaseBooks": {
+   "name": "Bibliothèque rustique étroite garnie",
+   "category": "Séjour",
+   "width": 60,
+   "depth": 40,
+   "height": 200
+  },
+  "BookCaseLarge": {
+   "name": "Bibliothèque rustique",
+   "category": "Séjour",
+   "width": 120,
+   "depth": 40,
+   "height": 200
+  },
+  "BookCaseLargeBooks": {
+   "name": "Bibliothèque rustique garnie",
+   "category": "Séjour",
+   "width": 120,
+   "depth": 40,
+   "height": 200
+  },
+  "Chair": {
+   "name": "Chaise rustique",
+   "category": "Bureau et repas",
+   "width": 45,
+   "depth": 50,
+   "height": 100,
+   "pose": "tuckable"
+  },
+  "ChairCushioned": {
+   "name": "Chaise rustique à coussin",
+   "category": "Bureau et repas",
+   "width": 45,
+   "depth": 50,
+   "height": 100,
+   "pose": "tuckable"
+  },
+  "ChairHandle": {
+   "name": "Fauteuil rustique en bois",
+   "category": "Séjour",
+   "width": 65,
+   "depth": 60,
+   "height": 100
+  },
+  "Closet": {
+   "name": "Armoire rustique bombée",
+   "category": "Chambre",
+   "width": 70,
+   "depth": 55,
+   "height": 200
+  },
+  "Closet2": {
+   "name": "Armoire rustique double",
+   "category": "Chambre",
+   "width": 120,
+   "depth": 60,
+   "height": 200
+  },
+  "CoffeeTable": {
+   "name": "Table basse rustique",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 60,
+   "height": 45,
+   "acceptsUnder": true
+  },
+  "CoffeeTable2": {
+   "name": "Table basse rustique à tablette",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 60,
+   "height": 45,
+   "acceptsUnder": true
+  },
+  "Lamp": {
+   "name": "Lampadaire à abat-jour",
+   "category": "Luminaires",
+   "width": 35,
+   "depth": 35,
+   "height": 160
+  },
+  "Lamp2": {
+   "name": "Lampadaire fin",
+   "category": "Luminaires",
+   "width": 30,
+   "depth": 30,
+   "height": 160
+  },
+  "Plant": {
+   "name": "Jeune plante en pot",
+   "category": "Décoration",
+   "width": 35,
+   "depth": 35,
+   "height": 60
+  },
+  "Sofa": {
+   "name": "Fauteuil rembourré",
+   "category": "Séjour",
+   "width": 90,
+   "depth": 85,
+   "height": 80
+  },
+  "SofaDouble": {
+   "name": "Canapé rembourré",
+   "category": "Séjour",
+   "width": 170,
+   "depth": 85,
+   "height": 80
+  },
+  "SofaLong": {
+   "name": "Canapé méridienne rembourré",
+   "category": "Séjour",
+   "width": 220,
+   "depth": 150,
+   "height": 80
+  },
+  "Stool": {
+   "name": "Tabouret haut rustique",
+   "category": "Cuisine",
+   "width": 40,
+   "depth": 40,
+   "height": 75,
+   "pose": "tuckable"
+  },
+  "Table": {
+   "name": "Table rustique",
+   "category": "Bureau et repas",
+   "width": 150,
+   "depth": 90,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "Vase": {
+   "name": "Vase bleu",
+   "category": "Décoration",
+   "width": 25,
+   "depth": 25,
+   "height": 40,
+   "pose": "onTop"
+  },
+  "Vase2": {
+   "name": "Vase bleu élancé",
+   "category": "Décoration",
+   "width": 20,
+   "depth": 20,
+   "height": 45,
+   "pose": "onTop"
+  }
+ },
+ "override": {
+  "Bed": {
+   "rotateY": -90
+  },
+  "BedKing": {
+   "rotateY": -90
+  },
+  "BookCase": {
+   "rotateY": -90
+  },
+  "BookCaseBooks": {
+   "rotateY": -90
+  },
+  "BookCaseLarge": {
+   "rotateY": -90
+  },
+  "BookCaseLargeBooks": {
+   "rotateY": -90
+  },
+  "Chair": {
+   "rotateY": -90
+  },
+  "ChairCushioned": {
+   "rotateY": -90
+  },
+  "ChairHandle": {
+   "rotateY": -90
+  },
+  "Closet": {
+   "rotateY": -90
+  },
+  "Closet2": {
+   "rotateY": -90
+  },
+  "CoffeeTable": {
+   "rotateY": -90
+  },
+  "CoffeeTable2": {
+   "rotateY": -90
+  },
+  "Lamp": {
+   "rotateY": -90
+  },
+  "Lamp2": {
+   "rotateY": -90
+  },
+  "Plant": {
+   "rotateY": -90
+  },
+  "Sofa": {
+   "rotateY": -90
+  },
+  "SofaDouble": {
+   "rotateY": -90
+  },
+  "SofaLong": {
+   "rotateY": -90
+  },
+  "Stool": {
+   "rotateY": -90
+  },
+  "Table": {
+   "rotateY": -90
+  },
+  "Vase": {
+   "rotateY": -90
+  },
+  "Vase2": {
+   "rotateY": -90
+  }
+ }
+}
