@@ -4,6 +4,17 @@ import { parseProperties } from './properties.ts';
 import { unzipTo } from './fetch.ts';
 import type { RawItem } from './types.ts';
 
+/** A key or file path read from an archive's catalog, refused when it could leave the library folder. */
+function safeKey(k: string): string {
+  if (!/^[\w.-]+$/.test(k) || k.includes('..')) throw new Error(`unsafe model key in catalog: ${k}`);
+  return k;
+}
+function safePath(lib: string, p: string): string {
+  const abs = path.resolve(lib, p.replace(/^\//, ''));
+  if (!abs.startsWith(path.resolve(lib) + path.sep)) throw new Error(`unsafe model path in catalog: ${p}`);
+  return abs;
+}
+
 const num = (v: string | undefined): number | undefined => (v === undefined || v.trim() === '' ? undefined : Number(v));
 
 /**
@@ -31,7 +42,7 @@ export function readSh3fLibrary(archive: string, dir: string, library: string, d
     items.push({
       source: 'sh3d',
       library,
-      key: get('id')!.split('#').pop()!,
+      key: safeKey(get('id')!.split('#').pop()!),
       sourceId: get('id')!,
       name: get('name')!,
       nameFr: fr.get(`name#${n}`),
@@ -43,8 +54,8 @@ export function readSh3fLibrary(archive: string, dir: string, library: string, d
       elevation: num(get('elevation')),
       creator: get('creator'),
       license: get('license') || defaultLicense,
-      modelPath: path.join(lib, model.replace(/^\//, '')),
-      iconPath: get('icon') ? path.join(lib, get('icon')!.replace(/^\//, '')) : undefined,
+      modelPath: safePath(lib, model),
+      iconPath: get('icon') ? safePath(lib, get('icon')!) : undefined,
       modelRotation: rot ? rot.split(/\s+/).map(Number) : undefined,
       doorOrWindow: get('doorOrWindow') === 'true',
       staircase: props.has(`staircaseCutOutShape#${n}`),

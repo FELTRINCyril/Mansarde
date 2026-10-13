@@ -3,6 +3,9 @@
  "override": {
   "contributions/bar_stool": {
    "id": "sh-contrib-bar-stool-alax"
+  },
+  "scopia/stair-lift": {
+   "category": "Divers"
   }
  },
  "excludeIds": {

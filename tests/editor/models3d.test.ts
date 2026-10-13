@@ -140,6 +140,7 @@ describe('downloaded models in the furniture layer', () => {
     layer.sync(levelWith([a, b]), {}, false);
     expect(calls).toEqual([urlOf(MODEL.id)]);
     expect(layer.groupOf(a.id)!.userData.waitingModel).toBe(MODEL.id);
+    expect(layer.waitingCount()).toBe(2);
     expect(showsBox(layer.groupOf(a.id)!)).toBe(true);
 
     settle.get(urlOf(MODEL.id))!.resolve(unitModel());
@@ -160,6 +161,7 @@ describe('downloaded models in the furniture layer', () => {
       expect(box.min.y).toBeCloseTo(0, 3);
     }
     expect(layer.groupOf(b.id)!.getObjectByName('body')!.scale.x).toBe(-1);
+    expect(layer.waitingCount()).toBe(0);
     // settled: a later sync rebuilds nothing
     const after = layer.buildCount;
     layer.sync(levelWith([a, b]), {}, false);
@@ -219,6 +221,32 @@ describe('downloaded models in the furniture layer', () => {
     expect(spies.every((s) => s.mock.calls.length === 0)).toBe(true);
     layer.dispose();
     expect(spies.every((s) => s.mock.calls.length > 0)).toBe(true);
+  });
+
+  it('frees a model once no object shows it, and loads it again when needed', async () => {
+    const { lib, settle, calls } = await loaded();
+    const layer = new FurnitureLayer(new Kit(), null, lib);
+    const a = place(MODEL.id, { color: '#3366cc' });
+    const b = place(OTHER.id);
+    layer.sync(levelWith([a, b]), {}, false);
+    const template = unitModel();
+    settle.get(urlOf(MODEL.id))!.resolve(template);
+    settle.get(urlOf(OTHER.id))!.resolve(unitModel());
+    await flush();
+    layer.sync(levelWith([a, b]), {}, false);
+    layer.purge();
+    const spies = meshes(template).map((m) => vi.spyOn(m.geometry, 'dispose'));
+    const tint = meshes(layer.groupOf(a.id)!)[0]!.material as MeshStandardMaterial;
+    const tintSpy = vi.spyOn(tint, 'dispose');
+    // the other model stays shown: only MODEL is freed
+    layer.sync(levelWith([b]), {}, false);
+    layer.purge();
+    expect(spies.every((s) => s.mock.calls.length > 0)).toBe(true);
+    expect(tintSpy).toHaveBeenCalled();
+    expect(lib.get(OTHER.id)).not.toBeNull();
+    // asked again: a new load
+    layer.sync(levelWith([a, b]), {}, false);
+    expect(calls.filter((u) => u === urlOf(MODEL.id))).toHaveLength(2);
   });
 
   it('loads each model once for many objects, two models in parallel', async () => {

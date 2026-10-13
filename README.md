@@ -120,12 +120,15 @@ un modèle n'est chargé que s'il est posé sur le plan.
 | [Quaternius Furniture Pack](https://opengameart.org/content/furniture-low-poly) | 23 | CC0 |
 | [Poly Haven](https://polyhaven.com/models) | 134 | CC0 |
 | [Sweet Home 3D](https://www.sweethome3d.com/importModels.jsp) : BlendSwap CC-0 | 120 | CC0 |
-| Sweet Home 3D : Scopia, KatorLegaz, BlendSwap CC-BY | 322 | CC-BY 3.0 |
+| Sweet Home 3D : Scopia, BlendSwap CC-BY | 275 | CC-BY 3.0 |
+| Sweet Home 3D : KatorLegaz | 47 | CC-BY 3.0 US |
 | Sweet Home 3D : Contributions, LucaPresidente | 398 | Free Art License 1.3 (certains aussi CC-BY 3.0) |
 
 Merci à leurs auteurs. Le nom de l'auteur et la licence de chaque modèle sont dans la fenêtre
-"Crédits des modèles 3D" (en bas du catalogue) ; les textes des licences sont dans
-`public/models/LICENSES`. Chaque modèle reste sous sa licence d'origine.
+"Crédits des modèles 3D" (en bas du catalogue), avec l'attribution exigée par chaque
+bibliothèque, un lien vers le texte de sa licence et sa notice (copiée dans
+`public/models/LICENSES`). Les modèles ont été convertis, simplifiés et leurs textures réduites ;
+chacun reste sous sa licence d'origine, et l'original se trouve sur la page de sa bibliothèque.
 
 ## Technique
 

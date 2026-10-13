@@ -50,6 +50,8 @@ test('60 different downloaded models: draw calls under budget, all loaded', asyn
   await open3d(page);
   await expect.poll(() => page.evaluate(() => window.__planMaison3D!.modelsLoaded), { timeout: 120_000 }).toBe(60);
   const loadMs = Date.now() - t0;
+  // loaded is not shown: the objects waiting for their model are rebuilt with it
+  await expect.poll(() => page.evaluate(() => window.__planMaison3D!.modelsWaiting), { timeout: 30_000 }).toBe(0);
   await expect.poll(() => page.evaluate(() => window.__planMaison3D!.idle), { timeout: 60_000 }).toBe(true);
   const stats = await page.evaluate(() => ({ drawCalls: window.__planMaison3D!.drawCalls, triangles: window.__planMaison3D!.triangles, failed: window.__planMaison3D!.modelsFailed }));
   console.log(`models: ${JSON.stringify({ ...stats, loadMs })}`);

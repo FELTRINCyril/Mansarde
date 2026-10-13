@@ -8,6 +8,7 @@ import {
 } from '@/export/pageLayout';
 import { exportPdf } from '@/export/pdf';
 import { exportPng } from '@/export/png';
+import { modelOutlinesLoaded, showsModels } from '@/render/modelOutlines';
 import { useEditor } from '@/editor/store';
 import { blobToBase64, downloadBlob } from '@/storage/files';
 import type { ProjectStore } from '@/storage/db';
@@ -113,6 +114,10 @@ export function ExportDialog(p: { projectStore: ProjectStore; onExportJson(proje
         downloadBlob(exportFileName(project.name, level.name, 'png'), blob);
       }
       p.onClose();
+      // the top views of the downloaded models could not be loaded: the export drew their boxes
+      if (showsModels(Object.values(level.objects)) && !modelOutlinesLoaded()) {
+        useEditor.getState().showToast('Contours des objets téléchargés indisponibles : ils sont dessinés en rectangles dans l\'export.');
+      }
     } catch (e) {
       setError(messageOf(e) === ERR_EMPTY_LEVEL ? 'Ce niveau est vide.' : `Export impossible : ${messageOf(e)}`);
       setBusy(false);

@@ -36,7 +36,7 @@ export async function renderAll(jobs: RenderJob[], onProgress?: (n: number) => v
     if (url === '/') file = path.join(import.meta.dirname, 'page.html');
     else if (url.startsWith('/three/')) file = path.join(ROOT, 'node_modules', 'three', url.slice(7));
     else if (url.startsWith('/model/')) file = files.get(url.slice(7));
-    if (!file || !file.startsWith(ROOT) || !existsSync(file) || !statSync(file).isFile()) {
+    if (!file || !path.resolve(file).startsWith(ROOT + path.sep) || !existsSync(file) || !statSync(file).isFile()) {
       res.writeHead(404).end();
       return;
     }

@@ -72,6 +72,8 @@ export const scene3dStats = {
   /** Downloaded models loaded, and failed to load, by the last scene (spec 2026-10-13). */
   modelsLoaded: 0,
   modelsFailed: 0,
+  /** Objects still shown as a box while their downloaded model loads. */
+  modelsWaiting: 0,
   /** Draw calls and triangles of the last frame (performance budget, spec 2026-10-13 section 10). */
   drawCalls: 0,
   triangles: 0,
@@ -144,17 +146,22 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
   let lowerMats: Materials | null = null;
   // furniture (task 12): builders, name labels, alert tint
   const labels = createLabels(container);
-  // a model that arrives (or fails) rebuilds the objects waiting for it: one update per batch
+  // a model that arrives (or fails) rebuilds the objects waiting for it; the arrivals of one
+  // animation frame make one update, inside the same error net as the render loop
   let lastInput: Scene3DInput | null = null;
-  let refreshQueued = false;
+  let refreshFrame: number | null = null;
   const models = new ModelLibrary(createGltfLoader(), (id) => modelUrl(id, import.meta.env.BASE_URL), () => {
     scene3dStats.modelsLoaded = models.stats.loaded;
     scene3dStats.modelsFailed = models.stats.failed;
-    if (refreshQueued) return;
-    refreshQueued = true;
-    queueMicrotask(() => {
-      refreshQueued = false;
-      if (!disposed && !failed && lastInput) api.update(lastInput);
+    if (refreshFrame !== null) return;
+    refreshFrame = requestAnimationFrame(() => {
+      refreshFrame = null;
+      if (disposed || failed || !lastInput) return;
+      try {
+        api.update(lastInput);
+      } catch (e) {
+        fail(e);
+      }
     });
   });
   scene3dStats.modelsLoaded = 0;
@@ -426,6 +433,7 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
       if (cupboardsChanged) cupboards.purge(tints.originals());
       outline.sync(selectedTargets());
       scene3dStats.objectBuilds = furniture.buildCount;
+      scene3dStats.modelsWaiting = furniture.waitingCount();
       scene3dStats.cupboardBuilds = cupboards.buildCount;
       scene3dStats.outlined = outline.outlined.length;
       scene3dStats.lowerLevels = lower.size;
@@ -455,6 +463,7 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
     dispose() {
       if (disposed) return;
       disposed = true;
+      if (refreshFrame !== null) cancelAnimationFrame(refreshFrame);
       if (frameId !== null) cancelAnimationFrame(frameId);
       frameId = null;
       scene3dStats.idle = true;

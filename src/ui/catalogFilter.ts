@@ -7,7 +7,7 @@ export type StyleFilter = 'all' | ModelStyle;
 export const SEARCH_LIMIT = 80;
 
 /** Lower case without accents, for the search. */
-export const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+export const fold = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 const folded = new WeakMap<CatalogEntry, string>();
 const foldedName = (e: CatalogEntry): string => {

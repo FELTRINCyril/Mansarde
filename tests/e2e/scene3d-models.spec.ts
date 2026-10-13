@@ -51,6 +51,8 @@ test('a downloaded model: catalog, plan outline, 3D model', async ({ page }) => 
   await expect(page.getByTestId('scene3d-canvas')).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => window.__planMaison3D!.modelsLoaded), { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
   expect(await page.evaluate(() => window.__planMaison3D!.modelsFailed)).toBe(0);
+  // loaded is not shown: the objects waiting for their model are rebuilt with it
+  await expect.poll(() => page.evaluate(() => window.__planMaison3D!.modelsWaiting), { timeout: 30_000 }).toBe(0);
   expect(errors).toEqual([]);
 });
 

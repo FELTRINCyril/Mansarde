@@ -23,7 +23,7 @@ aperçu, le nom et les dimensions au sol (largeur x profondeur, en cm).
 En plus des meubles listés ci-dessous, le catalogue contient plus de 1 100 objets repris de
 bibliothèques libres, reconnaissables à leur icône en couleur : électroménager, luminaires,
 décoration, plantes, mobilier d'extérieur, rangements, sanitaires, escaliers. Ils se posent, se
-redimensionnent, se tournent et se vérifient comme les autres objets, avec deux différences :
+redimensionnent, se tournent et se vérifient comme les autres objets, avec trois différences :
 
 - **Taille** : un objet téléchargé est étiré à la taille demandée. Une petite variation ne se voit
   pas ; une grosse (une chaise deux fois plus large) le déforme. Pour un lit, un canapé ou une

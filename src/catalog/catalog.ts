@@ -1,5 +1,5 @@
 // Type-only imports: src/core (the V1 -> V2 migration) reads this module, so it must never pull
-// React or a browser API (symbols live in symbols.tsx). generated/models.ts is plain data.
+// React or a browser API (symbols live in symbols.tsx). generated/models.json is plain data.
 import type { GenericShape, LShapeParams, ObjectPose } from '../core/model/types';
 import modelData from './generated/models.json';
 

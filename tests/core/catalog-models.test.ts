@@ -6,9 +6,9 @@ import credits from '../../src/catalog/generated/credits.json';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const PUBLIC = path.join(ROOT, 'public');
-const MODEL_CREDITS = credits as Record<string, { source: string; library: string; author: string; license: string; url?: string }>;
+const MODEL_CREDITS = (credits as { models: Record<string, { source: string; library: string; author: string; license: string; url?: string }> }).models;
 const outlines = JSON.parse(readFileSync(path.join(ROOT, 'public', 'models', 'outlines.json'), 'utf8')) as Record<string, [number[][], number[][]]>;
-const LICENSES = ['CC0', 'CC-BY 3.0', 'Free Art License 1.3', 'Free Art License 1.3 / CC-BY 3.0'];
+const LICENSES = ['CC0', 'CC-BY 3.0', 'CC-BY 3.0 US', 'Free Art License 1.3', 'Free Art License 1.3 / CC-BY 3.0'];
 const models = CATALOG.filter((e) => e.model);
 const lock = readFileSync(path.join(ROOT, 'tools', 'models', 'ids.lock'), 'utf8').split('\n').filter(Boolean);
 
@@ -64,7 +64,7 @@ describe('downloaded models in the catalog', () => {
       const c = MODEL_CREDITS[e.id];
       expect(c, e.id).toBeDefined();
       expect(LICENSES, e.id).toContain(c!.license);
-      // attribution licenses need a named author
+      // attribution licenses need a named author (credits.test.tsx checks the library attributions)
       if (c!.license !== 'CC0') expect(c!.author.trim(), e.id).not.toBe('');
     }
     expect(Object.keys(MODEL_CREDITS).sort()).toEqual(models.map((e) => e.id).sort());

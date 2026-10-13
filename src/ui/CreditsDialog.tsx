@@ -1,53 +1,79 @@
 import { useEffect, useMemo, useState, type JSX } from 'react';
-import { getCatalogEntry } from '@/catalog/catalog';
 import { Modal } from './ConfirmDialog';
-
-export interface ModelCredit {
-  source: string;
-  library: string;
-  author: string;
-  license: string;
-  url?: string;
-}
-export type Credits = Record<string, ModelCredit>;
-
-/** Official text of each license the catalog accepts (a copy ships in public/models/LICENSES). */
-const LICENSE_URLS: Record<string, string> = {
-  CC0: 'https://creativecommons.org/publicdomain/zero/1.0/deed.fr',
-  'CC-BY 3.0': 'https://creativecommons.org/licenses/by/3.0/deed.fr',
-  'Free Art License 1.3': 'https://artlibre.org/licence/lal/',
-  'Free Art License 1.3 / CC-BY 3.0': 'https://artlibre.org/licence/lal/',
-};
+import { groupCredits, LICENSE_URLS, type CreditGroup, type Credits } from './credits';
 
 const loadCredits = async (): Promise<Credits> => (await import('@/catalog/generated/credits.json')).default as Credits;
 
-interface Group {
-  key: string;
-  library: string;
-  license: string;
-  rows: Array<{ id: string; name: string; author: string; url?: string }>;
+const External = (p: { href: string; children: string }): JSX.Element => (
+  <a href={p.href} target="_blank" rel="noreferrer">
+    {p.children}
+  </a>
+);
+
+/** Library, count and license; a double license links both texts. */
+function GroupHead({ g }: { g: CreditGroup }): JSX.Element {
+  const [first, second] = LICENSE_URLS[g.license] ?? (g.info ? [g.info.licenseUrl] : []);
+  return (
+    <summary>
+      <strong>{g.library}</strong> : {g.rows.length} objets, licence {first ? <External href={first}>{g.license}</External> : g.license}
+      {second && (
+        <>
+          {' '}
+          (<External href={second}>texte de la CC-BY 3.0</External>)
+        </>
+      )}
+    </summary>
+  );
 }
 
-/** Credits grouped by library and license, models sorted by name. */
-export function groupCredits(credits: Credits): Group[] {
-  const groups = new Map<string, Group>();
-  for (const [id, c] of Object.entries(credits)) {
-    const key = `${c.library}|${c.license}`;
-    let g = groups.get(key);
-    if (!g) {
-      g = { key, library: c.library, license: c.license, rows: [] };
-      groups.set(key, g);
-    }
-    g.rows.push({ id, name: getCatalogEntry(id)?.name ?? id, author: c.author, ...(c.url ? { url: c.url } : {}) });
-  }
-  const out = [...groups.values()].sort((a, b) => b.rows.length - a.rows.length || a.library.localeCompare(b.library));
-  for (const g of out) g.rows.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-  return out;
+/** The credits, one collapsible group per library and license. */
+export function CreditsList({ credits }: { credits: Credits }): JSX.Element {
+  const groups = useMemo(() => groupCredits(credits), [credits]);
+  return (
+    <>
+      {groups.map((g) => (
+        <details key={g.key} className="credits-group" data-testid="credits-group">
+          <GroupHead g={g} />
+          {g.info && (
+            <p className="credits-library" data-testid="credits-library">
+              {g.info.attribution && (
+                <>
+                  Attribution : {g.info.attribution}.{' '}
+                </>
+              )}
+              <External href={g.info.page}>Page de la bibliothèque</External>
+              {g.info.notice && (
+                <>
+                  {' - '}
+                  <External href={`${import.meta.env.BASE_URL}models/LICENSES/${g.info.notice}`}>notice de licence</External>
+                </>
+              )}
+            </p>
+          )}
+          <ul className="credits-list">
+            {g.rows.map((r) => (
+              <li key={r.id}>
+                {r.name}
+                {r.author && <span className="credits-author"> par {r.author}</span>}
+                {r.url && (
+                  <>
+                    {' '}
+                    (<External href={r.url}>source</External>)
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </>
+  );
 }
 
 /**
- * "Crédits des modèles 3D" (spec 2026-10-13, section 9): the authors and licenses of the
- * downloaded models, loaded when the dialog opens (the list stays out of the app bundle).
+ * "Crédits des modèles 3D" (spec 2026-10-13, section 9): for each library its license, the
+ * attribution that license requires, its notice and its page; then each model with its author.
+ * Loaded when the dialog opens (the list stays out of the app bundle).
  */
 export function CreditsDialog(p: { onClose(): void; load?: () => Promise<Credits> }): JSX.Element {
   const [credits, setCredits] = useState<Credits | null>(null);
@@ -63,48 +89,17 @@ export function CreditsDialog(p: { onClose(): void; load?: () => Promise<Credits
       live = false;
     };
   }, [load]);
-  const groups = useMemo(() => (credits ? groupCredits(credits) : []), [credits]);
   return (
     <Modal title="Crédits des modèles 3D" onClose={p.onClose} testId="credits-dialog" wide>
       <div className="modal-body credits">
         <p>
-          Les objets du catalogue marqués d'une icône viennent de bibliothèques libres. Merci à leurs auteurs. Chaque modèle reste sous sa
-          licence d'origine ; les textes des licences sont dans le dossier <code>models/LICENSES</code> de l'application.
+          Les objets du catalogue marqués d'une icône viennent de bibliothèques libres. Merci à leurs auteurs. Pour Mansarde, chaque modèle a
+          été converti au format glTF, simplifié et ses textures réduites ; il reste sous la licence de sa bibliothèque, et l'original se
+          trouve sur la page de celle-ci.
         </p>
         {failed && <p className="hint">Les crédits n'ont pas pu être chargés.</p>}
         {!credits && !failed && <p className="hint">Chargement...</p>}
-        {groups.map((g) => (
-          <details key={g.key} className="credits-group" data-testid="credits-group">
-            <summary>
-              <strong>{g.library}</strong> : {g.rows.length} objets, licence{' '}
-              {LICENSE_URLS[g.license] ? (
-                <a href={LICENSE_URLS[g.license]} target="_blank" rel="noreferrer">
-                  {g.license}
-                </a>
-              ) : (
-                g.license
-              )}
-            </summary>
-            <ul className="credits-list">
-              {g.rows.map((r) => (
-                <li key={r.id}>
-                  {r.name}
-                  {r.author && <span className="credits-author"> par {r.author}</span>}
-                  {r.url && (
-                    <>
-                      {' '}
-                      (
-                      <a href={r.url} target="_blank" rel="noreferrer">
-                        source
-                      </a>
-                      )
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ))}
+        {credits && <CreditsList credits={credits} />}
       </div>
       <div className="modal-actions">
         <button type="button" className="btn btn-primary" onClick={p.onClose}>

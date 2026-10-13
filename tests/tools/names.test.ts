@@ -17,4 +17,12 @@ describe('cleanName', () => {
     expect(cleanName('«Lampe» 2×3  cm')).toBe('"Lampe" 2x3 cm');
     expect(cleanName('  a   b ')).toBe('a b');
   });
+
+  it('restores the accent of a capital initial', () => {
+    expect(cleanName('Etag\u00e8res d\u2019angle')).toBe("\u00c9tag\u00e8res d'angle");
+    expect(cleanName('Echelle de piscine')).toBe('\u00c9chelle de piscine');
+    expect(cleanName('Etabli 2')).toBe('\u00c9tabli 2');
+    expect(cleanName('Petite \u00e9tag\u00e8re')).toBe('Petite \u00e9tag\u00e8re');
+    expect(cleanName('Ensemble')).toBe('Ensemble');
+  });
 });

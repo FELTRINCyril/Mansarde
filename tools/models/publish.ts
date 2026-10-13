@@ -84,6 +84,28 @@ const SH3D_LIBS: Record<string, { short: string; label: string }> = {
 };
 /** Kept first when two sources give the same object. */
 const PRIORITY: Record<string, number> = { kenney: 0, quaternius: 1, polyhaven: 2, 'blendswap-cc0': 3, katorlegaz: 4, scopia: 5, 'blendswap-ccby': 6, contributions: 7, lucapresidente: 8 };
+/**
+ * What the credits show for each library (spec 9): its license and the attribution the license
+ * requires, read in the notice the library ships (copied to public/models/LICENSES), its page.
+ * Every model is an adaptation (converted, simplified, textures reduced): the dialog says so.
+ */
+interface LibraryCredit { source: string; license: string; licenseUrl: string; attribution?: string; notice?: string; page: string }
+const CC0 = 'https://creativecommons.org/publicdomain/zero/1.0/deed.fr';
+const CCBY3 = 'https://creativecommons.org/licenses/by/3.0/deed.fr';
+const FAL = 'https://artlibre.org/licence/lal/';
+const SH3D_PAGE = 'https://www.sweethome3d.com/importModels.jsp';
+const LIBRARIES: Record<string, LibraryCredit> = {
+  'Kenney Furniture Kit': { source: 'Kenney', license: 'CC0', licenseUrl: CC0, attribution: 'Kenney (www.kenney.nl)', notice: 'kenney.txt', page: 'https://kenney.nl/assets/furniture-kit' },
+  'Quaternius Furniture Pack': { source: 'Quaternius', license: 'CC0', licenseUrl: CC0, attribution: 'Quaternius', page: 'https://opengameart.org/content/furniture-low-poly' },
+  'Poly Haven': { source: 'Poly Haven', license: 'CC0', licenseUrl: CC0, page: 'https://polyhaven.com/models' },
+  'BlendSwap CC-0': { source: 'Sweet Home 3D', license: 'CC0', licenseUrl: CC0, notice: 'sweethome3d-blendswap-cc0.txt', page: SH3D_PAGE },
+  'BlendSwap CC-BY': { source: 'Sweet Home 3D', license: 'CC-BY 3.0', licenseUrl: CCBY3, notice: 'sweethome3d-blendswap-ccby.txt', page: SH3D_PAGE },
+  Scopia: { source: 'Sweet Home 3D', license: 'CC-BY 3.0', licenseUrl: CCBY3, attribution: 'Space Mushrooms <info@sweethome3d.com> et Scopia Visual Interfaces Systems, s.l. (http://www.scopia.es)', notice: 'sweethome3d-scopia.txt', page: SH3D_PAGE },
+  KatorLegaz: { source: 'Sweet Home 3D', license: 'CC-BY 3.0 US', licenseUrl: 'https://creativecommons.org/licenses/by/3.0/us/', attribution: '(C) Copyright Andrew Kator & Jennifer Legaz', notice: 'sweethome3d-katorlegaz.txt', page: SH3D_PAGE },
+  Contributions: { source: 'Sweet Home 3D', license: 'Free Art License 1.3', licenseUrl: FAL, notice: 'sweethome3d-contributions.txt', page: SH3D_PAGE },
+  LucaPresidente: { source: 'Sweet Home 3D', license: 'Free Art License 1.3', licenseUrl: FAL, notice: 'sweethome3d-lucapresidente.txt', page: SH3D_PAGE },
+};
+
 const SOURCE_LABEL: Record<string, string> = { kenney: 'Kenney Furniture Kit', quaternius: 'Quaternius Furniture Pack', polyhaven: 'Poly Haven', sh3d: 'Sweet Home 3D' };
 
 /** excludeIds entries that matched a model (the others are reported as typos). */
@@ -128,7 +150,9 @@ function toEntry(s: StagedItem, problems: string[]): Published | string {
     usedExcludeIds.add(id);
     return `curation: ${cur.excludeIds[id]}`;
   }
-  const license = normalizeLicense(s.license);
+  const normalized = normalizeLicense(s.license);
+  // KatorLegaz: Creative Commons Attribution 3.0 United States (its notice), not the unported 3.0
+  const license = normalized === 'CC-BY 3.0' && s.library === 'katorlegaz' ? 'CC-BY 3.0 US' : normalized;
   if (!license) return `license ${s.license}`;
   return {
     id,
@@ -280,8 +304,13 @@ async function main(): Promise<void> {
   // top views, loaded by the plan only when it shows a downloaded model (src/render/modelOutlines.ts)
   const outlines = Object.fromEntries(published.map((p) => [p.id, [p.outline, p.detail]]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
   writeFileSync(path.join(PUBLIC, 'outlines.json'), JSON.stringify(outlines));
-  const credits = published.map((p) => `${tsLiteral(p.id)}: ${tsLiteral(p.credit)}`);
-  writeFileSync(path.join(GENERATED, 'credits.json'), `{\n${credits.join(',\n')}\n}\n`);
+  const credits = published.map((p) => `  ${tsLiteral(p.id)}: ${tsLiteral(p.credit)}`);
+  const libraries = Object.entries(LIBRARIES).filter(([name]) => published.some((p) => p.credit.library === name));
+  for (const p of published) if (!LIBRARIES[p.credit.library]) throw new Error(`no LIBRARIES entry for ${p.credit.library}`);
+  writeFileSync(
+    path.join(GENERATED, 'credits.json'),
+    `{\n"libraries": {\n${libraries.map(([k, v]) => `  ${tsLiteral(k)}: ${tsLiteral(v)}`).join(',\n')}\n},\n"models": {\n${credits.join(',\n')}\n}\n}\n`,
+  );
 
   // ids.lock: every id ever published stays (tests/core/catalog-models.test.ts)
   const lockFile = path.join(ROOT, 'ids.lock');

@@ -20,6 +20,12 @@ type Table = Record<string, [number[][], number[][]]>;
  */
 let table: Table | null = null;
 let loading: Promise<void> | null = null;
+/** When the last load failed (ms, performance.now), to retry no sooner than RETRY_MS after. */
+let failedAt: number | null = null;
+/** A failed load is retried after this delay, when a plan or an export needs the top views again. */
+export const RETRY_MS = 30_000;
+/** A load that hangs longer is abandoned (the boxes stay, the export goes on). */
+const TIMEOUT_MS = 15_000;
 let version = 0;
 const listeners = new Set<() => void>();
 
@@ -35,24 +41,34 @@ export function modelOutline(id: string): ModelOutline | null {
 }
 
 /**
- * Loads the top views once (later calls share the same promise). A failure is reported once on
- * the console and leaves the boxes; it is not retried during the session.
+ * Loads the top views (calls share the same promise while it runs, and once it succeeded). A
+ * failure is reported on the console and leaves the boxes; it is retried by a later call, no
+ * sooner than RETRY_MS after (offline, a plan re-rendering must not hammer the server).
  */
-export function loadModelOutlines(fetchTable: () => Promise<Table> = defaultFetch): Promise<void> {
-  if (!loading) {
-    loading = fetchTable().then(
-      (t) => {
-        table = t;
-        notify();
-      },
-      (e: unknown) => console.warn('top views of the 3D models could not be loaded', e),
-    );
-  }
-  return loading;
+export function loadModelOutlines(fetchTable: () => Promise<Table> = defaultFetch, now: () => number = () => performance.now()): Promise<void> {
+  if (loading) return loading;
+  if (failedAt !== null && now() - failedAt < RETRY_MS) return Promise.resolve();
+  const attempt = fetchTable().then(
+    (t) => {
+      table = t;
+      failedAt = null;
+      notify();
+    },
+    (e: unknown) => {
+      console.warn('top views of the 3D models could not be loaded', e);
+      failedAt = now();
+      loading = null;
+    },
+  );
+  loading = attempt;
+  return attempt;
 }
 
+/** True once the top views are loaded. */
+export const modelOutlinesLoaded = (): boolean => table !== null;
+
 async function defaultFetch(): Promise<Table> {
-  const res = await fetch(modelOutlinesUrl(import.meta.env.BASE_URL));
+  const res = await fetch(modelOutlinesUrl(import.meta.env.BASE_URL), { signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return (await res.json()) as Table;
 }
@@ -61,6 +77,7 @@ async function defaultFetch(): Promise<Table> {
 export function setModelOutlines(t: Table | null): void {
   table = t;
   loading = t ? Promise.resolve() : null;
+  failedAt = null;
   notify();
 }
 

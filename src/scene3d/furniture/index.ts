@@ -243,6 +243,20 @@ export class FurnitureLayer {
     });
     this.kit.purge(used);
     this.models?.purge(used);
+    // the downloaded models no object shows any more
+    const inUse = new Set<string>();
+    for (const b of this.built.values()) {
+      const id = modelIdOf(b.o);
+      if (id) inUse.add(id);
+    }
+    this.models?.evict(inUse);
+  }
+
+  /** Objects shown as a box while their downloaded model loads (scene3dStats, e2e). */
+  waitingCount(): number {
+    let n = 0;
+    for (const b of this.built.values()) if (b.group.userData.waitingModel) n++;
+    return n;
   }
 
   /** The group of an object, if shown. */

@@ -1530,3 +1530,8 @@ select {
   padding: 6px 12px 10px;
   border-top: 1px solid var(--border);
 }
+
+.credits-library {
+  margin: 0 0 4px;
+  font-size: 12px;
+}

@@ -6,7 +6,7 @@ import { CATALOG } from '@/catalog/catalog';
 import { ModelSymbol } from '@/catalog/symbols';
 import { createObjectFromSize } from '@/core/model/factory';
 import { ObjectsLayer } from '@/render/layers/ObjectsLayer';
-import { loadModelOutlines, modelOutline, setModelOutlines } from '@/render/modelOutlines';
+import { loadModelOutlines, modelOutline, modelOutlinesLoaded, RETRY_MS, setModelOutlines } from '@/render/modelOutlines';
 
 type Top = { outline: number[][]; detail: number[][] };
 
@@ -66,14 +66,25 @@ describe('ObjectsLayer with downloaded models', () => {
     expect(m).not.toContain('<rect');
   });
 
-  it('loads the top views once and keeps the boxes when they cannot be loaded', async () => {
+  it('keeps the boxes when the top views cannot be loaded, and retries after a delay', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let clock = 1000;
+    const now = () => clock;
     const fetchTable = vi.fn(() => Promise.reject(new Error('offline')));
-    await Promise.all([loadModelOutlines(fetchTable), loadModelOutlines(fetchTable)]);
-    await loadModelOutlines(fetchTable);
+    // simultaneous calls share one request
+    await Promise.all([loadModelOutlines(fetchTable, now), loadModelOutlines(fetchTable, now)]);
     expect(fetchTable).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(modelOutlinesLoaded()).toBe(false);
     expect(layer(CATALOG.find((e) => e.model)!.id)).toContain('<rect');
+    // not again right away
+    clock += RETRY_MS - 1;
+    await loadModelOutlines(fetchTable, now);
+    expect(fetchTable).toHaveBeenCalledTimes(1);
+    // after the delay, a new attempt that succeeds
+    clock += 2;
+    await loadModelOutlines(async () => table(), now);
+    expect(modelOutlinesLoaded()).toBe(true);
     warn.mockRestore();
   });
 

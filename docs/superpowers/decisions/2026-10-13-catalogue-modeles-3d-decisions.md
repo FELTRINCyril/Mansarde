@@ -60,8 +60,32 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
   transparentes, nommée `main` dans le GLB.
 - **Échec de chargement** d'un modèle : le rectangle reste, un avertissement console, pas de
   nouvelle tentative pendant la session.
+- **Contours 2D** : délai maximal de 15 s ; après un échec, nouvelle tentative au plus tôt 30 s
+  plus tard, quand un plan ou un export en a besoin ; un export fait sans eux (rectangles) le
+  signale par un message.
+- **Mémoire 3D** : un modèle qu'aucun objet n'affiche plus est libéré (géométries, textures,
+  couleurs) ; reposé, il est rechargé depuis le cache du navigateur.
+- **Arrivée des modèles** : les modèles arrivés pendant une même image donnent une seule mise à
+  jour de la scène, protégée comme la boucle de rendu (une erreur passe la vue en état d'erreur).
 - **Identifiants** figés dans `tools/models/ids.lock` ; un test interdit d'en retirer. Pendant la
   mise au point initiale, le fichier a été régénéré ; il fait foi à partir du premier commit.
+
+## Revue indépendante (13/10/2026)
+
+- **Bloquant corrigé** : attribution CC-BY. La notice Scopia exige de créditer "Space Mushrooms et
+  Scopia Visual Interfaces Systems" ; KatorLegaz est sous CC-BY 3.0 United States (Andrew Kator et
+  Jennifer Legaz). Les crédits ont maintenant une fiche par bibliothèque : licence (lien vers le
+  texte officiel, les deux pour la double licence), attribution exigée, notice livrée
+  (`public/models/LICENSES`), page d'origine, et la mention que les modèles ont été convertis,
+  simplifiés et leurs textures réduites.
+- Corrigés aussi : reconstruction différée hors du filet d'erreur, absence de preuve que le modèle
+  s'affiche (compteur `modelsWaiting`, exigé à 0 par les e2e), modèles jamais libérés, contours
+  jamais rechargés, caractères non ASCII dans des expressions régulières, accents manquants des
+  noms Sweet Home 3D ("Echelle", "Etagère"), monte-escalier rangé en "Structure" (il échappait au
+  contrôle de hauteur, désormais en "Divers"), clés et chemins lus dans les archives validés.
+- **Non retenu** : Git LFS pour les 53 Mo de binaires (choix de dépôt laissé à l'utilisateur ;
+  le déploiement GitHub Pages devrait alors activer LFS) ; mémoïsation du dessin des contours
+  (64 points par objet au plus : coût jugé négligeable, non mesuré).
 
 ## Mesures (13/10/2026, machine de dev)
 

@@ -43,7 +43,7 @@ const SH3D_CATEGORIES: Record<string, Category | null> = {
 /** Lower case words of the names and tags, without accents, for keyword rules. */
 function words(it: RuleItem): string {
   const s = [it.name, it.nameFr ?? '', ...(it.tags ?? [])].join(' ');
-  return ' ' + s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  return ' ' + s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
 }
 
 /** True when one of the keywords (whole words or phrases) appears in the words. */

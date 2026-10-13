@@ -25,7 +25,8 @@ function disposeTree(root: Object3D): void {
  * The downloaded models of the 3D view (spec 2026-10-13, section 7): each GLB is loaded once, when
  * an object first needs it, and kept as a template whose geometries and materials every object
  * using it shares (its meshes are marked `userData.sharedGeometry`, so that removing an object
- * never frees them); they are freed with the library. A failed load is not retried during the
+ * never frees them); a template is freed when no object shows it any more (evict) or with the
+ * library. A failed load is not retried during the
  * session. `onReady(id)` tells the view a model arrived (or failed) so that it rebuilds the
  * objects waiting for it; nothing is reported after `dispose`.
  */
@@ -109,6 +110,24 @@ export class ModelLibrary {
       if (used.has(m)) continue;
       m.dispose();
       this.tints.delete(k);
+    }
+  }
+
+  /**
+   * Frees the models no object shows any more (`keep`: the ids still in use), and their tinted
+   * materials: trying many models does not pile them up in GPU memory. A model asked again is
+   * loaded again (from the HTTP cache).
+   */
+  evict(keep: Set<string>): void {
+    for (const [id, t] of this.templates) {
+      if (keep.has(id)) continue;
+      disposeTree(t);
+      this.templates.delete(id);
+      for (const [k, m] of this.tints) {
+        if (!k.startsWith(`${id}|`)) continue;
+        m.dispose();
+        this.tints.delete(k);
+      }
     }
   }
 
