@@ -170,7 +170,7 @@ async function main(): Promise<void> {
   // two models writing the same GLB would mix one's catalog data with the other's model
   const files = new Map<string, string>();
   for (const item of raw) {
-    const f = `${item.source}/${item.library}/${item.key}`;
+    const f = `${item.source}/${item.library}/${item.key}`.toLowerCase(); // the Mac file system ignores the case
     if (files.has(f)) throw new Error(`two models share ${f}: ${files.get(f)} and ${item.sourceId}`);
     files.set(f, item.sourceId);
   }

@@ -115,7 +115,12 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
   Une clé en collision reçoit maintenant le nom de son auteur (`desk-ravey`), la préparation
   s'arrête si deux modèles visent le même fichier, et `ids.lock` retient le modèle source de
   chaque id (`id <TAB> source`) : la publication refuse qu'un id change de modèle. La branche
-  n'étant pas déployée, le verrou a été recréé à cette occasion.
+  n'étant pas déployée, le verrou a été recréé à cette occasion. Variante trouvée à la revue
+  suivante : deux clés égales à la casse près (`glassDoorCabinet`, `glassdoorCabinet`) donnaient un
+  seul fichier sur le Mac (système de fichiers insensible à la casse) ; les clés sont comparées en
+  minuscules, et la publication vérifie que chaque GLB publié est celui préparé pour son modèle
+  (même taille) et qu'aucun GLB n'est publié deux fois (un test le vérifie aussi).
+- **Export sans `OffscreenCanvas`** (Safari avant 16.4) : réencodage PNG par un canvas de la page.
 - **Pendant le chargement** d'une vue de dessus, l'écran montre le rectangle de l'objet dessous
   (il n'est jamais invisible) ; une image en échec est retentée au retour du réseau (`online`).
 - **Non retenu** : sens d'éclairage des vues de dessus qui tourne avec l'objet (cosmétique) ;

@@ -10,6 +10,12 @@ describe('uniqueKey', () => {
     expect(uniqueKey('Peter Smolik#antiqueChair', taken)).toBe('antiqueChair-peter-smolik');
   });
 
+  it('treats keys differing only by case as a collision (one file on the Mac)', () => {
+    const taken = new Set<string>();
+    expect(uniqueKey('Geantick#glassDoorCabinet', taken)).toBe('glassDoorCabinet');
+    expect(uniqueKey('Pastierovic#glassdoorCabinet', taken)).toBe('glassdoorCabinet-pastierovic');
+  });
+
   it('refuses keys that could leave the library folder', () => {
     expect(() => uniqueKey('x#../evil', new Set())).toThrow(/unsafe/);
   });

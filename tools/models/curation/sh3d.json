@@ -6,6 +6,9 @@
   },
   "scopia/stair-lift": {
    "category": "Divers"
+  },
+  "contributions/glassdoorCabinet-pastierovic": {
+   "id": "sh-contrib-glassdoor-cabinet"
   }
  },
  "excludeIds": {

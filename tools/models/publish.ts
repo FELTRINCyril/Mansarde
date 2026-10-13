@@ -292,6 +292,15 @@ async function main(): Promise<void> {
   rmSync(path.join(PUBLIC, 'outlines.json'), { force: true });
   for (const f of readdirSync(PUBLIC)) if (f.endsWith('.glb') && !want.has(f.slice(0, -4))) rmSync(path.join(PUBLIC, f));
   for (const f of readdirSync(path.join(PUBLIC, 'icons'))) if (f.endsWith('.webp') && !want.has(f.slice(0, -5))) rmSync(path.join(PUBLIC, 'icons', f));
+  // integrity: each published GLB is the one staged for its model, and no two models share one
+  const seenGlb = new Map<string, string>();
+  for (const p of published) {
+    const bytes = readFileSync(p.glb);
+    if (bytes.length !== p.bytes) throw new Error(`${p.id}: ${p.glb} has ${bytes.length} bytes, its model was staged with ${p.bytes}`);
+    const hash = createHash('sha1').update(bytes).digest('hex');
+    if (seenGlb.has(hash)) throw new Error(`${p.id} and ${seenGlb.get(hash)} would publish the same GLB`);
+    seenGlb.set(hash, p.id);
+  }
   for (const p of published) {
     copyFileSync(p.glb, path.join(PUBLIC, `${p.id}.glb`));
     await sharp(pngs.get(p.id)!).resize(ICON_SIZE, ICON_SIZE).webp({ quality: 82, alphaQuality: 90 }).toFile(path.join(PUBLIC, 'icons', `${p.id}.webp`));

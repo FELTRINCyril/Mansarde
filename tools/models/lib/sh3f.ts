@@ -17,15 +17,16 @@ function safePath(lib: string, p: string): string {
 
 /**
  * Key of a model in its library: the end of its catalog id ("Sheep#desk" -> "desk"). Two authors
- * may use the same end ("Ravey#desk"): the later one in the catalog gets its author appended
- * ("desk-ravey"), so that each model keeps its own file and its own credit.
+ * may use the same end ("Ravey#desk"), or the same end but for the case ("glassdoorCabinet"): the
+ * later one in the catalog gets its author appended ("desk-ravey"), so that each model keeps its
+ * own file (the Mac file system ignores the case) and its own credit. `taken` holds lower case keys.
  */
 export function uniqueKey(id: string, taken: Set<string>): string {
   const [author = '', end = id] = id.includes('#') ? [id.slice(0, id.lastIndexOf('#')), id.slice(id.lastIndexOf('#') + 1)] : ['', id];
   let key = safeKey(end);
-  if (taken.has(key)) key = safeKey(`${end}-${author.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`);
-  if (taken.has(key)) throw new Error(`model key collision in catalog: ${id}`);
-  taken.add(key);
+  if (taken.has(key.toLowerCase())) key = safeKey(`${end}-${author.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`);
+  if (taken.has(key.toLowerCase())) throw new Error(`model key collision in catalog: ${id}`);
+  taken.add(key.toLowerCase());
   return key;
 }
 

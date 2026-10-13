@@ -37,13 +37,23 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-/** The image re-encoded in PNG, transparency kept (browser: decoded, drawn on a canvas). */
+/**
+ * The image re-encoded in PNG, transparency kept (browser: decoded, drawn on a canvas; a page
+ * canvas where OffscreenCanvas is missing, Safari before 16.4).
+ */
 async function pngOf(blob: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    if (typeof OffscreenCanvas !== 'undefined') {
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+      return await canvas.convertToBlob({ type: 'image/png' });
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
     canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
-    return await canvas.convertToBlob({ type: 'image/png' });
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG encoding failed'))), 'image/png'));
   } finally {
     bitmap.close();
   }

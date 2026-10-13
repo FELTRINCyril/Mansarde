@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -54,6 +55,15 @@ describe('downloaded models in the catalog', () => {
     }
     // the former outlines are gone
     expect(existsSync(path.join(PUBLIC, 'models', 'outlines.json'))).toBe(false);
+  });
+
+  it('publishes a different GLB for every model (no file shared by two models)', () => {
+    const seen = new Map<string, string>();
+    for (const e of models) {
+      const hash = createHash('sha1').update(readFileSync(path.join(PUBLIC, 'models', `${e.id}.glb`))).digest('hex');
+      expect(seen.get(hash), `${e.id} has the GLB of ${seen.get(hash)}`).toBeUndefined();
+      seen.set(hash, e.id);
+    }
   });
 
   it('keeps every model a known style', () => {
