@@ -16,6 +16,8 @@ import { createParquetTexture, createRugTexture } from './textures';
 import { AlertTints, type AlertSeverity } from './alerts';
 import { FurnitureLayer, Kit } from './furniture';
 import { createLabels } from './labels';
+import { createGltfLoader, ModelLibrary } from './models';
+import { modelUrl } from '@/catalog/catalog';
 
 export type { Preset } from './camera';
 
@@ -67,6 +69,9 @@ export const scene3dStats = {
   outlined: 0,
   /** Lower levels shown under the active one. */
   lowerLevels: 0,
+  /** Downloaded models loaded, and failed to load, by the last scene (spec 2026-10-13). */
+  modelsLoaded: 0,
+  modelsFailed: 0,
   /** Camera position and orbit target (m) at the last frame. */
   camera: [0, 0, 0] as [number, number, number],
   target: [0, 0, 0] as [number, number, number],
@@ -136,6 +141,21 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
   let lowerMats: Materials | null = null;
   // furniture (task 12): builders, name labels, alert tint
   const labels = createLabels(container);
+  // a model that arrives (or fails) rebuilds the objects waiting for it: one update per batch
+  let lastInput: Scene3DInput | null = null;
+  let refreshQueued = false;
+  const models = new ModelLibrary(createGltfLoader(), (id) => modelUrl(id, import.meta.env.BASE_URL), () => {
+    scene3dStats.modelsLoaded = models.stats.loaded;
+    scene3dStats.modelsFailed = models.stats.failed;
+    if (refreshQueued) return;
+    refreshQueued = true;
+    queueMicrotask(() => {
+      refreshQueued = false;
+      if (!disposed && !failed && lastInput) api.update(lastInput);
+    });
+  });
+  scene3dStats.modelsLoaded = 0;
+  scene3dStats.modelsFailed = 0;
   const furniture = new FurnitureLayer(
     new Kit((round) => {
       try {
@@ -145,6 +165,7 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
       }
     }),
     labels,
+    models,
   );
   scene.add(furniture.root);
   const cupboards = new CupboardLayer(mats);
@@ -379,9 +400,10 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
     invalidate();
   };
 
-  return {
+  const api: Scene3D = {
     update(input) {
       if (disposed) return;
+      lastInput = input;
       selection = input.selection;
       project = input.project;
       hideAllWalls = input.hideAllWalls;
@@ -457,4 +479,5 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
       scene3dStats.live--;
     },
   };
+  return api;
 }

@@ -3,6 +3,7 @@ import { getCatalogEntry } from '@/catalog/catalog';
 import { objectShape } from '@/core/geometry/objects';
 import { deg2rad } from '@/core/geometry/vec';
 import type { CustomObjectDef, Id, Level, PlacedObject } from '@/core/model/types';
+import { MAIN_MATERIAL, type ModelLibrary } from '../models';
 import { bathtub, shower, washbasin, washingMachine, wc } from './bathroom';
 import { bed, crib } from './beds';
 import { lamp, plant, rugRect, rugRound, tv, tvWall } from './decor';
@@ -105,20 +106,55 @@ function fitToBox(body: Object3D, s: FurnitureSpec): void {
   body.add(wrapper);
 }
 
+/** Catalog id of the downloaded model an object shows, if any. */
+function modelIdOf(o: PlacedObject): string | null {
+  if (o.source.kind !== 'catalog') return null;
+  return getCatalogEntry(o.source.catalogId)?.model ? o.source.catalogId : null;
+}
+
+/**
+ * Body of a downloaded model (spec 2026-10-13, section 7): a clone of its template (shared
+ * geometries and materials) stretched from the unit box to w x h x d, its 'main' material in the
+ * object's color when the user chose one. Null while the model is not loaded.
+ */
+function modelBody(id: string, s: FurnitureSpec, models: ModelLibrary): Group | null {
+  const template = models.get(id);
+  if (!template) return null;
+  const body = new Group();
+  const inst = template.clone(true);
+  inst.scale.set(s.w, s.h, s.d);
+  if (s.custom) {
+    inst.traverse((n) => {
+      if (!(n instanceof Mesh)) return;
+      const swap = (m: Material) => (m.name === MAIN_MATERIAL ? models.tinted(id, m, s.color) : m);
+      n.material = Array.isArray(n.material) ? n.material.map(swap) : swap(n.material);
+    });
+  }
+  body.add(inst);
+  return body;
+}
+
 /**
  * The 3D object of a placed object, in the frame of its level (meters, y up, plan y = z): a
  * group at (x, elevation, y) turned by -rotation about y (clockwise on the plan, spec 8.2), whose
  * `body` child carries the builder's meshes, mirrored on x when the object is. userData.objectId
- * names it for the alerts and the picking.
+ * names it for the alerts and the picking. A downloaded model not loaded yet (or without a
+ * library, e.g. in unit tests) shows the generic box; `userData.waitingModel` then names the
+ * model it waits for (absent once the load failed: the box stays).
  */
-export function buildObject3D(o: PlacedObject, customObjects: Record<Id, CustomObjectDef>, kit: Kit): Group {
+export function buildObject3D(o: PlacedObject, customObjects: Record<Id, CustomObjectDef>, kit: Kit, models: ModelLibrary | null = null): Group {
   const s = specOf(o);
   const g = new Group();
   g.name = `object:${o.id}`;
   g.userData = { objectId: o.id };
   g.position.set(o.x / 100, o.elevation / 100, o.y / 100);
   g.rotation.y = -deg2rad(o.rotation);
-  const body = builderOf(o, customObjects)(s, kit);
+  const modelId = modelIdOf(o);
+  let body = modelId && models ? modelBody(modelId, s, models) : null;
+  if (!body) {
+    body = builderOf(o, customObjects)(s, kit);
+    if (modelId && models && !models.failed(modelId)) g.userData.waitingModel = modelId;
+  }
   body.name = 'body';
   fitToBox(body, s);
   if (o.mirrored) body.scale.x = -1;
@@ -140,14 +176,16 @@ export class FurnitureLayer {
   readonly root = new Group();
   private readonly built = new Map<Id, Built>();
   private readonly kit: Kit;
+  private readonly models: ModelLibrary | null;
   private readonly makeLabel: ((text: string) => Object3D) | null;
   private readonly freeLabel: (label: Object3D) => void;
   private levelId: Id | null = null;
   /** Number of object groups built since the start (tests). */
   buildCount = 0;
 
-  constructor(kit: Kit, labels: { make: (text: string) => Object3D; free: (label: Object3D) => void } | null) {
+  constructor(kit: Kit, labels: { make: (text: string) => Object3D; free: (label: Object3D) => void } | null, models: ModelLibrary | null = null) {
     this.kit = kit;
+    this.models = models;
     this.makeLabel = labels?.make ?? null;
     this.freeLabel = labels?.free ?? (() => {});
     this.root.name = 'furniture';
@@ -163,7 +201,9 @@ export class FurnitureLayer {
     for (const [id, b] of this.built) {
       const o = level.objects[id];
       const def = o?.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
-      if (o === b.o && def === b.def) continue;
+      const waiting = b.group.userData.waitingModel as string | undefined;
+      // unchanged, and not waiting for a model that has arrived (or failed) since
+      if (o === b.o && def === b.def && !(waiting && this.models?.settled(waiting))) continue;
       this.remove(id);
       changed = true;
     }
@@ -171,7 +211,7 @@ export class FurnitureLayer {
       let b = this.built.get(o.id);
       if (!b) {
         const def = o.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
-        const group = buildObject3D(o, customObjects, this.kit);
+        const group = buildObject3D(o, customObjects, this.kit, this.models);
         this.buildCount++;
         changed = true;
         let label: Object3D | null = null;
@@ -202,6 +242,7 @@ export class FurnitureLayer {
       for (const m of Array.isArray(n.material) ? n.material : [n.material]) used.add(m);
     });
     this.kit.purge(used);
+    this.models?.purge(used);
   }
 
   /** The group of an object, if shown. */
@@ -218,8 +259,9 @@ export class FurnitureLayer {
     const b = this.built.get(id);
     if (!b) return;
     if (b.label) this.freeLabel(b.label);
+    // the geometries of a downloaded model belong to its template (ModelLibrary), not to the object
     b.group.traverse((n) => {
-      if (n instanceof Mesh) n.geometry.dispose();
+      if (n instanceof Mesh && !n.userData.sharedGeometry) n.geometry.dispose();
     });
     b.group.removeFromParent();
     this.built.delete(id);
@@ -232,10 +274,11 @@ export class FurnitureLayer {
     return any;
   }
 
-  /** Frees every geometry, label, material and texture of the furniture. */
+  /** Frees every geometry, label, material and texture of the furniture (downloaded models included). */
   dispose(): void {
     this.clear();
     this.root.removeFromParent();
     this.kit.dispose();
+    this.models?.dispose();
   }
 }
