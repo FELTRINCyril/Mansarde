@@ -38,6 +38,9 @@ ordinateur.
 **Aménagement**
 - Catalogue de meubles en symboles d'architecte (chambre, séjour, bureau, cuisine, salle de
   bain, escaliers).
+- Plus de 1 100 objets supplémentaires repris de bibliothèques libres (Kenney, Quaternius, Poly
+  Haven, Sweet Home 3D) : électroménager, luminaires, décoration, extérieur, rangements, en style
+  simple ou réaliste, redimensionnables comme les autres (voir [Modèles 3D](#modèles-3d)).
 - Objets génériques (rectangle, cercle, forme en L) à enregistrer dans "Mes objets".
 - Modes de pose : au sol, tapis, posé sur un meuble, rangé sous une table, mural.
 - Bouton "Dupliquer" pour poser plusieurs meubles, placards, pentes ou poutres identiques.
@@ -103,6 +106,26 @@ l'une à l'autre, exportez le projet en `.json` puis importez-le (voir
 La 3D sert à regarder (les modifications se font sur le plan), les toits sont décrits par des
 pentes planes, et les projets sont stockés dans le navigateur : exportez-les régulièrement en
 `.json`. La liste complète est dans [Limites](docs/guide/limites.md).
+
+## Modèles 3D
+
+Les objets marqués d'une icône dans le catalogue viennent de bibliothèques libres. Ils sont
+convertis une fois pour toutes par le script `tools/models` (voir [Développement](docs/developpement.md#modèles-3d)),
+puis servis avec l'application : rien n'est téléchargé depuis ces sites pendant l'utilisation, et
+un modèle n'est chargé que s'il est posé sur le plan.
+
+| Source | Objets | Licence |
+|---|---|---|
+| [Kenney Furniture Kit](https://kenney.nl/assets/furniture-kit) | 120 | CC0 |
+| [Quaternius Furniture Pack](https://opengameart.org/content/furniture-low-poly) | 23 | CC0 |
+| [Poly Haven](https://polyhaven.com/models) | 134 | CC0 |
+| [Sweet Home 3D](https://www.sweethome3d.com/importModels.jsp) : BlendSwap CC-0 | 120 | CC0 |
+| Sweet Home 3D : Scopia, KatorLegaz, BlendSwap CC-BY | 322 | CC-BY 3.0 |
+| Sweet Home 3D : Contributions, LucaPresidente | 398 | Free Art License 1.3 (certains aussi CC-BY 3.0) |
+
+Merci à leurs auteurs. Le nom de l'auteur et la licence de chaque modèle sont dans la fenêtre
+"Crédits des modèles 3D" (en bas du catalogue) ; les textes des licences sont dans
+`public/models/LICENSES`. Chaque modèle reste sous sa licence d'origine.
 
 ## Technique
 

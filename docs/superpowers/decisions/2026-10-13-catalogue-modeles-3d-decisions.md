@@ -1,0 +1,82 @@
+# Catalogue de modèles 3D : décisions prises pendant l'implémentation
+
+Spec : [2026-10-13-catalogue-modeles-3d-design.md](../specs/2026-10-13-catalogue-modeles-3d-design.md).
+Les choix de fond (garder les meubles actuels, deux styles triés, contour au trait, couleur sur la
+matière principale, préparation par script) ont été validés en conversation le 13/10/2026 ; le
+reste a été délégué ("fais tout, veille à ce que l'app reste rapide et utilisable"). Chaque ligne
+dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais choix.
+
+## Écarts à la spec
+
+- **Contours hors du bundle** (spec 5 et 10). La spec mettait les contours 2D dans les données du
+  catalogue. Mesuré : 1,66 Mo, soit 349 Ko compressé, trois fois le budget de 120 Ko, à cause
+  d'une longue traîne (10 % des modèles dépassent 338 points). Les contours sont donc dans
+  `public/models/outlines.json` (112 Ko compressé), chargé une fois, et seulement quand le plan
+  montre un modèle téléchargé ; en attendant, l'objet est dessiné par son rectangle. Les exports
+  PNG et PDF attendent ce fichier avant de dessiner. Coût : un projet ouvert hors ligne sans
+  cache montre des rectangles.
+- **Contour plafonné** à 64 points (détail : 32) : simplification jusqu'à 1,6 % de la boîte,
+  puis abandon des plus petits anneaux ; un anneau seul trop détaillé est simplifié davantage
+  plutôt que retiré.
+- **Données en JSON** plutôt qu'en module TypeScript : un tableau littéral de 1 117 objets
+  dépasse ce que TypeScript sait typer (TS2590), et le navigateur lit un JSON plus vite. `catalog.ts`
+  importe `generated/models.json` ; le test "type-only imports" autorise cette seule importation de
+  données.
+- **Lien "Crédits"** en bas du panneau Catalogue, et non dans l'en-tête (spec 9) : l'en-tête est
+  déjà plein, et le lien est à côté des objets concernés.
+- **Quaternius "Ultimate Furniture"** écarté : distribué seulement par un dossier Google Drive.
+
+## Sources et tri
+
+- Kenney Furniture Kit 2.0 (GLB) : 120 objets gardés sur 140 (murs, sols, portes, trophée,
+  doublons écartés). Échelle non métrique (environ 1 unité pour 2 m) : dimensions réalistes
+  saisies dans `curation/kenney.json`. Escaliers tournés de 90 degrés pour monter dans la
+  profondeur, comme les escaliers du catalogue.
+- Quaternius (OBJ) : 23 objets. Les fichiers MTL ont tous la même couleur grise (défaut de la
+  source) : couleurs rendues d'après le nom des matières (`materialColors`). Modèles tournés de
+  -90 degrés (face avant vers +x dans la source).
+- Poly Haven : 149 choisis sur vignettes parmi 275 candidats d'intérieur (outils, végétation
+  sauvage, lots d'objets écartés) ; 134 tiennent le budget de 150 Ko avec des textures en 512 puis
+  128 px ; écartés : 13 trop lourds, 1 sans glTF, 1 fichier invalide.
+- Sweet Home 3D (six bibliothèques 1.9.3) : 1 475 modèles ; écartés automatiquement les portes et
+  fenêtres (84), les modèles à plus de 8 matières (71), trop lourds (23), les bibelots de moins de
+  12 cm, la nourriture, les animaux, les armes, les objets de plus de 6 m, les véhicules et
+  personnages ; puis 211 écartés à la revue des planches (vêtements, papeterie, outils,
+  signalisation routière, robinetterie seule, jouets, un tapis dont la texture est perdue). Les
+  doublons (même nom, tailles à 5 % près) gardent la meilleure source.
+- Les mots-clés des règles sont des mots entiers : "glass" isolé écartait les tables en verre,
+  "horse" le séchoir ("clothes horse").
+- Noms : un même nom dans une catégorie est numéroté ("Chaise", "Chaise 2"...), dans l'ordre des
+  sources. Les noms français viennent des catalogues Sweet Home 3D, nettoyés des caractères que
+  l'interface interdit.
+
+## Comportement
+
+- **Pose par défaut** (Sweet Home 3D) : tapis en revêtement, chaises et tabourets rangés dessous,
+  petits objets (60 cm au plus) d'une liste de mots-clés posés sur un meuble, objets avec une
+  élévation source accrochés au mur à cette hauteur, plafonniers et lustres "au sol" à
+  250 cm moins leur hauteur (le catalogue ne connaît pas la hauteur du plafond du projet).
+- **Matière principale** : la plus grande surface hors matières sombres, métalliques ou
+  transparentes, nommée `main` dans le GLB.
+- **Échec de chargement** d'un modèle : le rectangle reste, un avertissement console, pas de
+  nouvelle tentative pendant la session.
+- **Identifiants** figés dans `tools/models/ids.lock` ; un test interdit d'en retirer. Pendant la
+  mise au point initiale, le fichier a été régénéré ; il fait foi à partir du premier commit.
+
+## Mesures (13/10/2026, machine de dev)
+
+| Mesure | Avant (`main`) | Après |
+|---|---|---|
+| Bundle principal (gzip) | 416 Ko | 446 Ko (+30 Ko : liste des 1 117 objets) |
+| Module 3D, chargé à la demande (gzip) | 174 Ko | 203 Ko (+29 Ko : chargeur glTF et décodeur meshopt) |
+| Crédits, chargés à l'ouverture de la fenêtre (gzip) | - | 13 Ko |
+| Contours, chargés si le plan montre un modèle (gzip) | - | 112 Ko |
+| Recherche dans le catalogue (une frappe) | - | 0,06 ms |
+| 60 objets différents en 3D : appels de dessin | 1 596 (meubles d'origine) | 308 (modèles téléchargés) |
+| 60 objets différents en 3D : triangles | 266 000 | 438 000 |
+| 60 modèles téléchargés : chargement complet depuis l'ouverture de la 3D | - | 2,6 à 3,2 s (serveur local) |
+| GLB publiés | - | 1 117, 39,8 Mo au total, médiane 22 Ko, maximum 149 Ko |
+
+Les modèles téléchargés coûtent moins d'appels de dessin que les meubles paramétriques : leurs
+pièces sont fusionnées par matière. Durée d'image non mesurée : le navigateur de test dessine la
+3D sur le processeur.

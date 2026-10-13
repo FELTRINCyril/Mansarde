@@ -78,7 +78,7 @@ Les captures de la documentation (`docs/images/`) viennent de ces deux suites.
 | `src/render` | Rendu SVG du plan, partagé par l'écran et les exports |
 | `src/scene3d` | Vue 3D (Three.js) |
 | `src/ui` | Écrans et panneaux React |
-| `src/catalog` | Catalogue des objets et leurs symboles 2D |
+| `src/catalog` | Catalogue des objets et leurs symboles 2D ; `generated/` : modèles 3D téléchargés (produit par `tools/models`) |
 | `src/export` | Exports PNG et PDF (jsPDF, svg2pdf.js) |
 | `src/storage` | Stockage IndexedDB (idb), sauvegarde automatique, fichiers |
 
@@ -141,6 +141,36 @@ npx vite preview --base /Mansarde/
 Les données ne sont pas publiées avec l'application : chaque navigateur et chaque adresse garde
 ses propres projets (voir [Export et sauvegarde](guide/export-et-sauvegarde.md#où-sont-vos-projets)).
 
+## Modèles 3D
+
+Les objets téléchargés (spec [catalogue de modèles 3D](superpowers/specs/2026-10-13-catalogue-modeles-3d-design.md))
+sont préparés par un script hors application, avec ses propres dépendances :
+
+```sh
+cd tools/models
+npm install
+npx playwright install chromium   # rendu des icônes
+npm run models                    # stage, render, publish
+```
+
+- `npm run stage` télécharge les sources (`sources.json`, empreintes figées dans
+  `sources.lock.json`), convertit chaque modèle en GLB normalisé dans une boîte unité,
+  optimisé (meshopt, textures WebP) et calcule son contour vu de dessus ; résultat dans `stage/`
+  (ignoré par git).
+- `npm run render` rend des planches de contrôle (`stage/sheets/`).
+- `npm run publish` applique la curation (`curation/*.json` : noms, tailles, poses, exclusions),
+  rend les icônes et écrit `public/models/` (GLB, icônes, `outlines.json`, licences),
+  `src/catalog/generated/` (`models.json`, `credits.json`), `ids.lock` et `report.md`.
+  `node publish.ts --sheets` produit aussi les planches de revue (`stage/review/`).
+
+Règles :
+
+- **Ne jamais renommer ni retirer un identifiant publié** (`kn-...`, `ph-...`, `sh-...`) : les
+  projets enregistrés le référencent. `ids.lock` en garde la liste et un test l'impose.
+- Budgets : GLB de 150 Ko au plus, 10 000 triangles, 8 matières ; contour de 64 points.
+- La liste des modèles est dans le paquet principal (environ 31 Ko compressé) ; les contours,
+  les crédits et les GLB sont chargés à la demande.
+
 ## Conventions
 
 - Code, commentaires et messages de commit : anglais, ASCII.
@@ -152,6 +182,7 @@ ses propres projets (voir [Export et sauvegarde](guide/export-et-sauvegarde.md#o
 - Spécification V1 (plan 2D) : [docs/superpowers/specs/2026-10-07-plan-maison-v1-design.md](superpowers/specs/2026-10-07-plan-maison-v1-design.md)
 - Spécification V2 (3D, pentes, poutres, placards, vérifications) : [docs/superpowers/specs/2026-10-08-plan-maison-v2-design.md](superpowers/specs/2026-10-08-plan-maison-v2-design.md)
 - Plans d'implémentation : [V1](superpowers/plans/2026-10-07-plan-maison-v1.md), [V2](superpowers/plans/2026-10-08-plan-maison-v2.md)
-- Décisions prises pendant l'implémentation : [V1](superpowers/decisions/2026-10-07-plan-maison-v1-decisions.md), [V2](superpowers/decisions/2026-10-12-plan-maison-v2-decisions.md)
+- Décisions prises pendant l'implémentation : [V1](superpowers/decisions/2026-10-07-plan-maison-v1-decisions.md), [V2](superpowers/decisions/2026-10-12-plan-maison-v2-decisions.md), [modèles 3D](superpowers/decisions/2026-10-13-catalogue-modeles-3d-decisions.md)
+- Spécification et plan du catalogue de modèles 3D : [spec](superpowers/specs/2026-10-13-catalogue-modeles-3d-design.md), [plan](superpowers/plans/2026-10-13-catalogue-modeles-3d.md)
 
 Les spécifications décrivent l'intention ; en cas d'écart, le code fait foi.

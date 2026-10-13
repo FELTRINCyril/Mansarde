@@ -13,6 +13,29 @@ aperçu, le nom et les dimensions au sol (largeur x profondeur, en cm).
 - **Poser un objet** : glissez-le sur le plan, ou cliquez dessus pour le poser au centre de la
   vue. L'objet posé est sélectionné.
 - **Replier** : le bouton "Replier" réduit le catalogue à un bouton "Catalogue".
+- **Tous / Simples / Réalistes** : filtre le catalogue par style. "Simples" garde les meubles
+  dessinés par Mansarde et les modèles low-poly ; "Réalistes" garde les modèles texturés.
+- Une recherche affiche au plus 80 objets : précisez-la si le message "80 premiers résultats"
+  apparaît.
+
+### Objets téléchargés
+
+En plus des meubles listés ci-dessous, le catalogue contient plus de 1 100 objets repris de
+bibliothèques libres, reconnaissables à leur icône en couleur : électroménager, luminaires,
+décoration, plantes, mobilier d'extérieur, rangements, sanitaires, escaliers. Ils se posent, se
+redimensionnent, se tournent et se vérifient comme les autres objets, avec deux différences :
+
+- **Taille** : un objet téléchargé est étiré à la taille demandée. Une petite variation ne se voit
+  pas ; une grosse (une chaise deux fois plus large) le déforme. Pour un lit, un canapé ou une
+  table que vous redimensionnez beaucoup, préférez les meubles dessinés par Mansarde ci-dessous,
+  qui s'adaptent sans déformation.
+- **Plan** : l'objet est dessiné par son contour vu de dessus. Juste après l'ouverture d'un
+  projet, il peut apparaître un instant comme un simple rectangle, le temps de charger les
+  contours.
+- **Couleur** : l'objet garde ses couleurs d'origine ; une couleur choisie dans son panneau
+  s'applique à sa partie principale (le tissu d'un canapé, la façade d'un meuble).
+
+Les auteurs et licences sont dans "Crédits des modèles 3D", en bas du catalogue.
 
 Les dimensions ci-dessous sont celles d'un objet neuf (largeur x profondeur x hauteur, en cm) ;
 toutes se modifient ensuite.
