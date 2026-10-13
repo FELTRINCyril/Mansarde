@@ -1,18 +1,23 @@
 import { useMemo, useState, type DragEvent, type JSX } from 'react';
-import { CATALOG, type CatalogCategory } from '@/catalog/catalog';
+import { CATALOG, modelIconUrl, type CatalogEntry } from '@/catalog/catalog';
 import { GenericSymbol, SYMBOLS } from '@/catalog/symbols';
 import { deleteCustomObject } from '@/core/commands/project';
 import type { CustomObjectDef, GenericShape, LShapeParams } from '@/core/model/types';
 import { CATALOG_DRAG_TYPE } from '@/editor/placeObject';
 import { useEditor } from '@/editor/store';
+import { filterCatalog, fold, orderCatalog, SEARCH_LIMIT, type StyleFilter } from './catalogFilter';
 import { run } from './run';
 
 const PREVIEW_PX = 34;
 const MY_OBJECTS = 'Mes objets';
 const NO_CUSTOM: Record<string, CustomObjectDef> = {};
-
-/** Lower case without accents, for the search. */
-const fold = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+/** The catalog in display order, computed once. */
+const ORDERED = orderCatalog(CATALOG);
+const STYLES: Array<[StyleFilter, string]> = [
+  ['all', 'Tous'],
+  ['simple', 'Simples'],
+  ['realiste', 'Réalistes'],
+];
 
 function Preview(p: { id?: string; shape: GenericShape | 'symbol'; w: number; d: number; color: string; lshape: LShapeParams | null }): JSX.Element {
   const size = Math.max(p.w, p.d) * 1.08;
@@ -28,52 +33,61 @@ function Preview(p: { id?: string; shape: GenericShape | 'symbol'; w: number; d:
   );
 }
 
+/** Icon of a catalog entry: the rendered image of a downloaded model (loaded when shown), else its symbol. */
+function EntryPreview({ e }: { e: CatalogEntry }): JSX.Element {
+  if (e.model) {
+    return <img className="catalog-preview catalog-icon" src={modelIconUrl(e.id, import.meta.env.BASE_URL)} width={PREVIEW_PX} height={PREVIEW_PX} loading="lazy" decoding="async" alt="" draggable={false} />;
+  }
+  return <Preview id={e.id} shape={e.shape} w={e.width} d={e.depth} color={e.color} lshape={e.lshape ?? null} />;
+}
+
 interface Item {
   ref: string;
   name: string;
   w: number;
   d: number;
-  preview: JSX.Element;
+  entry?: CatalogEntry;
   custom?: CustomObjectDef;
 }
 
+const entryItem = (e: CatalogEntry): Item => ({ ref: `catalog:${e.id}`, name: e.name, w: e.width, d: e.depth, entry: e });
+
+/** Items grouped by category, in the order they come. */
+function groupByCategory(entries: CatalogEntry[]): Array<{ title: string; items: Item[] }> {
+  const out: Array<{ title: string; items: Item[] }> = [];
+  for (const e of entries) {
+    const last = out.at(-1);
+    if (last && last.title === e.category) last.items.push(entryItem(e));
+    else out.push({ title: e.category, items: [entryItem(e)] });
+  }
+  return out;
+}
+
 /**
- * Collapsible catalog: categories, search by name, "Mes objets" of the project. Items are dragged
- * onto the plan (dataTransfer CATALOG_DRAG_TYPE = "catalog:<id>" / "custom:<id>"); a click places
- * the object at the center of the view.
+ * Collapsible catalog: categories, search by name, style filter, "Mes objets" of the project.
+ * Items are dragged onto the plan (dataTransfer CATALOG_DRAG_TYPE = "catalog:<id>" /
+ * "custom:<id>"); a click places the object at the center of the view. With hundreds of
+ * downloaded models, only open categories are rendered and a search shows at most SEARCH_LIMIT
+ * entries (spec 2026-10-13, section 6).
  */
 export function CatalogPanel(p: { onPlace(ref: string): void }): JSX.Element {
   const customObjects = useEditor((s) => s.project?.customObjects ?? NO_CUSTOM);
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState('');
+  const [style, setStyle] = useState<StyleFilter>('all');
   const [open, setOpen] = useState<Set<string>>(() => new Set([MY_OBJECTS, 'Chambre']));
 
+  const custom = useMemo(
+    () => Object.values(customObjects).map<Item>((d) => ({ ref: `custom:${d.id}`, name: d.name, w: d.width, d: d.depth, custom: d })),
+    [customObjects],
+  );
+  const searching = query.trim() !== '';
+  const found = useMemo(() => filterCatalog(ORDERED, query, style, searching ? SEARCH_LIMIT : Infinity), [query, style, searching]);
   const groups = useMemo(() => {
-    const out: Array<{ title: string; items: Item[] }> = [];
-    const custom = Object.values(customObjects).map<Item>((d) => ({
-      ref: `custom:${d.id}`,
-      name: d.name,
-      w: d.width,
-      d: d.depth,
-      custom: d,
-      preview: <Preview shape={d.shape} w={d.width} d={d.depth} color={d.color} lshape={d.lshape} />,
-    }));
-    out.push({ title: MY_OBJECTS, items: custom });
-    const byCat = new Map<CatalogCategory, Item[]>();
-    for (const e of CATALOG) {
-      const list = byCat.get(e.category) ?? [];
-      list.push({
-        ref: `catalog:${e.id}`,
-        name: e.name,
-        w: e.width,
-        d: e.depth,
-        preview: <Preview id={e.id} shape={e.shape} w={e.width} d={e.depth} color={e.color} lshape={e.lshape ?? null} />,
-      });
-      byCat.set(e.category, list);
-    }
-    for (const [title, items] of byCat) out.push({ title, items });
-    return out;
-  }, [customObjects]);
+    const q = fold(query.trim());
+    const mine = searching ? custom.filter((i) => fold(i.name).includes(q)) : custom;
+    return [{ title: MY_OBJECTS, items: mine }, ...groupByCategory(found.items)];
+  }, [custom, found, query, searching]);
 
   if (collapsed) {
     return (
@@ -83,8 +97,6 @@ export function CatalogPanel(p: { onPlace(ref: string): void }): JSX.Element {
     );
   }
 
-  const q = fold(query.trim());
-  const searching = q !== '';
   const toggle = (title: string) =>
     setOpen((s) => {
       const next = new Set(s);
@@ -114,9 +126,30 @@ export function CatalogPanel(p: { onPlace(ref: string): void }): JSX.Element {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+      <div className="catalog-styles" role="radiogroup" aria-label="Style des objets">
+        {STYLES.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={style === value}
+            className={`catalog-style${style === value ? ' is-active' : ''}`}
+            data-testid={`catalog-style-${value}`}
+            onClick={() => setStyle(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="catalog-list">
+        {searching && found.truncated && (
+          <p className="catalog-empty" data-testid="catalog-truncated">
+            {SEARCH_LIMIT} premiers résultats sur {found.total}, précisez la recherche.
+          </p>
+        )}
+        {searching && found.total === 0 && groups[0]!.items.length === 0 && <p className="catalog-empty">Aucun objet ne correspond.</p>}
         {groups.map((g) => {
-          const items = searching ? g.items.filter((i) => fold(i.name).includes(q)) : g.items;
+          const items = g.items;
           if (searching && items.length === 0) return null;
           const isOpen = searching || open.has(g.title);
           return (
@@ -141,7 +174,7 @@ export function CatalogPanel(p: { onPlace(ref: string): void }): JSX.Element {
                       onDragStart={(e) => onDragStart(e, i.ref)}
                       onClick={() => p.onPlace(i.ref)}
                     >
-                      {i.preview}
+                      {i.entry ? <EntryPreview e={i.entry} /> : <Preview shape={i.custom!.shape} w={i.custom!.width} d={i.custom!.depth} color={i.custom!.color} lshape={i.custom!.lshape} />}
                       <span className="catalog-name">{i.name}</span>
                       <span className="catalog-dims">
                         {Math.round(i.w)} x {Math.round(i.d)}
