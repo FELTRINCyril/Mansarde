@@ -72,6 +72,9 @@ export const scene3dStats = {
   /** Downloaded models loaded, and failed to load, by the last scene (spec 2026-10-13). */
   modelsLoaded: 0,
   modelsFailed: 0,
+  /** Draw calls and triangles of the last frame (performance budget, spec 2026-10-13 section 10). */
+  drawCalls: 0,
+  triangles: 0,
   /** Camera position and orbit target (m) at the last frame. */
   camera: [0, 0, 0] as [number, number, number],
   target: [0, 0, 0] as [number, number, number],
@@ -191,6 +194,8 @@ export function createScene3D(container: HTMLElement, cb: Scene3DCallbacks): Sce
       renderer.render(scene, rig.camera);
       labels.render(scene, rig.camera);
       scene3dStats.frames++;
+      scene3dStats.drawCalls = renderer.info.render.calls;
+      scene3dStats.triangles = renderer.info.render.triangles;
       scene3dStats.camera = rig.camera.position.toArray();
       scene3dStats.target = rig.controls.target.toArray();
       if (moving) invalidate();
