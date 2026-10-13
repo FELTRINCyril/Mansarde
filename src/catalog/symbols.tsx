@@ -775,3 +775,31 @@ export function GenericSymbol(p: SymbolProps & { shape: GenericShape; lshape: LS
     </Sym>
   );
 }
+
+/** SVG path of rings in thousandths of the box, scaled to w x d (cm); rings under 3 points are skipped. */
+function ringsPath(rings: number[][], w: number, d: number): string {
+  const n = (v: number) => String(Math.round(v * 100) / 100);
+  let out = '';
+  for (const r of rings) {
+    if (r.length < 6) continue;
+    for (let i = 0; i + 1 < r.length; i += 2) out += `${i === 0 ? 'M' : 'L'}${n((r[i]! / 1000) * w)} ${n((r[i + 1]! / 1000) * d)}`;
+    out += 'Z';
+  }
+  return out;
+}
+
+/**
+ * Top view of a downloaded model (spec 2026-10-13, section 6): its outline filled (even-odd, so
+ * that holes stay open) and its upper parts as lines, stretched to w x d like the model itself.
+ * Coordinates are computed, never scaled by a transform.
+ */
+export function ModelSymbol(p: SymbolProps & { top: { outline: number[][]; detail: number[][] } }): JSX.Element {
+  const outline = ringsPath(p.top.outline, p.w, p.d);
+  const detail = ringsPath(p.top.detail, p.w, p.d);
+  return (
+    <Sym p={p}>
+      {outline !== '' ? <path d={outline} fill={p.fill} fillRule="evenodd" /> : <Box x={-p.w / 2} y={-p.d / 2} w={p.w} h={p.d} fill={p.fill} />}
+      {detail !== '' && <path data-detail="1" d={detail} />}
+    </Sym>
+  );
+}

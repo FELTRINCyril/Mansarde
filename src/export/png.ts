@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Level, Project } from '@/core/model/types';
+import { loadModelOutlines, showsModels } from '@/render/modelOutlines';
 import { PlanSvg, type DimMode } from '@/render/PlanSvg';
 import { BLEED_PX, ERR_EMPTY_LEVEL, levelBounds, PNG_LINE_UNIT } from './pageLayout';
 
@@ -40,6 +41,8 @@ export async function exportPng(args: {
   const width = Math.ceil(viewBox.width * resolution);
   const height = Math.ceil(viewBox.height * resolution);
   if (width > MAX_SIDE_PX || height > MAX_SIDE_PX || width * height > MAX_AREA_PX) throw new Error(ERR_TOO_LARGE);
+  // the top views of the downloaded models, drawn by the static rendering below
+  if (showsModels(Object.values(level.objects))) await loadModelOutlines();
 
   const markup = renderToStaticMarkup(
     createElement(PlanSvg, {

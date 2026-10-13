@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { svg2pdf } from 'svg2pdf.js';
 import { deriveLevel } from '@/core/geometry/derived';
 import type { Id, Level, Project } from '@/core/model/types';
+import { loadModelOutlines, showsModels } from '@/render/modelOutlines';
 import { PlanSvg, type DimMode } from '@/render/PlanSvg';
 import {
   ERR_EMPTY_LEVEL,
@@ -115,6 +116,8 @@ export async function exportPdf(args: {
   if (!fits(bounds, spec)) throw new Error(ERR_DOES_NOT_FIT);
 
   const place = planPlacement(bounds, spec);
+  // the top views of the downloaded models, drawn by the static rendering below
+  if (showsModels(Object.values(level.objects))) await loadModelOutlines();
   const markup = renderToStaticMarkup(
     createElement(PlanSvg, {
       project,

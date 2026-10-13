@@ -1,8 +1,9 @@
 import type { JSX } from 'react';
 import { getCatalogEntry } from '@/catalog/catalog';
-import { GenericSymbol, SYMBOLS } from '@/catalog/symbols';
+import { GenericSymbol, ModelSymbol, SYMBOLS } from '@/catalog/symbols';
 import { objectsInDrawOrder } from '@/core/geometry/objects';
 import type { CustomObjectDef, Id, PlacedObject } from '@/core/model/types';
+import { modelOutline, showsModels, useModelOutlines } from '../modelOutlines';
 import { num, STYLE } from '../style';
 
 /** The symbol of an object in its local frame (centered, back side -y). */
@@ -25,6 +26,12 @@ function ObjectSymbol({ o, customObjects, lineUnit }: { o: PlacedObject; customO
   const Sym = SYMBOLS[o.source.catalogId];
   if (Sym) return <Sym {...common} />;
   const entry = getCatalogEntry(o.source.catalogId);
+  if (entry?.model) {
+    // a downloaded model: its top view once loaded (modelOutlines.ts), its box until then
+    const top = modelOutline(entry.id);
+    if (top) return <ModelSymbol {...common} top={top} />;
+    return <GenericSymbol {...common} shape="rect" lshape={null} />;
+  }
   const shape = entry && entry.shape !== 'symbol' ? entry.shape : 'rect'; // unknown id: plain rectangle
   return <GenericSymbol {...common} shape={shape} lshape={o.lshape} />;
 }
@@ -42,6 +49,8 @@ export function ObjectsLayer({
   customObjects: Record<Id, CustomObjectDef>;
   lineUnit: number;
 }): JSX.Element {
+  // re-render when the top views of the downloaded models arrive
+  useModelOutlines(showsModels(Object.values(objects)));
   return (
     <g data-kind="objects">
       {objectsInDrawOrder(objects).map((o) => (
