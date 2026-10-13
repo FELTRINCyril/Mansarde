@@ -15,6 +15,20 @@ function safePath(lib: string, p: string): string {
   return abs;
 }
 
+/**
+ * Key of a model in its library: the end of its catalog id ("Sheep#desk" -> "desk"). Two authors
+ * may use the same end ("Ravey#desk"): the later one in the catalog gets its author appended
+ * ("desk-ravey"), so that each model keeps its own file and its own credit.
+ */
+export function uniqueKey(id: string, taken: Set<string>): string {
+  const [author = '', end = id] = id.includes('#') ? [id.slice(0, id.lastIndexOf('#')), id.slice(id.lastIndexOf('#') + 1)] : ['', id];
+  let key = safeKey(end);
+  if (taken.has(key)) key = safeKey(`${end}-${author.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`);
+  if (taken.has(key)) throw new Error(`model key collision in catalog: ${id}`);
+  taken.add(key);
+  return key;
+}
+
 const num = (v: string | undefined): number | undefined => (v === undefined || v.trim() === '' ? undefined : Number(v));
 
 /**
@@ -32,6 +46,7 @@ export function readSh3fLibrary(archive: string, dir: string, library: string, d
   const fr = existsSync(frFile) ? parseProperties(readFileSync(frFile, 'latin1')) : new Map<string, string>();
   const items: RawItem[] = [];
   const seen = new Set<string>();
+  const keys = new Set<string>();
   for (let n = 1; props.has(`id#${n}`); n++) {
     const get = (k: string) => props.get(`${k}#${n}`);
     // a library may list the same model twice (in two categories): the first one is kept
@@ -42,7 +57,7 @@ export function readSh3fLibrary(archive: string, dir: string, library: string, d
     items.push({
       source: 'sh3d',
       library,
-      key: safeKey(get('id')!.split('#').pop()!),
+      key: uniqueKey(get('id')!, keys),
       sourceId: get('id')!,
       name: get('name')!,
       nameFr: fr.get(`name#${n}`),

@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { getCatalogEntry, modelTopUrl } from '@/catalog/catalog';
 import { GenericSymbol, SYMBOLS } from '@/catalog/symbols';
 import { objectsInDrawOrder } from '@/core/geometry/objects';
@@ -7,13 +7,35 @@ import { num, STYLE } from '../style';
 
 /**
  * Top view of a downloaded model: the image rendered from the model seen from above (front at
- * the bottom, like the plan), stretched to the object's w x d like the model itself. Its box
- * when the image cannot be loaded.
+ * the bottom, like the plan), stretched to the object's w x d like the model itself. On screen the
+ * box shows while the image loads (the object is never invisible) and replaces it when it cannot
+ * load, until the network comes back. `placeholder` false: the export, whose data URL is there.
  */
-function ModelTop({ href, w, d, box }: { href: string | undefined; w: number; d: number; box: JSX.Element }): JSX.Element {
-  const [failed, setFailed] = useState(false);
-  if (!href || failed) return box;
-  return <image data-kind="model-top" href={href} x={num(-w / 2)} y={num(-d / 2)} width={num(w)} height={num(d)} preserveAspectRatio="none" onError={() => setFailed(true)} />;
+function ModelTop({ href, w, d, box, placeholder }: { href: string | undefined; w: number; d: number; box: JSX.Element; placeholder: boolean }): JSX.Element {
+  const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  useEffect(() => {
+    if (state !== 'failed') return;
+    const retry = () => setState('loading');
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, [state]);
+  if (!href || state === 'failed') return box;
+  return (
+    <>
+      {placeholder && state === 'loading' && box}
+      <image
+        data-kind="model-top"
+        href={href}
+        x={num(-w / 2)}
+        y={num(-d / 2)}
+        width={num(w)}
+        height={num(d)}
+        preserveAspectRatio="none"
+        onLoad={() => setState('loaded')}
+        onError={() => setState('failed')}
+      />
+    </>
+  );
 }
 
 /**
@@ -51,7 +73,7 @@ function ObjectSymbol({
   const entry = getCatalogEntry(o.source.catalogId);
   if (entry?.model) {
     const href = modelImageUrls ? modelImageUrls[entry.id] : modelTopUrl(entry.id, import.meta.env.BASE_URL);
-    return <ModelTop href={href} w={o.width} d={o.depth} box={<GenericSymbol {...common} shape="rect" lshape={null} />} />;
+    return <ModelTop href={href} w={o.width} d={o.depth} placeholder={!modelImageUrls} box={<GenericSymbol {...common} shape="rect" lshape={null} />} />;
   }
   const shape = entry && entry.shape !== 'symbol' ? entry.shape : 'rect'; // unknown id: plain rectangle
   return <GenericSymbol {...common} shape={shape} lshape={o.lshape} />;

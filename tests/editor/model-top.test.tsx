@@ -23,20 +23,22 @@ const layer = (objects: PlacedObject[], modelImageUrls?: Record<string, string>)
   );
 
 describe('ObjectsLayer with downloaded models', () => {
-  it('draws the top view stretched over the footprint', () => {
+  it('draws the top view stretched over the footprint, its box under it while it loads', () => {
     const m = layer([obj(MODEL.id, { width: 200, depth: 80, height: 90 })]);
     expect(m).toContain(`href="/models/top/${MODEL.id}.webp"`);
     expect(m).toMatch(/<image data-kind="model-top"[^>]* x="-100" y="-40" width="200" height="80" preserveAspectRatio="none"/);
-    expect(m).not.toContain('<rect');
+    // the placeholder box comes first (under the image); the e2e checks it goes once loaded
+    expect(m.indexOf('<rect')).toBeGreaterThan(-1);
+    expect(m.indexOf('<rect')).toBeLessThan(m.indexOf('<image'));
   });
 
   it('stays finite at extreme sizes', () => {
     for (const [w, d] of [[5, 5], [600, 10], [0.5, 0.5]] as const) expect(layer([obj(MODEL.id, { width: w, depth: d, height: 10 })])).not.toMatch(/NaN|Infinity/);
   });
 
-  it('uses the data URLs of an export, and the box for a missing one', () => {
-    const m = layer([obj(MODEL.id), obj(OTHER.id)], { [MODEL.id]: 'data:image/webp;base64,AAAA' });
-    expect(m).toContain('href="data:image/webp;base64,AAAA"');
+  it('uses the data URLs of an export, without placeholder, and the box for a missing one', () => {
+    const m = layer([obj(MODEL.id), obj(OTHER.id)], { [MODEL.id]: 'data:image/png;base64,AAAA' });
+    expect(m).toContain('href="data:image/png;base64,AAAA"');
     expect(m).not.toContain('/models/top/');
     expect(m.match(/<rect/g)).toHaveLength(1);
   });
@@ -60,9 +62,10 @@ describe('modelTopDataUrls', () => {
       if (url.includes(OTHER.id)) throw new Error('404');
       return new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' });
     });
-    const r = await modelTopDataUrls(level([obj(MODEL.id), obj(MODEL.id), obj(OTHER.id), obj('bed-140')]), fetchBlob);
+    // the PNG re-encoding is the browser's (e2e export-models.spec.ts); identity here
+    const r = await modelTopDataUrls(level([obj(MODEL.id), obj(MODEL.id), obj(OTHER.id), obj('bed-140')]), fetchBlob, async (b) => b);
     expect(fetchBlob).toHaveBeenCalledTimes(2);
-    expect(r.urls[MODEL.id]).toBe('data:image/webp;base64,AQID');
+    expect(r.urls[MODEL.id]).toBe('data:image/png;base64,AQID');
     expect(r.missing).toEqual([OTHER.id]);
   });
 });

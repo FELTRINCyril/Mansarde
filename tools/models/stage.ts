@@ -167,6 +167,13 @@ async function main(): Promise<void> {
     console.log(`${name}: ${items.length} models`);
     raw.push(...items);
   }
+  // two models writing the same GLB would mix one's catalog data with the other's model
+  const files = new Map<string, string>();
+  for (const item of raw) {
+    const f = `${item.source}/${item.library}/${item.key}`;
+    if (files.has(f)) throw new Error(`two models share ${f}: ${files.get(f)} and ${item.sourceId}`);
+    files.set(f, item.sourceId);
+  }
   let done = 0;
   const staged = await pool(raw, 4, async (item) => {
     const prev = prevByKey.get(`${item.source}/${item.library}/${item.key}`);

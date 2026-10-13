@@ -69,6 +69,8 @@ export interface Published {
   glb: string;
   bytes: number;
   priority: number;
+  /** The source model: source/library/catalog id in its source (locked with the id). */
+  sourceRef: string;
 }
 
 const SH3D_LIBS: Record<string, { short: string; label: string }> = {
@@ -167,6 +169,7 @@ function toEntry(s: StagedItem, problems: string[]): Published | string {
     glb: path.join(STAGE, s.glb!),
     bytes: s.bytes!,
     priority: PRIORITY[s.library] ?? 9,
+    sourceRef: `${s.source}/${s.library}/${s.sourceId}`,
   };
 }
 
@@ -315,11 +318,22 @@ async function main(): Promise<void> {
     `{\n"libraries": {\n${libraries.map(([k, v]) => `  ${tsLiteral(k)}: ${tsLiteral(v)}`).join(',\n')}\n},\n"models": {\n${credits.join(',\n')}\n}\n}\n`,
   );
 
-  // ids.lock: every id ever published stays (tests/core/catalog-models.test.ts)
+  // ids.lock: every id ever published stays, and keeps naming the same source model (a saved
+  // project must never open another object under the same id). One line: id <TAB> source model.
   const lockFile = path.join(ROOT, 'ids.lock');
-  const lock = new Set(existsSync(lockFile) ? readFileSync(lockFile, 'utf8').split('\n').filter(Boolean) : []);
-  for (const p of published) lock.add(p.id);
-  writeFileSync(lockFile, [...lock].sort().join('\n') + '\n');
+  const lock = new Map<string, string>();
+  if (existsSync(lockFile)) {
+    for (const line of readFileSync(lockFile, 'utf8').split('\n').filter(Boolean)) {
+      const [id, ref = ''] = line.split('\t');
+      lock.set(id!, ref);
+    }
+  }
+  for (const p of published) {
+    const was = lock.get(p.id);
+    if (was && was !== p.sourceRef) throw new Error(`ids.lock: ${p.id} was ${was}, now ${p.sourceRef}: give the new model another id`);
+    lock.set(p.id, p.sourceRef);
+  }
+  writeFileSync(lockFile, [...lock].sort(([a], [b]) => a.localeCompare(b)).map(([id, ref]) => `${id}\t${ref}`).join('\n') + '\n');
 
   writeReport(published, rejected);
   if (process.argv.includes('--sheets')) {

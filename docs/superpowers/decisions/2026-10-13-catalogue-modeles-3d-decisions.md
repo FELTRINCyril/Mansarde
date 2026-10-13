@@ -103,6 +103,29 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
   le déploiement GitHub Pages devrait alors activer LFS) ; mémoïsation du dessin des contours
   (64 points par objet au plus : coût jugé négligeable, non mesuré).
 
+## Revue des vues de dessus (13/10/2026)
+
+- **Export PDF** (bloquant corrigé) : jsPDF réencode un WebP en JPEG opaque, chaque objet non
+  rectangulaire sortait sur un carré noir. Les vues de dessus sont réencodées en PNG avant
+  l'export (jsPDF garde l'alpha d'un PNG en masque /SMask). Constaté puis vérifié dans un vrai
+  navigateur par l'e2e `export-models.spec.ts` (échouait avant, passe après).
+- **Collision de clés Sweet Home 3D** (bloquant corrigé, présent depuis le début) :
+  `Sheep#desk` et `Ravey#desk`, `Sleipnir1#chair2` et `PeterSmolik#chair2` écrivaient le même
+  GLB ; l'objet publié mélangeait les dimensions et le crédit de l'un avec le modèle de l'autre.
+  Une clé en collision reçoit maintenant le nom de son auteur (`desk-ravey`), la préparation
+  s'arrête si deux modèles visent le même fichier, et `ids.lock` retient le modèle source de
+  chaque id (`id <TAB> source`) : la publication refuse qu'un id change de modèle. La branche
+  n'étant pas déployée, le verrou a été recréé à cette occasion.
+- **Pendant le chargement** d'une vue de dessus, l'écran montre le rectangle de l'objet dessous
+  (il n'est jamais invisible) ; une image en échec est retentée au retour du réseau (`online`).
+- **Non retenu** : sens d'éclairage des vues de dessus qui tourne avec l'objet (cosmétique) ;
+  numérotation des noms ("Bureau 12") qui peut changer quand des modèles entrent ou sortent (sans
+  effet sur les projets, le nom étant copié à la pose) ; calcul de `detail` resté dans le contour
+  de préparation (sert encore aux tests du contour, qui ne fait plus que rejeter les modèles
+  invisibles de dessus).
+- 10 % des vues de dessus n'ont pas de canal alpha : vérifié, ce sont des objets qui remplissent
+  toute leur emprise vus d'en haut (armoire, chaise Kenney, escalier droit).
+
 ## Mesures (13/10/2026, machine de dev)
 
 | Mesure | Avant (`main`) | Après |

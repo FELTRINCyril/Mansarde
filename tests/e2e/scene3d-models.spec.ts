@@ -49,6 +49,8 @@ test('a downloaded model: catalog, plan outline, 3D model', async ({ page }) => 
   await expect(top).toHaveCount(1);
   const href = await top.getAttribute('href');
   expect(href).toMatch(/models\/top\/kn-kitchen-fridge\.webp$/);
+  // loaded: its placeholder box is gone
+  await expect(object.locator('rect')).toHaveCount(0);
   const res = await page.request.get(href!);
   expect(res.status()).toBe(200);
   expect(res.headers()['content-type']).toContain('image/webp');

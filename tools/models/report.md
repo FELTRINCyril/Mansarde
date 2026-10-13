@@ -2,14 +2,14 @@
 
 Généré par `tools/models/publish.ts`.
 
-- Objets publiés : 1127
-- Poids total des GLB : 34929 Ko, médiane 20 Ko, maximum 150 Ko
+- Objets publiés : 1128
+- Poids total des GLB : 34937 Ko, médiane 20 Ko, maximum 150 Ko
 
 ## Par source
 
 | Source | Objets |
 |---|---|
-| Contributions | 342 |
+| Contributions | 343 |
 | Scopia | 200 |
 | Poly Haven | 141 |
 | BlendSwap CC-0 | 120 |
@@ -27,14 +27,14 @@ Généré par `tools/models/publish.ts`.
 | Cuisine | 157 |
 | Extérieur | 109 |
 | Décoration | 100 |
-| Bureau et repas | 96 |
+| Bureau et repas | 97 |
 | Divers | 94 |
 | Chambre | 89 |
 | Salle de bain | 77 |
 | Luminaires | 69 |
 | Structure | 30 |
 
-## Écartés (665)
+## Écartés (666)
 
 | Raison | Nombre |
 |---|---|
@@ -44,7 +44,7 @@ Généré par `tools/models/publish.ts`.
 | too many materials | 73 |
 | food or drink | 54 |
 | out | 42 |
-| duplicate | 22 |
+| duplicate | 23 |
 | too heavy | 21 |
 | category Vehicles | 11 |
 | category Characters | 8 |
@@ -709,6 +709,7 @@ Généré par `tools/models/publish.ts`.
 - `sh-bsby-ella-chair-f` : duplicate of sh-scopia-plastic-chair
 - `sh-bsby-table` : duplicate of sh-scopia-table4
 - `sh-contrib-bureau3` : duplicate of sh-bsby-biurko3
+- `sh-contrib-chair2-petersmolik` : duplicate of sh-bsby-chair4
 - `sh-contrib-fencepost2` : duplicate of sh-contrib-fencepost1
 - `sh-contrib-office-desk` : duplicate of sh-bs0-lb-desk
 - `sh-contrib-privacy-fence2` : duplicate of sh-contrib-privacy-fence
