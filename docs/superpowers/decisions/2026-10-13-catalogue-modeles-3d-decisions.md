@@ -61,8 +61,8 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
 - **Échec de chargement** d'un modèle : le rectangle reste, un avertissement console, pas de
   nouvelle tentative pendant la session.
 - **Contours 2D** : délai maximal de 15 s ; après un échec, nouvelle tentative au plus tôt 30 s
-  plus tard, quand un plan ou un export en a besoin ; un export fait sans eux (rectangles) le
-  signale par un message.
+  plus tard (un plan ouvert est relancé à ce moment-là, un export aussi) ; un export fait sans
+  eux (rectangles) le signale par un message.
 - **Mémoire 3D** : un modèle qu'aucun objet n'affiche plus est libéré (géométries, textures,
   couleurs) ; reposé, il est rechargé depuis le cache du navigateur.
 - **Arrivée des modèles** : les modèles arrivés pendant une même image donnent une seule mise à
@@ -96,9 +96,9 @@ dit ce qui a été décidé, pourquoi, et ce que ça coûte si c'est un mauvais 
 | Crédits, chargés à l'ouverture de la fenêtre (gzip) | - | 13 Ko |
 | Contours, chargés si le plan montre un modèle (gzip) | - | 112 Ko |
 | Recherche dans le catalogue (une frappe) | - | 0,06 ms |
-| 60 objets différents en 3D : appels de dessin | 1 596 (meubles d'origine) | 308 (modèles téléchargés) |
-| 60 objets différents en 3D : triangles | 266 000 | 438 000 |
-| 60 modèles téléchargés : chargement complet depuis l'ouverture de la 3D | - | 2,6 à 3,2 s (serveur local) |
+| 60 objets différents en 3D : appels de dessin | 1 596 (meubles d'origine) | 308 à 341 selon l'échantillon (modèles téléchargés) |
+| 60 objets différents en 3D : triangles | 266 000 | 438 000 à 455 000 |
+| 60 modèles téléchargés : chargement complet depuis l'ouverture de la 3D | - | 2,6 à 5,4 s (serveur local de dev) |
 | GLB publiés | - | 1 117, 39,8 Mo au total, médiane 22 Ko, maximum 149 Ko |
 
 Les modèles téléchargés coûtent moins d'appels de dessin que les meubles paramétriques : leurs
