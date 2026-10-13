@@ -28,11 +28,11 @@ Généré par `tools/models/publish.ts`.
 | Extérieur | 106 |
 | Décoration | 98 |
 | Bureau et repas | 97 |
-| Divers | 93 |
+| Divers | 94 |
 | Chambre | 88 |
 | Salle de bain | 77 |
 | Luminaires | 68 |
-| Structure | 31 |
+| Structure | 30 |
 
 ## Écartés (682)
 
