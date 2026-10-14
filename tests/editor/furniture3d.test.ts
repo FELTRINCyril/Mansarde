@@ -54,7 +54,7 @@ function expectInBox(box: Box3, w: number, d: number, h: number, label: string):
   expect(box.min.y, msg).toBeLessThan(TOL);
 }
 
-const symbols = CATALOG.filter((e) => e.shape === 'symbol');
+const symbols = CATALOG.filter((e) => e.shape === 'symbol' && !e.model);
 
 describe('furniture builders: one per catalog entry, inside its box (1 cm)', () => {
   it('every catalog entry drawn by a symbol has a builder', () => {

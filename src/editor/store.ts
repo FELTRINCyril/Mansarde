@@ -67,6 +67,30 @@ export interface Display {
   view: ViewMode; splitRatio: number;
   labels3d: boolean; hideWalls3d: boolean; lowerLevels3d: boolean;
   hideAlerts: boolean; checksOpen: boolean;
+  /**
+   * Small objects cast their shadow in 3D (unchecked: faster with many objects). Unlike the other
+   * options, kept by the browser across sessions: it depends on the computer.
+   */
+  smallShadows3d: boolean;
+}
+
+/** localStorage key of the only display option the browser keeps (smallShadows3d). */
+export const SMALL_SHADOWS_KEY = 'mansarde.smallShadows3d';
+
+function readSmallShadows(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(SMALL_SHADOWS_KEY) !== 'false';
+  } catch {
+    return true; // storage refused (private mode): the default
+  }
+}
+
+function writeSmallShadows(v: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(SMALL_SHADOWS_KEY, String(v));
+  } catch {
+    // storage refused: the option lasts for the session
+  }
 }
 
 export const DEFAULT_DISPLAY: Display = {
@@ -74,6 +98,7 @@ export const DEFAULT_DISPLAY: Display = {
   view: 'plan', splitRatio: 0.5,
   labels3d: true, hideWalls3d: false, lowerLevels3d: false,
   hideAlerts: false, checksOpen: false,
+  smallShadows3d: true,
 };
 
 export interface EditorState {
@@ -194,7 +219,7 @@ export function createEditorStore() {
       view: DEFAULT_VIEW,
       gesture: null,
       overlay: createOverlay(),
-      display: { ...DEFAULT_DISPLAY },
+      display: { ...DEFAULT_DISPLAY, smallShadows3d: readSmallShadows() },
       clipboard: [],
       toast: null,
       wallReference: 'axis',
@@ -294,7 +319,10 @@ export function createEditorStore() {
         if (isValidView(view)) set({ view });
       },
       setOverlay: (p) => set((s) => ({ overlay: { ...s.overlay, ...p } })),
-      setDisplay: (p) => set((s) => ({ display: { ...s.display, ...p } })),
+      setDisplay: (p) => {
+        if (p.smallShadows3d !== undefined) writeSmallShadows(p.smallShadows3d);
+        set((s) => ({ display: { ...s.display, ...p } }));
+      },
       setClipboard: (clipboard) => set({ clipboard }),
       showToast: (message) => set({ toast: { message, id: ++toastId } }),
       setWallReference: (wallReference) => set({ wallReference }),

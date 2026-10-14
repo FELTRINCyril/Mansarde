@@ -309,8 +309,9 @@ test('visual: every catalog object in 3D (showroom)', async ({ page }) => {
   const ids = await (async () => {
     await createProject(page, 'Catalogue 3D');
     return page.evaluate(async () => {
-      const { CATALOG } = await import(/* @vite-ignore */ '/src/catalog/catalog.ts' as string);
-      return (CATALOG as Array<{ id: string; pose: string }>).filter((e) => e.pose !== 'onTop' && e.pose !== 'wall').map((e) => e.id);
+      // the parametric entries (the downloaded models have their own spec: scene3d-models.spec.ts)
+      const { BUILTIN_CATALOG } = await import(/* @vite-ignore */ '/src/catalog/catalog.ts' as string);
+      return (BUILTIN_CATALOG as Array<{ id: string; pose: string }>).filter((e) => e.pose !== 'onTop' && e.pose !== 'wall').map((e) => e.id);
     });
   })();
   // groups of 12 in a 4 x 3 grid, each in its own 860 x 640 room

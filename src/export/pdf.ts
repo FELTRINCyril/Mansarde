@@ -106,6 +106,8 @@ export async function exportPdf(args: {
   level: Level;
   spec: PageSpec;
   imageDataUrls: Record<Id, string>;
+  /** Top views of the downloaded models (modelTopDataUrls); a missing one is drawn as its box. */
+  modelImageUrls?: Record<string, string>;
   date: Date;
   dimMode: DimMode;
 }): Promise<Blob> {
@@ -125,6 +127,7 @@ export async function exportPdf(args: {
       showGrid: false,
       mode: 'print',
       imageUrls: args.imageDataUrls,
+      modelImageUrls: args.modelImageUrls ?? {},
     }),
   );
 

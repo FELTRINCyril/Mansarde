@@ -1472,3 +1472,66 @@ select {
   font-size: 12px;
   pointer-events: none;
 }
+
+/* Catalog: style filter and model icons (spec 2026-10-13) */
+.catalog-styles {
+  display: flex;
+  gap: 2px;
+  margin: 0 10px 8px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.catalog-style {
+  flex: 1;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.catalog-style.is-active {
+  background: var(--surface);
+  color: inherit;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.catalog-icon {
+  object-fit: contain;
+}
+
+/* Credits of the 3D models (spec 2026-10-13, section 9) */
+.credits {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.credits-group summary {
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.credits-list {
+  margin: 4px 0 10px;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.credits-author {
+  color: var(--text-muted);
+}
+
+.catalog-foot {
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.credits-library {
+  margin: 0 0 4px;
+  font-size: 12px;
+}

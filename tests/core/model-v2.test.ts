@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CATALOG, getCatalogEntry } from '@/catalog/catalog';
+import { BUILTIN_CATALOG, getCatalogEntry } from '@/catalog/catalog';
 import { validateProject } from '@/core/commands/validate';
 import { cloneLevelWithNewIds, cloneProjectWithNewIds } from '@/core/model/clone';
 import { BEAM_DEFAULTS, CUPBOARD_DEFAULTS, DEFAULT_SETTINGS, MAX_CUPBOARD_DOORS, SLOPE_DEFAULT_END, doorCountFor } from '@/core/model/defaults';
@@ -118,7 +118,7 @@ describe('catalog pose fields', () => {
       chair: 'tuckable', pouf: 'tuckable', tv: 'onTop', 'bedside-lamp': 'onTop', microwave: 'onTop',
       'tv-wall': 'wall', 'shelf-wall': 'wall', 'rug-round': 'covering', 'rug-rect': 'covering',
     };
-    for (const e of CATALOG) {
+    for (const e of BUILTIN_CATALOG) {
       expect(e.pose, e.id).toBe(v2[e.id] ?? 'floor');
       expect(e.acceptsUnder === true, e.id).toBe(under.includes(e.id));
     }
@@ -145,11 +145,14 @@ describe('catalog pose fields', () => {
     }
   });
 
-  it('catalog.ts stays importable from src/core: type-only imports', () => {
-    // the migration (src/core) reads catalog poses; catalog.ts must never pull React or the DOM
+  it('catalog.ts stays importable from src/core: type-only imports, plus its generated JSON data', () => {
+    // the migration (src/core) reads catalog poses; catalog.ts must never pull React or the DOM.
+    // The one runtime import allowed is the list of downloaded models: a JSON file, data only.
     const source = readFileSync('src/catalog/catalog.ts', 'utf8');
     expect(source).toMatch(/^import type /m);
-    expect(runtimeImports(source)).toEqual([]);
+    const data = /^import \w+ from '\.\/generated\/[\w-]+\.json';$/gm;
+    expect(source.match(data)).toHaveLength(1);
+    expect(runtimeImports(source.replace(data, ''))).toEqual([]);
   });
 });
 

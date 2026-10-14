@@ -30,6 +30,8 @@ export async function exportPng(args: {
   level: Level;
   resolution: 1 | 2 | 4;
   imageDataUrls: Record<Id, string>;
+  /** Top views of the downloaded models (modelTopDataUrls); a missing one is drawn as its box. */
+  modelImageUrls?: Record<string, string>;
   dimMode: DimMode;
 }): Promise<Blob> {
   const { level, resolution } = args;
@@ -51,6 +53,7 @@ export async function exportPng(args: {
       showGrid: false,
       mode: 'print',
       imageUrls: args.imageDataUrls,
+      modelImageUrls: args.modelImageUrls ?? {},
       width,
       height,
     }),

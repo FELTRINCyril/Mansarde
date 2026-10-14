@@ -1,0 +1,698 @@
+{
+ "keep": {
+  "ArmChair_01": {
+   "name": "Fauteuil classique",
+   "category": "Séjour"
+  },
+  "Chandelier_01": {
+   "name": "Lustre à abat-jour",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "Chandelier_02": {
+   "name": "Lustre à six bras",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "Chandelier_03": {
+   "name": "Lustre à pampilles",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "ClassicConsole_01": {
+   "name": "Console baroque",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "ClassicNightstand_01": {
+   "name": "Chevet classique",
+   "category": "Chambre"
+  },
+  "CoffeeTable_01": {
+   "name": "Table basse turquoise",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "GothicBed_01": {
+   "name": "Lit gothique",
+   "category": "Chambre"
+  },
+  "GothicCabinet_01": {
+   "name": "Buffet gothique",
+   "category": "Séjour"
+  },
+  "GothicCommode_01": {
+   "name": "Commode gothique",
+   "category": "Chambre"
+  },
+  "GreenChair_01": {
+   "name": "Fauteuil Louis XV",
+   "category": "Séjour"
+  },
+  "Lantern_01": {
+   "name": "Lanterne tempête",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "Ottoman_01": {
+   "name": "Pouf capitonné",
+   "category": "Séjour",
+   "pose": "tuckable"
+  },
+  "Rockingchair_01": {
+   "name": "Rocking-chair",
+   "category": "Séjour"
+  },
+  "SchoolChair_01": {
+   "name": "Chaise d'écolier",
+   "category": "Bureau et repas",
+   "pose": "tuckable"
+  },
+  "SchoolDesk_01": {
+   "name": "Pupitre d'écolier",
+   "category": "Bureau et repas",
+   "acceptsUnder": true
+  },
+  "Shelf_01": {
+   "name": "Étagère métallique",
+   "category": "Divers"
+  },
+  "Sofa_01": {
+   "name": "Canapé classique",
+   "category": "Séjour"
+  },
+  "Television_01": {
+   "name": "Téléviseur vintage",
+   "category": "Séjour",
+   "pose": "onTop"
+  },
+  "WoodenChair_01": {
+   "name": "Chaise gothique",
+   "category": "Bureau et repas",
+   "pose": "tuckable"
+  },
+  "WoodenTable_01": {
+   "name": "Table basse en planches",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "WoodenTable_02": {
+   "name": "Sellette ronde en bois",
+   "category": "Séjour"
+  },
+  "WoodenTable_03": {
+   "name": "Commode basse en bois",
+   "category": "Séjour"
+  },
+  "alarm_clock_01": {
+   "name": "Réveil",
+   "category": "Chambre",
+   "pose": "onTop"
+  },
+  "antique_ceramic_vase_01": {
+   "name": "Vase en faïence",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "bar_chair_round_01": {
+   "name": "Tabouret de bar en bois",
+   "category": "Cuisine",
+   "pose": "tuckable"
+  },
+  "book_encyclopedia_set_01": {
+   "name": "Rangée de livres",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "boombox": {
+   "name": "Radio-cassette",
+   "category": "Séjour",
+   "pose": "onTop"
+  },
+  "brass_vase_01": {
+   "name": "Vase en laiton",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "brass_vase_03": {
+   "name": "Vase en laiton ciselé",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "caged_hanging_light": {
+   "name": "Suspension industrielle",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "carved_wooden_elephant": {
+   "name": "Éléphant en bois sculpté",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "ceiling_fan": {
+   "name": "Ventilateur de plafond",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "ceramic_vase_01": {
+   "name": "Vase blanc bouteille",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "ceramic_vase_02": {
+   "name": "Vase blanc rond",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "ceramic_vase_03": {
+   "name": "Vase blanc haut",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "ceramic_vase_04": {
+   "name": "Cruche blanche",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "chess_set": {
+   "name": "Jeu d'échecs",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "chinese_armchair": {
+   "name": "Fauteuil chinois",
+   "category": "Séjour"
+  },
+  "chinese_cabinet": {
+   "name": "Cabinet chinois",
+   "category": "Séjour"
+  },
+  "chinese_chandelier": {
+   "name": "Lanterne chinoise suspendue",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "chinese_commode": {
+   "name": "Commode chinoise",
+   "category": "Séjour"
+  },
+  "chinese_console_table": {
+   "name": "Console chinoise",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "chinese_screen_panels": {
+   "name": "Paravent chinois",
+   "category": "Décoration"
+  },
+  "chinese_sofa": {
+   "name": "Banquette chinoise",
+   "category": "Séjour"
+  },
+  "chinese_stool": {
+   "name": "Tabouret chinois",
+   "category": "Séjour",
+   "pose": "tuckable"
+  },
+  "chinese_tea_table": {
+   "name": "Table à thé chinoise",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "classic_laptop": {
+   "name": "Ordinateur portable ancien",
+   "category": "Bureau et repas",
+   "pose": "onTop"
+  },
+  "coffee_table_round_01": {
+   "name": "Table basse ronde en marbre",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "concrete_cat_statue": {
+   "name": "Statue de chat",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "dartboard": {
+   "name": "Cible de fléchettes",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 150
+  },
+  "decorative_book_set_01": {
+   "name": "Livres décoratifs",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "desk_lamp_arm_01": {
+   "name": "Lampe d'architecte",
+   "category": "Luminaires",
+   "pose": "onTop"
+  },
+  "dining_chair_02": {
+   "name": "Chaise capitonnée",
+   "category": "Bureau et repas",
+   "pose": "tuckable"
+  },
+  "dining_table": {
+   "name": "Table à nappe",
+   "category": "Bureau et repas",
+   "acceptsUnder": true
+  },
+  "drawer_cabinet": {
+   "name": "Étagère à tiroirs industrielle",
+   "category": "Divers"
+  },
+  "electric_stove": {
+   "name": "Cuisinière électrique",
+   "category": "Cuisine"
+  },
+  "fancy_picture_frame_01": {
+   "name": "Tableau paysage",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 140
+  },
+  "fancy_picture_frame_02": {
+   "name": "Tableau à cadre doré",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 140
+  },
+  "folding_wooden_stool": {
+   "name": "Tabouret pliant en bois",
+   "category": "Séjour",
+   "pose": "tuckable"
+  },
+  "gallinera_chair": {
+   "name": "Chaise haute sculptée",
+   "category": "Bureau et repas",
+   "pose": "tuckable"
+  },
+  "gallinera_table": {
+   "name": "Meuble bas sculpté",
+   "category": "Séjour"
+  },
+  "gaming_console": {
+   "name": "Console de jeux",
+   "category": "Séjour",
+   "pose": "onTop"
+  },
+  "garden_gnome": {
+   "name": "Nain de jardin",
+   "category": "Extérieur"
+  },
+  "gothic_coffee_table": {
+   "name": "Table basse gothique",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "hanging_industrial_lamp": {
+   "name": "Suspension d'atelier",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "hanging_picture_frame_02": {
+   "name": "Cadre photo mural",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 140
+  },
+  "hanging_picture_frame_03": {
+   "name": "Cadre ovale ancien",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 140
+  },
+  "horse_statue_01": {
+   "name": "Statue de cheval",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "industrial_coffee_table": {
+   "name": "Table basse industrielle",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "industrial_pastic_container": {
+   "name": "Caisse de rangement",
+   "category": "Divers"
+  },
+  "industrial_pipe_lamp": {
+   "name": "Lampe industrielle",
+   "category": "Luminaires",
+   "pose": "onTop"
+  },
+  "industrial_storage_cart": {
+   "name": "Desserte industrielle",
+   "category": "Divers"
+  },
+  "industrial_wall_lamp": {
+   "name": "Applique hublot",
+   "category": "Luminaires",
+   "pose": "wall",
+   "elevation": 180
+  },
+  "industrial_wall_sconce": {
+   "name": "Applique industrielle",
+   "category": "Luminaires",
+   "pose": "wall",
+   "elevation": 170
+  },
+  "jug_01": {
+   "name": "Pichet fleuri",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "lantern_chandelier_01": {
+   "name": "Lanterne suspendue",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "mantel_clock_01": {
+   "name": "Pendule de cheminée",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "marble_bust_01": {
+   "name": "Buste en marbre",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "metal_jug": {
+   "name": "Bidon à lait",
+   "category": "Décoration"
+  },
+  "metal_office_desk": {
+   "name": "Bureau métallique",
+   "category": "Bureau et repas",
+   "acceptsUnder": true
+  },
+  "metal_stool_01": {
+   "name": "Tabouret de bar en métal",
+   "category": "Cuisine",
+   "pose": "tuckable"
+  },
+  "metal_stool_02": {
+   "name": "Tabouret d'atelier",
+   "category": "Cuisine",
+   "pose": "tuckable"
+  },
+  "metal_stool_03": {
+   "name": "Chaise haute en métal",
+   "category": "Cuisine",
+   "pose": "tuckable"
+  },
+  "mid_century_lounge_chair": {
+   "name": "Fauteuil pivotant vintage",
+   "category": "Séjour"
+  },
+  "modern_arm_chair_01": {
+   "name": "Fauteuil cuir et bois",
+   "category": "Séjour"
+  },
+  "modern_ceiling_lamp_01": {
+   "name": "Suspension globe",
+   "category": "Luminaires",
+   "ceiling": true
+  },
+  "modern_coffee_table_01": {
+   "name": "Table basse en bois massif",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "modern_coffee_table_02": {
+   "name": "Table basse ajourée",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "modern_wooden_cabinet": {
+   "name": "Buffet bas en bois",
+   "category": "Séjour"
+  },
+  "old_bed_frame": {
+   "name": "Lit en fer",
+   "category": "Chambre"
+  },
+  "ornate_mirror_01": {
+   "name": "Miroir orné",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 100
+  },
+  "outdoor_table_chair_set_01": {
+   "name": "Table et chaises de bistrot",
+   "category": "Extérieur"
+  },
+  "painted_wooden_bench": {
+   "name": "Banc en bois peint",
+   "category": "Séjour"
+  },
+  "painted_wooden_cabinet": {
+   "name": "Buffet peint",
+   "category": "Cuisine"
+  },
+  "painted_wooden_cabinet_02": {
+   "name": "Vaisselier peint",
+   "category": "Cuisine"
+  },
+  "painted_wooden_chair_01": {
+   "name": "Chaise en bois blanche",
+   "category": "Bureau et repas",
+   "pose": "tuckable"
+  },
+  "painted_wooden_chair_02": {
+   "name": "Chaise en bois bleue",
+   "category": "Bureau et repas",
+   "pose": "tuckable"
+  },
+  "painted_wooden_nightstand": {
+   "name": "Chevet en bois peint",
+   "category": "Chambre"
+  },
+  "painted_wooden_shelves": {
+   "name": "Étagère en bois peint",
+   "category": "Séjour"
+  },
+  "painted_wooden_sofa": {
+   "name": "Banquette en bois peint",
+   "category": "Séjour"
+  },
+  "painted_wooden_stool": {
+   "name": "Tabouret en bois peint",
+   "category": "Cuisine",
+   "pose": "tuckable"
+  },
+  "painted_wooden_table": {
+   "name": "Table en bois peint",
+   "category": "Bureau et repas",
+   "acceptsUnder": true
+  },
+  "plastic_monobloc_chair_01": {
+   "name": "Chaise de jardin",
+   "category": "Extérieur",
+   "pose": "tuckable"
+  },
+  "planter_box_01": {
+   "name": "Jardinière en bois",
+   "category": "Extérieur"
+  },
+  "planter_box_03": {
+   "name": "Jardinière haute en bois",
+   "category": "Extérieur"
+  },
+  "potted_plant_01": {
+   "name": "Plante en pot",
+   "category": "Décoration"
+  },
+  "potted_plant_02": {
+   "name": "Plante à grandes feuilles",
+   "category": "Décoration"
+  },
+  "potted_plant_04": {
+   "name": "Aloe en pot",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "projector_screen": {
+   "name": "Écran de projection",
+   "category": "Séjour"
+  },
+  "round_wooden_table_01": {
+   "name": "Guéridon en bois",
+   "category": "Séjour",
+   "acceptsUnder": true
+  },
+  "round_wooden_table_02": {
+   "name": "Table d'appoint ronde",
+   "category": "Séjour"
+  },
+  "scandinavian_masonry_heater": {
+   "name": "Poêle scandinave",
+   "category": "Séjour"
+  },
+  "side_table_01": {
+   "name": "Table d'appoint en bois",
+   "category": "Séjour"
+  },
+  "side_table_tall_01": {
+   "name": "Sellette haute",
+   "category": "Séjour"
+  },
+  "small_wooden_table_01": {
+   "name": "Petite table en bois",
+   "category": "Bureau et repas",
+   "acceptsUnder": true
+  },
+  "sofa_02": {
+   "name": "Canapé Chesterfield",
+   "category": "Séjour"
+  },
+  "sofa_03": {
+   "name": "Canapé à motifs",
+   "category": "Séjour"
+  },
+  "standing_chalkboard_01": {
+   "name": "Chevalet ardoise",
+   "category": "Décoration"
+  },
+  "standing_picture_frame_01": {
+   "name": "Cadre photo noir",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "standing_picture_frame_02": {
+   "name": "Cadre photo blanc",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "steel_frame_shelves_01": {
+   "name": "Étagère acier et bois",
+   "category": "Séjour"
+  },
+  "steel_frame_shelves_02": {
+   "name": "Étagère acier et bois étroite",
+   "category": "Séjour"
+  },
+  "steel_frame_shelves_03": {
+   "name": "Étagère acier et bois large",
+   "category": "Séjour"
+  },
+  "stone_fire_pit": {
+   "name": "Brasero en pierre",
+   "category": "Extérieur"
+  },
+  "street_lamp_01": {
+   "name": "Lampadaire de jardin",
+   "category": "Extérieur"
+  },
+  "street_lamp_02": {
+   "name": "Lanterne murale extérieure",
+   "category": "Extérieur",
+   "pose": "wall",
+   "elevation": 180
+  },
+  "television_02": {
+   "name": "Téléviseur cathodique",
+   "category": "Séjour",
+   "pose": "onTop"
+  },
+  "throw_pillows_01": {
+   "name": "Coussins",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "treasure_chest": {
+   "name": "Malle ancienne",
+   "category": "Chambre"
+  },
+  "vintage_cabinet_01": {
+   "name": "Vaisselier ancien",
+   "category": "Séjour"
+  },
+  "vintage_day_bed": {
+   "name": "Lit de repos",
+   "category": "Séjour"
+  },
+  "vintage_electric_kettle": {
+   "name": "Bouilloire vintage",
+   "category": "Cuisine",
+   "pose": "onTop"
+  },
+  "vintage_grandfather_clock_01": {
+   "name": "Horloge comtoise",
+   "category": "Séjour"
+  },
+  "vintage_microwave": {
+   "name": "Micro-ondes vintage",
+   "category": "Cuisine",
+   "pose": "onTop"
+  },
+  "vintage_oil_lamp": {
+   "name": "Lampe à pétrole",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "vintage_wooden_drawer_01": {
+   "name": "Meuble d'apothicaire",
+   "category": "Séjour"
+  },
+  "wall_clock": {
+   "name": "Horloge murale",
+   "category": "Décoration",
+   "pose": "wall",
+   "elevation": 180
+  },
+  "wicker_basket_01": {
+   "name": "Panier en osier",
+   "category": "Décoration"
+  },
+  "wooden_bookshelf_worn": {
+   "name": "Bibliothèque patinée",
+   "category": "Séjour"
+  },
+  "wooden_bowl_02": {
+   "name": "Saladier en bois",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "wooden_candlestick": {
+   "name": "Bougeoir en bois",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "wooden_display_shelves_01": {
+   "name": "Étagère à cases",
+   "category": "Séjour"
+  },
+  "wooden_lantern_01": {
+   "name": "Lanterne en bois",
+   "category": "Décoration",
+   "pose": "onTop"
+  },
+  "wooden_picnic_table": {
+   "name": "Table de pique-nique",
+   "category": "Extérieur"
+  },
+  "wooden_stool_01": {
+   "name": "Tabouret tripode",
+   "category": "Cuisine",
+   "pose": "tuckable"
+  },
+  "wooden_stool_02": {
+   "name": "Banc tabouret en bois",
+   "category": "Séjour",
+   "pose": "tuckable"
+  },
+  "wooden_table_02": {
+   "name": "Table en bois simple",
+   "category": "Bureau et repas",
+   "acceptsUnder": true
+  },
+  "worn_metal_rack": {
+   "name": "Étagère métallique usée",
+   "category": "Divers"
+  }
+ }
+}

@@ -775,3 +775,4 @@ export function GenericSymbol(p: SymbolProps & { shape: GenericShape; lshape: LS
     </Sym>
   );
 }
+

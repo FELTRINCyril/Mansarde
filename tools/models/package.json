@@ -1,0 +1,26 @@
+{
+  "name": "plan-maison-models",
+  "private": true,
+  "type": "module",
+  "description": "Builds the downloaded 3D models of the catalog (not shipped with the app)",
+  "scripts": {
+    "stage": "node stage.ts",
+    "render": "node render/render.ts",
+    "publish": "node publish.ts",
+    "models": "node stage.ts && node render/render.ts && node publish.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "@types/node": "^26.6.5",
+    "fflate": "^0.8.3",
+    "meshoptimizer": "^1.3.0",
+    "obj2gltf": "^3.2.0",
+    "playwright": "^1.64.0",
+    "sharp": "^0.35.5",
+    "three": "^0.186.1",
+    "typescript": "^6.0.3"
+  }
+}

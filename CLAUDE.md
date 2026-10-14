@@ -3,6 +3,7 @@
 App web locale de plan 2D et 3D. V1 (plan 2D) : spec docs/superpowers/specs/2026-10-07-plan-maison-v1-design.md,
 plan docs/superpowers/plans/2026-10-07-plan-maison-v1.md. V2 (3D, pentes, poutres, placards, vérifications) :
 spec docs/superpowers/specs/2026-10-08-plan-maison-v2-design.md, plan docs/superpowers/plans/2026-10-08-plan-maison-v2.md.
+Catalogue de modèles 3D téléchargés : spec docs/superpowers/specs/2026-10-13-catalogue-modeles-3d-design.md.
 Décisions prises pendant l'implémentation : docs/superpowers/decisions/.
 
 - `src/core` = TypeScript pur, aucune API navigateur ni React. Toute modification du projet passe
@@ -11,4 +12,7 @@ Décisions prises pendant l'implémentation : docs/superpowers/decisions/.
 - Code/commentaires/commits : ASCII anglais. Interface : français avec accents, sans tiret long,
   guillemets typographiques, ellipse, flèches unicode, signe multiplication.
 - Commandes : `npm test`, `npm run typecheck`, `npm run e2e`, `npm run dev`.
+- Modèles 3D : régénérés par `cd tools/models && npm run models` (dépendances propres, hors app).
+  Ne jamais renommer ni retirer un identifiant publié (`tools/models/ids.lock`) ; corriger un
+  modèle passe par `tools/models/curation/*.json`, jamais par une retouche des fichiers générés.
 - Pas de Co-Authored-By dans les commits.

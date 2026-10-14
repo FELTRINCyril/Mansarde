@@ -37,6 +37,8 @@ export interface PlanSvgProps {
   showGrid: boolean;
   mode: 'screen' | 'print';
   imageUrls: Record<Id, string>; // background imageId -> URL (object URL on screen, data URL in export)
+  /** Export: top views of the downloaded models, catalog id -> data URL (screen: loaded from their URL). */
+  modelImageUrls?: Record<string, string>;
   selection?: SelectionItem[]; // screen only, highlights
   /** Screen only: worst check severity per target, keyed `${kind}:${id}` (checkSeverityByTarget). */
   alerts?: ReadonlyMap<string, CheckSeverity>;
@@ -100,7 +102,7 @@ export function PlanSvg(p: PlanSvgProps): JSX.Element {
       <RoomsLayer rooms={derived.rooms} translucent={imageShown} />
       <SlopesLayer slopes={level.slopes} labels={volumeLabels.slopes} lineUnit={lineUnit} levelHeight={level.height} />
       <CupboardsLayer level={level} footprints={volumes.cupboardFootprints} selectedIds={selectedCupboards} lineUnit={lineUnit} />
-      <ObjectsLayer objects={level.objects} customObjects={p.project.customObjects} lineUnit={lineUnit} />
+      <ObjectsLayer objects={level.objects} customObjects={p.project.customObjects} lineUnit={lineUnit} modelImageUrls={p.modelImageUrls} />
       <WallsLayer shape={derived.shapeWithOpenings} degraded={derived.degraded} />
       <OpeningsLayer level={level} lineUnit={lineUnit} />
       <BeamsLayer level={level} footprints={volumes.beamFootprints} labels={volumeLabels.beams} lineUnit={lineUnit} />

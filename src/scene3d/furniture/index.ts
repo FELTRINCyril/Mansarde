@@ -3,6 +3,7 @@ import { getCatalogEntry } from '@/catalog/catalog';
 import { objectShape } from '@/core/geometry/objects';
 import { deg2rad } from '@/core/geometry/vec';
 import type { CustomObjectDef, Id, Level, PlacedObject } from '@/core/model/types';
+import { MAIN_MATERIAL, type ModelLibrary } from '../models';
 import { bathtub, shower, washbasin, washingMachine, wc } from './bathroom';
 import { bed, crib } from './beds';
 import { lamp, plant, rugRect, rugRound, tv, tvWall } from './decor';
@@ -105,25 +106,80 @@ function fitToBox(body: Object3D, s: FurnitureSpec): void {
   body.add(wrapper);
 }
 
+/** Catalog id of the downloaded model an object shows, if any. */
+function modelIdOf(o: PlacedObject): string | null {
+  if (o.source.kind !== 'catalog') return null;
+  return getCatalogEntry(o.source.catalogId)?.model ? o.source.catalogId : null;
+}
+
+/**
+ * Body of a downloaded model (spec 2026-10-13, section 7): a clone of its template (shared
+ * geometries and materials) stretched from the unit box to w x h x d, its 'main' material in the
+ * object's color when the user chose one. Null while the model is not loaded.
+ */
+function modelBody(id: string, s: FurnitureSpec, models: ModelLibrary): Group | null {
+  const template = models.get(id);
+  if (!template) return null;
+  const body = new Group();
+  const inst = template.clone(true);
+  inst.scale.set(s.w, s.h, s.d);
+  if (s.custom) {
+    inst.traverse((n) => {
+      if (!(n instanceof Mesh)) return;
+      const swap = (m: Material) => (m.name === MAIN_MATERIAL ? models.tinted(id, m, s.color) : m);
+      n.material = Array.isArray(n.material) ? n.material.map(swap) : swap(n.material);
+    });
+  }
+  body.add(inst);
+  return body;
+}
+
 /**
  * The 3D object of a placed object, in the frame of its level (meters, y up, plan y = z): a
  * group at (x, elevation, y) turned by -rotation about y (clockwise on the plan, spec 8.2), whose
  * `body` child carries the builder's meshes, mirrored on x when the object is. userData.objectId
- * names it for the alerts and the picking.
+ * names it for the alerts and the picking. A downloaded model not loaded yet (or without a
+ * library, e.g. in unit tests) shows the generic box; `userData.waitingModel` then names the
+ * model it waits for (absent once the load failed: the box stays).
  */
-export function buildObject3D(o: PlacedObject, customObjects: Record<Id, CustomObjectDef>, kit: Kit): Group {
+export function buildObject3D(o: PlacedObject, customObjects: Record<Id, CustomObjectDef>, kit: Kit, models: ModelLibrary | null = null): Group {
   const s = specOf(o);
   const g = new Group();
   g.name = `object:${o.id}`;
   g.userData = { objectId: o.id };
   g.position.set(o.x / 100, o.elevation / 100, o.y / 100);
   g.rotation.y = -deg2rad(o.rotation);
-  const body = builderOf(o, customObjects)(s, kit);
+  const modelId = modelIdOf(o);
+  let body = modelId && models ? modelBody(modelId, s, models) : null;
+  if (!body) {
+    body = builderOf(o, customObjects)(s, kit);
+    if (modelId && models && !models.failed(modelId)) g.userData.waitingModel = modelId;
+  }
   body.name = 'body';
   fitToBox(body, s);
   if (o.mirrored) body.scale.x = -1;
   g.add(body);
   return g;
+}
+
+/** Below this largest dimension (cm), or set on furniture or on the floor, an object is "small". */
+const SMALL_CM = 80;
+
+/** A small object (vase, lamp, books, rug...): its shadow is the first to go when the 3D must be fast. */
+export const isSmallObject = (o: PlacedObject): boolean =>
+  o.pose === 'onTop' || o.pose === 'covering' || Math.max(o.width, o.depth, o.height) < SMALL_CM;
+
+/**
+ * Casts the shadows of `group` as its builder chose (kept in userData.castShadowBase), except
+ * for a small object when `smallShadows` is off.
+ */
+function applyShadows(group: Group, o: PlacedObject, smallShadows: boolean): void {
+  const off = !smallShadows && isSmallObject(o);
+  group.traverse((n) => {
+    if (!(n instanceof Mesh) || n.userData.outline) return;
+    if (n.userData.castShadowBase === undefined) n.userData.castShadowBase = n.castShadow;
+    n.castShadow = !off && n.userData.castShadowBase === true;
+  });
 }
 
 /** Height (m) of an object's label above its top, as plan-chambre (18 cm). */
@@ -140,22 +196,30 @@ export class FurnitureLayer {
   readonly root = new Group();
   private readonly built = new Map<Id, Built>();
   private readonly kit: Kit;
+  private readonly models: ModelLibrary | null;
   private readonly makeLabel: ((text: string) => Object3D) | null;
   private readonly freeLabel: (label: Object3D) => void;
   private levelId: Id | null = null;
+  private smallShadows = true;
   /** Number of object groups built since the start (tests). */
   buildCount = 0;
 
-  constructor(kit: Kit, labels: { make: (text: string) => Object3D; free: (label: Object3D) => void } | null) {
+  constructor(kit: Kit, labels: { make: (text: string) => Object3D; free: (label: Object3D) => void } | null, models: ModelLibrary | null = null) {
     this.kit = kit;
+    this.models = models;
     this.makeLabel = labels?.make ?? null;
     this.freeLabel = labels?.free ?? (() => {});
     this.root.name = 'furniture';
   }
 
   /** Shows the objects of `level` (null: none). True when an object group was added or removed. */
-  sync(level: Level | null, customObjects: Record<Id, CustomObjectDef>, showLabels: boolean): boolean {
+  sync(level: Level | null, customObjects: Record<Id, CustomObjectDef>, showLabels: boolean, smallShadows = true): boolean {
     let changed = false;
+    // the option changed: the shadows of every shown object, without rebuilding anything
+    if (smallShadows !== this.smallShadows) {
+      this.smallShadows = smallShadows;
+      for (const b of this.built.values()) applyShadows(b.group, b.o, smallShadows);
+    }
     if (!level || level.id !== this.levelId) changed = this.clear();
     this.levelId = level?.id ?? null;
     if (!level) return changed;
@@ -163,7 +227,9 @@ export class FurnitureLayer {
     for (const [id, b] of this.built) {
       const o = level.objects[id];
       const def = o?.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
-      if (o === b.o && def === b.def) continue;
+      const waiting = b.group.userData.waitingModel as string | undefined;
+      // unchanged, and not waiting for a model that has arrived (or failed) since
+      if (o === b.o && def === b.def && !(waiting && this.models?.settled(waiting))) continue;
       this.remove(id);
       changed = true;
     }
@@ -171,7 +237,8 @@ export class FurnitureLayer {
       let b = this.built.get(o.id);
       if (!b) {
         const def = o.source.kind === 'custom' ? customObjects[o.source.customObjectId] : undefined;
-        const group = buildObject3D(o, customObjects, this.kit);
+        const group = buildObject3D(o, customObjects, this.kit, this.models);
+        applyShadows(group, o, this.smallShadows);
         this.buildCount++;
         changed = true;
         let label: Object3D | null = null;
@@ -202,6 +269,21 @@ export class FurnitureLayer {
       for (const m of Array.isArray(n.material) ? n.material : [n.material]) used.add(m);
     });
     this.kit.purge(used);
+    this.models?.purge(used);
+    // the downloaded models no object shows any more
+    const inUse = new Set<string>();
+    for (const b of this.built.values()) {
+      const id = modelIdOf(b.o);
+      if (id) inUse.add(id);
+    }
+    this.models?.evict(inUse);
+  }
+
+  /** Objects shown as a box while their downloaded model loads (scene3dStats, e2e). */
+  waitingCount(): number {
+    let n = 0;
+    for (const b of this.built.values()) if (b.group.userData.waitingModel) n++;
+    return n;
   }
 
   /** The group of an object, if shown. */
@@ -218,8 +300,9 @@ export class FurnitureLayer {
     const b = this.built.get(id);
     if (!b) return;
     if (b.label) this.freeLabel(b.label);
+    // the geometries of a downloaded model belong to its template (ModelLibrary), not to the object
     b.group.traverse((n) => {
-      if (n instanceof Mesh) n.geometry.dispose();
+      if (n instanceof Mesh && !n.userData.sharedGeometry) n.geometry.dispose();
     });
     b.group.removeFromParent();
     this.built.delete(id);
@@ -232,10 +315,11 @@ export class FurnitureLayer {
     return any;
   }
 
-  /** Frees every geometry, label, material and texture of the furniture. */
+  /** Frees every geometry, label, material and texture of the furniture (downloaded models included). */
   dispose(): void {
     this.clear();
     this.root.removeFromParent();
     this.kit.dispose();
+    this.models?.dispose();
   }
 }

@@ -1,0 +1,950 @@
+{
+ "keep": {
+  "bathroomCabinet": {
+   "name": "Armoire de toilette",
+   "category": "Salle de bain",
+   "width": 46,
+   "depth": 22,
+   "height": 78,
+   "pose": "wall",
+   "elevation": 120
+  },
+  "bathroomCabinetDrawer": {
+   "name": "Meuble vasque à tiroirs",
+   "category": "Salle de bain",
+   "width": 80,
+   "depth": 50,
+   "height": 85
+  },
+  "bathroomMirror": {
+   "name": "Miroir à tablette",
+   "category": "Salle de bain",
+   "width": 60,
+   "depth": 12,
+   "height": 80,
+   "pose": "wall",
+   "elevation": 110
+  },
+  "bathroomSink": {
+   "name": "Lavabo sur colonne",
+   "category": "Salle de bain",
+   "width": 55,
+   "depth": 45,
+   "height": 85
+  },
+  "bathroomSinkSquare": {
+   "name": "Lavabo carré sur colonne",
+   "category": "Salle de bain",
+   "width": 60,
+   "depth": 45,
+   "height": 85
+  },
+  "bathtub": {
+   "name": "Baignoire à rebord",
+   "category": "Salle de bain",
+   "width": 170,
+   "depth": 75,
+   "height": 58
+  },
+  "bedBunk": {
+   "name": "Lits superposés",
+   "category": "Chambre",
+   "width": 100,
+   "depth": 205,
+   "height": 165
+  },
+  "bedDouble": {
+   "name": "Lit double en bois",
+   "category": "Chambre",
+   "width": 160,
+   "depth": 205,
+   "height": 80
+  },
+  "bedSingle": {
+   "name": "Lit simple en bois",
+   "category": "Chambre",
+   "width": 95,
+   "depth": 205,
+   "height": 80
+  },
+  "bench": {
+   "name": "Banc à dossier",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 45,
+   "height": 90
+  },
+  "benchCushion": {
+   "name": "Banc à dossier et coussin",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 45,
+   "height": 90
+  },
+  "benchCushionLow": {
+   "name": "Banquette basse",
+   "category": "Chambre",
+   "width": 105,
+   "depth": 45,
+   "height": 45
+  },
+  "bookcaseClosed": {
+   "name": "Bibliothèque haute",
+   "category": "Séjour",
+   "width": 80,
+   "depth": 35,
+   "height": 180
+  },
+  "bookcaseClosedDoors": {
+   "name": "Armoire étroite",
+   "category": "Chambre",
+   "width": 80,
+   "depth": 40,
+   "height": 180
+  },
+  "bookcaseClosedWide": {
+   "name": "Bibliothèque large",
+   "category": "Séjour",
+   "width": 160,
+   "depth": 35,
+   "height": 160
+  },
+  "bookcaseOpen": {
+   "name": "Étagère ouverte",
+   "category": "Séjour",
+   "width": 80,
+   "depth": 35,
+   "height": 180
+  },
+  "bookcaseOpenLow": {
+   "name": "Étagère basse ouverte",
+   "category": "Séjour",
+   "width": 80,
+   "depth": 35,
+   "height": 80
+  },
+  "books": {
+   "name": "Livres",
+   "category": "Décoration",
+   "width": 30,
+   "depth": 20,
+   "height": 22,
+   "pose": "onTop"
+  },
+  "cabinetBed": {
+   "name": "Chevet cube",
+   "category": "Chambre",
+   "width": 45,
+   "depth": 40,
+   "height": 45
+  },
+  "cabinetBedDrawer": {
+   "name": "Chevet à tiroir",
+   "category": "Chambre",
+   "width": 45,
+   "depth": 40,
+   "height": 50
+  },
+  "cabinetBedDrawerTable": {
+   "name": "Chevet à tiroir sur pieds",
+   "category": "Chambre",
+   "width": 45,
+   "depth": 40,
+   "height": 55
+  },
+  "cabinetTelevision": {
+   "name": "Meuble TV ouvert",
+   "category": "Séjour",
+   "width": 160,
+   "depth": 45,
+   "height": 55
+  },
+  "cabinetTelevisionDoors": {
+   "name": "Meuble TV à portes",
+   "category": "Séjour",
+   "width": 160,
+   "depth": 45,
+   "height": 55
+  },
+  "cardboardBoxClosed": {
+   "name": "Carton fermé",
+   "category": "Divers",
+   "width": 50,
+   "depth": 50,
+   "height": 60
+  },
+  "cardboardBoxOpen": {
+   "name": "Carton ouvert",
+   "category": "Divers",
+   "width": 74,
+   "depth": 42,
+   "height": 56
+  },
+  "ceilingFan": {
+   "name": "Ventilateur de plafond simple",
+   "category": "Luminaires",
+   "width": 105,
+   "depth": 120,
+   "height": 30,
+   "ceiling": true
+  },
+  "chair": {
+   "name": "Chaise en bois",
+   "category": "Bureau et repas",
+   "width": 42,
+   "depth": 45,
+   "height": 90,
+   "pose": "tuckable"
+  },
+  "chairCushion": {
+   "name": "Chaise en bois à coussin",
+   "category": "Bureau et repas",
+   "width": 42,
+   "depth": 45,
+   "height": 90,
+   "pose": "tuckable"
+  },
+  "chairDesk": {
+   "name": "Fauteuil de bureau",
+   "category": "Bureau et repas",
+   "width": 65,
+   "depth": 65,
+   "height": 105,
+   "pose": "tuckable"
+  },
+  "chairModernCushion": {
+   "name": "Chaise moderne",
+   "category": "Bureau et repas",
+   "width": 45,
+   "depth": 50,
+   "height": 90,
+   "pose": "tuckable"
+  },
+  "chairModernFrameCushion": {
+   "name": "Chaise moderne en métal",
+   "category": "Bureau et repas",
+   "width": 45,
+   "depth": 50,
+   "height": 90,
+   "pose": "tuckable"
+  },
+  "chairRounded": {
+   "name": "Chaise à dossier arrondi",
+   "category": "Bureau et repas",
+   "width": 42,
+   "depth": 45,
+   "height": 90,
+   "pose": "tuckable"
+  },
+  "coatRack": {
+   "name": "Portemanteau mural",
+   "category": "Divers",
+   "width": 70,
+   "depth": 18,
+   "height": 40,
+   "pose": "wall",
+   "elevation": 150
+  },
+  "coatRackStanding": {
+   "name": "Portemanteau sur pied",
+   "category": "Divers",
+   "width": 50,
+   "depth": 50,
+   "height": 180
+  },
+  "computerKeyboard": {
+   "name": "Clavier",
+   "category": "Bureau et repas",
+   "width": 45,
+   "depth": 15,
+   "height": 3,
+   "pose": "onTop"
+  },
+  "computerMouse": {
+   "name": "Souris",
+   "category": "Bureau et repas",
+   "width": 6,
+   "depth": 10,
+   "height": 3,
+   "pose": "onTop"
+  },
+  "computerScreen": {
+   "name": "Écran d'ordinateur",
+   "category": "Bureau et repas",
+   "width": 60,
+   "depth": 20,
+   "height": 45,
+   "pose": "onTop"
+  },
+  "desk": {
+   "name": "Bureau à tiroir",
+   "category": "Bureau et repas",
+   "width": 140,
+   "depth": 70,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "deskCorner": {
+   "name": "Bureau d'angle",
+   "category": "Bureau et repas",
+   "width": 160,
+   "depth": 160,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "dryer": {
+   "name": "Sèche-linge",
+   "category": "Salle de bain",
+   "width": 60,
+   "depth": 60,
+   "height": 85
+  },
+  "hoodLarge": {
+   "name": "Hotte pyramide",
+   "category": "Cuisine",
+   "width": 90,
+   "depth": 50,
+   "height": 75,
+   "pose": "wall",
+   "elevation": 150
+  },
+  "hoodModern": {
+   "name": "Hotte inclinée",
+   "category": "Cuisine",
+   "width": 90,
+   "depth": 50,
+   "height": 80,
+   "pose": "wall",
+   "elevation": 150
+  },
+  "kitchenBar": {
+   "name": "Bar de cuisine",
+   "category": "Cuisine",
+   "width": 100,
+   "depth": 50,
+   "height": 105,
+   "acceptsUnder": true
+  },
+  "kitchenBlender": {
+   "name": "Blender",
+   "category": "Cuisine",
+   "width": 18,
+   "depth": 15,
+   "height": 35,
+   "pose": "onTop"
+  },
+  "kitchenCabinet": {
+   "name": "Meuble bas de cuisine",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 60,
+   "height": 90
+  },
+  "kitchenCabinetCornerInner": {
+   "name": "Meuble bas d'angle",
+   "category": "Cuisine",
+   "width": 90,
+   "depth": 90,
+   "height": 90
+  },
+  "kitchenCabinetCornerRound": {
+   "name": "Meuble bas d'angle arrondi",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 60,
+   "height": 90
+  },
+  "kitchenCabinetDrawer": {
+   "name": "Meuble bas à tiroirs",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 60,
+   "height": 90
+  },
+  "kitchenCabinetUpper": {
+   "name": "Meuble haut de cuisine",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 35,
+   "height": 70,
+   "pose": "wall",
+   "elevation": 145
+  },
+  "kitchenCabinetUpperCorner": {
+   "name": "Étagère d'angle haute",
+   "category": "Cuisine",
+   "width": 30,
+   "depth": 30,
+   "height": 70,
+   "pose": "wall",
+   "elevation": 145
+  },
+  "kitchenCabinetUpperDouble": {
+   "name": "Meuble haut à deux portes",
+   "category": "Cuisine",
+   "width": 80,
+   "depth": 35,
+   "height": 70,
+   "pose": "wall",
+   "elevation": 145
+  },
+  "kitchenCabinetUpperLow": {
+   "name": "Meuble haut basculant",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 35,
+   "height": 35,
+   "pose": "wall",
+   "elevation": 180
+  },
+  "kitchenCoffeeMachine": {
+   "name": "Machine à café",
+   "category": "Cuisine",
+   "width": 25,
+   "depth": 30,
+   "height": 35,
+   "pose": "onTop"
+  },
+  "kitchenFridge": {
+   "name": "Réfrigérateur combiné",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 65,
+   "height": 185
+  },
+  "kitchenFridgeBuiltIn": {
+   "name": "Réfrigérateur encastré",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 60,
+   "height": 180
+  },
+  "kitchenFridgeLarge": {
+   "name": "Réfrigérateur américain",
+   "category": "Cuisine",
+   "width": 90,
+   "depth": 70,
+   "height": 180
+  },
+  "kitchenFridgeSmall": {
+   "name": "Petit réfrigérateur",
+   "category": "Cuisine",
+   "width": 55,
+   "depth": 60,
+   "height": 85
+  },
+  "kitchenMicrowave": {
+   "name": "Micro-ondes moderne",
+   "category": "Cuisine",
+   "width": 50,
+   "depth": 40,
+   "height": 30,
+   "pose": "onTop"
+  },
+  "kitchenSink": {
+   "name": "Meuble évier",
+   "category": "Cuisine",
+   "width": 80,
+   "depth": 60,
+   "height": 90
+  },
+  "kitchenStove": {
+   "name": "Cuisinière à gaz",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 60,
+   "height": 90
+  },
+  "kitchenStoveElectric": {
+   "name": "Cuisinière vitrocéramique",
+   "category": "Cuisine",
+   "width": 60,
+   "depth": 60,
+   "height": 90
+  },
+  "lampRoundFloor": {
+   "name": "Lampadaire rond",
+   "category": "Luminaires",
+   "width": 35,
+   "depth": 35,
+   "height": 160
+  },
+  "lampRoundTable": {
+   "name": "Lampe de table ronde",
+   "category": "Luminaires",
+   "width": 25,
+   "depth": 25,
+   "height": 50,
+   "pose": "onTop"
+  },
+  "lampSquareCeiling": {
+   "name": "Suspension carrée",
+   "category": "Luminaires",
+   "width": 30,
+   "depth": 30,
+   "height": 55,
+   "ceiling": true
+  },
+  "lampSquareFloor": {
+   "name": "Lampadaire colonne",
+   "category": "Luminaires",
+   "width": 30,
+   "depth": 30,
+   "height": 160
+  },
+  "lampSquareTable": {
+   "name": "Lampe de table carrée",
+   "category": "Luminaires",
+   "width": 25,
+   "depth": 25,
+   "height": 50,
+   "pose": "onTop"
+  },
+  "lampWall": {
+   "name": "Applique murale",
+   "category": "Luminaires",
+   "width": 40,
+   "depth": 25,
+   "height": 15,
+   "pose": "wall",
+   "elevation": 180
+  },
+  "laptop": {
+   "name": "Ordinateur portable",
+   "category": "Bureau et repas",
+   "width": 35,
+   "depth": 25,
+   "height": 22,
+   "pose": "onTop"
+  },
+  "loungeChair": {
+   "name": "Fauteuil club",
+   "category": "Séjour",
+   "width": 85,
+   "depth": 85,
+   "height": 80
+  },
+  "loungeChairRelax": {
+   "name": "Fauteuil relax",
+   "category": "Séjour",
+   "width": 85,
+   "depth": 110,
+   "height": 100
+  },
+  "loungeDesignChair": {
+   "name": "Fauteuil design",
+   "category": "Séjour",
+   "width": 95,
+   "depth": 80,
+   "height": 70
+  },
+  "loungeDesignSofa": {
+   "name": "Canapé design",
+   "category": "Séjour",
+   "width": 220,
+   "depth": 85,
+   "height": 70
+  },
+  "loungeDesignSofaCorner": {
+   "name": "Canapé d'angle design",
+   "category": "Séjour",
+   "width": 250,
+   "depth": 250,
+   "height": 70
+  },
+  "loungeSofa": {
+   "name": "Canapé club",
+   "category": "Séjour",
+   "width": 180,
+   "depth": 85,
+   "height": 85
+  },
+  "loungeSofaCorner": {
+   "name": "Canapé d'angle club",
+   "category": "Séjour",
+   "width": 220,
+   "depth": 220,
+   "height": 85
+  },
+  "loungeSofaLong": {
+   "name": "Canapé méridienne",
+   "category": "Séjour",
+   "width": 220,
+   "depth": 160,
+   "height": 85
+  },
+  "loungeSofaOttoman": {
+   "name": "Repose-pieds",
+   "category": "Séjour",
+   "width": 85,
+   "depth": 85,
+   "height": 45,
+   "pose": "tuckable"
+  },
+  "pillow": {
+   "name": "Coussin",
+   "category": "Décoration",
+   "width": 45,
+   "depth": 15,
+   "height": 45,
+   "pose": "onTop"
+  },
+  "pillowBlue": {
+   "name": "Coussin bleu",
+   "category": "Décoration",
+   "width": 45,
+   "depth": 12,
+   "height": 28,
+   "pose": "onTop"
+  },
+  "pillowBlueLong": {
+   "name": "Coussin long bleu",
+   "category": "Décoration",
+   "width": 90,
+   "depth": 15,
+   "height": 40,
+   "pose": "onTop"
+  },
+  "pillowLong": {
+   "name": "Coussin long",
+   "category": "Décoration",
+   "width": 70,
+   "depth": 15,
+   "height": 40,
+   "pose": "onTop"
+  },
+  "plantSmall1": {
+   "name": "Petite plante 1",
+   "category": "Décoration",
+   "width": 20,
+   "depth": 20,
+   "height": 30,
+   "pose": "onTop"
+  },
+  "plantSmall2": {
+   "name": "Petite plante 2",
+   "category": "Décoration",
+   "width": 20,
+   "depth": 20,
+   "height": 30,
+   "pose": "onTop"
+  },
+  "plantSmall3": {
+   "name": "Petite plante 3",
+   "category": "Décoration",
+   "width": 20,
+   "depth": 20,
+   "height": 30,
+   "pose": "onTop"
+  },
+  "pottedPlant": {
+   "name": "Grande plante en pot",
+   "category": "Décoration",
+   "width": 45,
+   "depth": 50,
+   "height": 130
+  },
+  "radio": {
+   "name": "Radio",
+   "category": "Séjour",
+   "width": 35,
+   "depth": 12,
+   "height": 25,
+   "pose": "onTop"
+  },
+  "rugDoormat": {
+   "name": "Paillasson",
+   "category": "Décoration",
+   "width": 80,
+   "depth": 50,
+   "height": 1,
+   "pose": "covering"
+  },
+  "rugRectangle": {
+   "name": "Tapis à bordure",
+   "category": "Décoration",
+   "width": 200,
+   "depth": 120,
+   "height": 1,
+   "pose": "covering"
+  },
+  "rugRound": {
+   "name": "Tapis rond à bordure",
+   "category": "Décoration",
+   "width": 160,
+   "depth": 160,
+   "height": 1,
+   "pose": "covering"
+  },
+  "rugRounded": {
+   "name": "Tapis ovale",
+   "category": "Décoration",
+   "width": 200,
+   "depth": 120,
+   "height": 1,
+   "pose": "covering"
+  },
+  "rugSquare": {
+   "name": "Tapis carré",
+   "category": "Décoration",
+   "width": 160,
+   "depth": 160,
+   "height": 1,
+   "pose": "covering"
+  },
+  "shower": {
+   "name": "Cabine de douche",
+   "category": "Salle de bain",
+   "width": 90,
+   "depth": 90,
+   "height": 200
+  },
+  "showerRound": {
+   "name": "Cabine de douche arrondie",
+   "category": "Salle de bain",
+   "width": 90,
+   "depth": 90,
+   "height": 200
+  },
+  "sideTable": {
+   "name": "Console fine",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 40,
+   "height": 80,
+   "acceptsUnder": true
+  },
+  "sideTableDrawers": {
+   "name": "Console à tiroirs",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 40,
+   "height": 80,
+   "acceptsUnder": true
+  },
+  "speaker": {
+   "name": "Enceinte colonne",
+   "category": "Séjour",
+   "width": 25,
+   "depth": 25,
+   "height": 100
+  },
+  "speakerSmall": {
+   "name": "Enceinte compacte",
+   "category": "Séjour",
+   "width": 20,
+   "depth": 20,
+   "height": 35,
+   "pose": "onTop"
+  },
+  "stairs": {
+   "name": "Escalier plein",
+   "category": "Structure",
+   "width": 90,
+   "depth": 300,
+   "height": 270
+  },
+  "stairsCorner": {
+   "name": "Escalier plein tournant",
+   "category": "Structure",
+   "width": 150,
+   "depth": 250,
+   "height": 270
+  },
+  "stairsOpen": {
+   "name": "Escalier à claire-voie",
+   "category": "Structure",
+   "width": 90,
+   "depth": 300,
+   "height": 270
+  },
+  "stoolBar": {
+   "name": "Tabouret de bar rond",
+   "category": "Cuisine",
+   "width": 40,
+   "depth": 40,
+   "height": 75,
+   "pose": "tuckable"
+  },
+  "stoolBarSquare": {
+   "name": "Tabouret de bar carré",
+   "category": "Cuisine",
+   "width": 35,
+   "depth": 35,
+   "height": 75,
+   "pose": "tuckable"
+  },
+  "table": {
+   "name": "Table en bois",
+   "category": "Bureau et repas",
+   "width": 160,
+   "depth": 85,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "tableCloth": {
+   "name": "Table et chemin de table",
+   "category": "Bureau et repas",
+   "width": 160,
+   "depth": 85,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "tableCoffee": {
+   "name": "Table basse en bois",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 60,
+   "height": 42,
+   "acceptsUnder": true
+  },
+  "tableCoffeeGlass": {
+   "name": "Table basse en verre",
+   "category": "Séjour",
+   "width": 110,
+   "depth": 60,
+   "height": 42,
+   "acceptsUnder": true
+  },
+  "tableCoffeeGlassSquare": {
+   "name": "Table basse carrée en verre",
+   "category": "Séjour",
+   "width": 70,
+   "depth": 70,
+   "height": 42,
+   "acceptsUnder": true
+  },
+  "tableCoffeeSquare": {
+   "name": "Table basse carrée",
+   "category": "Séjour",
+   "width": 70,
+   "depth": 70,
+   "height": 42,
+   "acceptsUnder": true
+  },
+  "tableCross": {
+   "name": "Table à pieds croisés",
+   "category": "Bureau et repas",
+   "width": 170,
+   "depth": 85,
+   "height": 76,
+   "acceptsUnder": true
+  },
+  "tableCrossCloth": {
+   "name": "Table à pieds croisés et chemin",
+   "category": "Bureau et repas",
+   "width": 170,
+   "depth": 85,
+   "height": 76,
+   "acceptsUnder": true
+  },
+  "tableGlass": {
+   "name": "Table en verre",
+   "category": "Bureau et repas",
+   "width": 160,
+   "depth": 85,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "tableRound": {
+   "name": "Table hexagonale",
+   "category": "Bureau et repas",
+   "width": 100,
+   "depth": 110,
+   "height": 75,
+   "acceptsUnder": true
+  },
+  "televisionModern": {
+   "name": "Téléviseur écran plat",
+   "category": "Séjour",
+   "width": 120,
+   "depth": 25,
+   "height": 75,
+   "pose": "onTop"
+  },
+  "televisionVintage": {
+   "name": "Téléviseur ancien",
+   "category": "Séjour",
+   "width": 60,
+   "depth": 45,
+   "height": 45,
+   "pose": "onTop"
+  },
+  "toaster": {
+   "name": "Grille-pain",
+   "category": "Cuisine",
+   "width": 30,
+   "depth": 18,
+   "height": 20,
+   "pose": "onTop"
+  },
+  "toilet": {
+   "name": "WC à réservoir",
+   "category": "Salle de bain",
+   "width": 40,
+   "depth": 70,
+   "height": 80
+  },
+  "toiletSquare": {
+   "name": "WC carré",
+   "category": "Salle de bain",
+   "width": 40,
+   "depth": 65,
+   "height": 80
+  },
+  "trashcan": {
+   "name": "Poubelle",
+   "category": "Cuisine",
+   "width": 30,
+   "depth": 35,
+   "height": 65
+  },
+  "washer": {
+   "name": "Lave-linge à hublot",
+   "category": "Salle de bain",
+   "width": 60,
+   "depth": 60,
+   "height": 85
+  },
+  "washerDryerStacked": {
+   "name": "Colonne lave-linge et sèche-linge",
+   "category": "Salle de bain",
+   "width": 60,
+   "depth": 60,
+   "height": 175
+  }
+ },
+ "exclude": {
+  "doorway": "building part (the app draws walls, floors and openings)",
+  "doorwayFront": "building part (the app draws walls, floors and openings)",
+  "doorwayOpen": "building part (the app draws walls, floors and openings)",
+  "floorCorner": "building part (the app draws walls, floors and openings)",
+  "floorCornerRound": "building part (the app draws walls, floors and openings)",
+  "floorFull": "building part (the app draws walls, floors and openings)",
+  "floorHalf": "building part (the app draws walls, floors and openings)",
+  "paneling": "building part (the app draws walls, floors and openings)",
+  "wall": "building part (the app draws walls, floors and openings)",
+  "wallCorner": "building part (the app draws walls, floors and openings)",
+  "wallCornerRond": "building part (the app draws walls, floors and openings)",
+  "wallDoorway": "building part (the app draws walls, floors and openings)",
+  "wallDoorwayWide": "building part (the app draws walls, floors and openings)",
+  "wallHalf": "building part (the app draws walls, floors and openings)",
+  "wallWindow": "building part (the app draws walls, floors and openings)",
+  "wallWindowSlide": "building part (the app draws walls, floors and openings)",
+  "bear": "hunting trophy",
+  "stairsOpenSingle": "same as stairsOpen",
+  "televisionAntenna": "accessory",
+  "kitchenBarEnd": "fragment of the bar"
+ },
+ "override": {
+  "stairs": {
+   "rotateY": 90
+  },
+  "stairsCorner": {
+   "rotateY": 90
+  },
+  "stairsOpen": {
+   "rotateY": 90
+  }
+ }
+}
